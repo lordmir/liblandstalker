@@ -60,7 +60,6 @@ std::vector<uint8_t>::const_iterator BitBarrelWriter::End() const
     return m_buffer.cend();
 }
 
-template void BitBarrelWriter::Write(bool);
 template void BitBarrelWriter::Write(uint8_t);
 template void BitBarrelWriter::Write(uint16_t);
 template void BitBarrelWriter::Write(uint32_t);

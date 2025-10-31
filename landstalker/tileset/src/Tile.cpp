@@ -156,9 +156,9 @@ void Tile::SetTileValue(uint16_t value)
 {
     m_index = value & 0x7FF;
     m_attrs = TileAttributes();
-    if (value && 0x8000) m_attrs.setAttribute(TileAttributes::Attribute::ATTR_PRIORITY);
-    if (value && 0x1000) m_attrs.setAttribute(TileAttributes::Attribute::ATTR_VFLIP);
-    if (value && 0x0800) m_attrs.setAttribute(TileAttributes::Attribute::ATTR_HFLIP);
+    if (value & 0x8000) m_attrs.setAttribute(TileAttributes::Attribute::ATTR_PRIORITY);
+    if (value & 0x1000) m_attrs.setAttribute(TileAttributes::Attribute::ATTR_VFLIP);
+    if (value & 0x0800) m_attrs.setAttribute(TileAttributes::Attribute::ATTR_HFLIP);
 }
 
 TileAttributes& Tile::Attributes()

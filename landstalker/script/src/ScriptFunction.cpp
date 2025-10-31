@@ -849,7 +849,7 @@ bool ProgressFlagMapping::IsEndOfFunction() const
 ActionTable::ActionTable(AsmFile& file)
 {
     AsmFile::ScriptAction action;
-    while (file.Read(action))
+    while (file.Read<AsmFile::ScriptAction>(action))
     {
         actions.push_back(action);
         if (file.IsLabel())
@@ -977,14 +977,14 @@ bool Action::operator!=(const Action& rhs) const
 
 Action::operator AsmFile::ScriptAction() const
 {
-    if (!action)
-    {
-        return std::nullopt;
-    }
     return std::visit([](const auto& arg)
         {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, ScriptFunction>)
+            if constexpr (std::is_same_v<T, std::monostate>)
+            {
+                return AsmFile::ScriptAction();
+            }
+            else if constexpr (std::is_same_v<T, ScriptFunction>)
             {
                 return AsmFile::ScriptAction();
             }
@@ -996,7 +996,7 @@ Action::operator AsmFile::ScriptAction() const
             {
                 return AsmFile::ScriptAction(arg);
             }
-        }, *action);
+        }, action);
 }
 
 void Action::ToAsm(AsmFile& file) const
@@ -1007,14 +1007,14 @@ void Action::ToAsm(AsmFile& file) const
 
 void Action::ActionToAsm(AsmFile& file, int p_offset) const
 {
-    if (!action)
-    {
-        throw std::runtime_error("Invalid Action");
-    }
     return std::visit([&](const auto& arg)
         {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::pair<std::string, ScriptFunction>>)
+            if constexpr (std::is_same_v<T, std::monostate>)
+            {
+                throw std::runtime_error("Invalid Action");
+            }
+            else if constexpr (std::is_same_v<T, std::pair<std::string, ScriptFunction>>)
             {
                 file << AsmFile::ScriptAction();
             }
@@ -1026,7 +1026,7 @@ void Action::ActionToAsm(AsmFile& file, int p_offset) const
             {
                 file << AsmFile::ScriptAction(AsmFile::ScriptJump(arg.func, p_offset));
             }
-        }, *action);
+        }, action);
 }
 
 std::string Action::ToYaml(int indent) const
@@ -1040,14 +1040,14 @@ std::string Action::ToYaml(int indent) const
 std::string Action::ActionToYaml(int indent) const
 {
     std::ostringstream ss;
-    if (!action)
-    {
-        ss << std::endl;
-    }
     std::visit([&](const auto& arg)
         {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, ScriptFunction>)
+            if constexpr (std::is_same_v<T, std::monostate>)
+            {
+                ss << std::endl;
+            }
+            else if constexpr (std::is_same_v<T, ScriptFunction>)
             {
                 ss << arg.ToYaml(indent);
             }
@@ -1059,52 +1059,50 @@ std::string Action::ActionToYaml(int indent) const
             {
                 ss << std::string(indent, ' ') << "- Jump: " << arg.func << std::endl;
             }
-        }, *action);
+        }, action);
     return ss.str();
 }
 
 std::string Action::Print(int indent) const
 {
     std::ostringstream ss;
-    if (!action)
-    {
-        ss << std::string(indent, ' ') << "Unknown Action" << std::endl;
-    }
-    else
-    {
-        std::visit([&](const auto& arg)
+    std::visit([&](const auto& arg)
+        {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, std::monostate>)
             {
-                using T = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<T, AsmFile::ScriptId>)
-                {
-                    ss << std::string(indent, ' ') << StrPrintf("Load Script ID %d", arg.script_id) << std::endl;
-                }
-                else if constexpr (std::is_same_v<T, AsmFile::ScriptJump>)
-                {
-                    ss << std::string(indent, ' ') << "Jump to function " << arg.func << std::endl;
-                }
-                else if constexpr (std::is_same_v<T, ScriptFunction>)
-                {
-                    ss << arg.Print(indent);
-                }
-            }, *action);
-    }
+                ss << std::string(indent, ' ') << "Unknown Action" << std::endl;
+            }
+            else if constexpr (std::is_same_v<T, AsmFile::ScriptId>)
+            {
+                ss << std::string(indent, ' ') << StrPrintf("Load Script ID %d", arg.script_id) << std::endl;
+            }
+            else if constexpr (std::is_same_v<T, AsmFile::ScriptJump>)
+            {
+                ss << std::string(indent, ' ') << "Jump to function " << arg.func << std::endl;
+            }
+            else if constexpr (std::is_same_v<T, ScriptFunction>)
+            {
+                ss << arg.Print(indent);
+            }
+        }, action);
     return ss.str();
 }
 
 bool Action::IsEndOfFunction() const
 {
-    return (action && !std::holds_alternative<AsmFile::ScriptId>(*action));
+    return std::holds_alternative<AsmFile::ScriptId>(action);
 }
 
-}
+} // namespace Statements
 
 ScriptFunction::ScriptFunction(const std::string& p_name, const std::vector<ScriptStatement>& p_statements)
-    : name(p_name), statements(p_statements)
+    : name(p_name), statements(std::make_unique<ScriptStatementVector>(p_statements))
 {
 }
 
 ScriptFunction::ScriptFunction(AsmFile& file)
+  : statements(std::make_unique<ScriptStatementVector>())
 {
     while (file.IsGood())
     {
@@ -1131,9 +1129,9 @@ ScriptFunction::ScriptFunction(AsmFile& file)
         }
         else if (std::holds_alternative<AsmFile::ScriptId>(file.Peek()) || std::holds_alternative<AsmFile::ScriptJump>(file.Peek()))
         {
-            statements.push_back(Statements::ActionTable(file));
+            statements->push_back(Statements::ActionTable(file));
         }
-        if (std::visit([](const auto& arg) { return arg.IsEndOfFunction(); }, statements.back()))
+        if (std::visit([](const auto& arg) { return arg.IsEndOfFunction(); }, statements->back()))
         {
             break;
         }
@@ -1141,6 +1139,7 @@ ScriptFunction::ScriptFunction(AsmFile& file)
 }
 
 ScriptFunction::ScriptFunction(const YAML::Node::const_iterator& it)
+  : statements(std::make_unique<ScriptStatementVector>())
 {
     name = (*it)["Function"].as<std::string>();
     for (auto statement_it = (*it)["Statements"].begin(); statement_it != (*it)["Statements"].end(); ++statement_it)
@@ -1159,73 +1158,87 @@ ScriptFunction::ScriptFunction(const YAML::Node::const_iterator& it)
 
         if (statement_type == "PlaySound")
         {
-            statements.push_back(Statements::PlaySound(statement_it));
+            statements->push_back(Statements::PlaySound(statement_it));
         }
         else if (statement_type == "Action")
         {
-            statements.push_back(Statements::Action(statement_it->begin()->second.begin()));
+            statements->push_back(Statements::Action(statement_it->begin()->second.begin()));
         }
         else if (statement_type == "CustomItemAction")
         {
-            statements.push_back(Statements::CustomItemScript(statement_it));
+            statements->push_back(Statements::CustomItemScript(statement_it));
         }
         else if (statement_type == "Sleep")
         {
-            statements.push_back(Statements::Sleep(statement_it));
+            statements->push_back(Statements::Sleep(statement_it));
         }
         else if (statement_type == "DisplayPriceMessage")
         {
-            statements.push_back(Statements::DisplayPrice(statement_it));
+            statements->push_back(Statements::DisplayPrice(statement_it));
         }
         else if (statement_type == "Branch")
         {
-            statements.push_back(Statements::Branch(statement_it));
+            statements->push_back(Statements::Branch(statement_it));
         }
         else if (statement_type == "ActionTable")
         {
-            statements.push_back(Statements::ActionTable(statement_it));
+            statements->push_back(Statements::ActionTable(statement_it));
         }
         else if (statement_type == "Question")
         {
-            statements.push_back(Statements::YesNoPrompt(statement_it));
+            statements->push_back(Statements::YesNoPrompt(statement_it));
         }
         else if (statement_type == "ProgressDependent")
         {
-            statements.push_back(Statements::ProgressList(statement_it));
+            statements->push_back(Statements::ProgressList(statement_it));
         }
         else if (statement_type == "SetFlag")
         {
-            statements.push_back(Statements::SetFlagOnTalk(statement_it));
+            statements->push_back(Statements::SetFlagOnTalk(statement_it));
         }
         else if (statement_type == "CheckFlag")
         {
-            statements.push_back(Statements::IsFlagSet(statement_it));
+            statements->push_back(Statements::IsFlagSet(statement_it));
         }
         else if (statement_type == "Shop")
         {
-            statements.push_back(Statements::ShopInteraction(statement_it));
+            statements->push_back(Statements::ShopInteraction(statement_it));
         }
         else if (statement_type == "Church")
         {
-            statements.push_back(Statements::ChurchInteraction(statement_it));
+            statements->push_back(Statements::ChurchInteraction(statement_it));
         }
         else if (statement_type == "Return")
         {
-            statements.push_back(Statements::Rts());
+            statements->push_back(Statements::Rts());
         }
         else if (statement_type == "Asm")
         {
-            statements.push_back(Statements::CustomAsm(statement_it));
+            statements->push_back(Statements::CustomAsm(statement_it));
         }
         else if (statement_type == "QuestProgress")
         {
-            statements.push_back(Statements::ProgressFlagMapping(statement_it));
+            statements->push_back(Statements::ProgressFlagMapping(statement_it));
         }
         else
         {
             throw std::runtime_error(std::string("Unexpected label ") + statement_type);
         }
     }
+}
+
+ScriptFunction::ScriptFunction(const ScriptFunction& other)
+    : name(other.name), statements(std::make_unique<ScriptStatementVector>(*other.statements))
+{}
+
+ScriptFunction& ScriptFunction::operator= (const ScriptFunction& rhs)
+{
+    if (this != &rhs)
+    {
+        name = rhs.name;
+        statements = std::make_unique<ScriptStatementVector>(*rhs.statements);
+    }
+    return *this;
 }
 
 bool ScriptFunction::operator==(const ScriptFunction& rhs) const
@@ -1241,7 +1254,7 @@ bool ScriptFunction::operator!=(const ScriptFunction& rhs) const
 void ScriptFunction::ToAsm(AsmFile& file) const
 {
     file << AsmFile::Label(name);
-    for (const auto& statement : statements)
+    for (const auto& statement : *statements)
     {
         std::visit([&file](const auto& arg)
             {
@@ -1255,7 +1268,7 @@ std::string ScriptFunction::ToYaml(int indent) const
     std::ostringstream ss;
     ss << std::string(indent, ' ') << "- Function: " << name << std::endl;
     ss << std::string(indent + 2, ' ') << "Statements:" << std::endl;
-    for (const auto& statement : statements)
+    for (const auto& statement : *statements)
     {
         std::visit([&](const auto& arg)
             {
@@ -1269,7 +1282,7 @@ std::string ScriptFunction::Print(int indent) const
 {
     std::ostringstream ss;
     ss << std::string(indent, ' ') << name << std::endl;
-    for (const auto& statement : statements)
+    for (const auto& statement : *statements)
     {
         std::visit([&](const auto& arg)
             {
@@ -1289,47 +1302,47 @@ bool ScriptFunction::ProcessScriptFunction(const AsmFile::Instruction& ins, AsmF
 
     if (funcname == "HandleYesNoPrompt")
     {
-        statements.push_back(Statements::YesNoPrompt(file));
+        statements->push_back(Statements::YesNoPrompt(file));
         return true;
     }
     else if (funcname == "HandleProgressDependentDialogue")
     {
-        statements.push_back(Statements::ProgressList(file));
+        statements->push_back(Statements::ProgressList(file));
         return true;
     }
     else if (funcname == "SetFlagBitOnTalking")
     {
-        statements.push_back(Statements::SetFlagOnTalk(file));
+        statements->push_back(Statements::SetFlagOnTalk(file));
         return true;
     }
     else if (funcname == "CheckFlagAndDisplayMessage")
     {
-        statements.push_back(Statements::IsFlagSet(file));
+        statements->push_back(Statements::IsFlagSet(file));
         return true;
     }
     else if (funcname == "Sleep_0")
     {
-        statements.push_back(Statements::Sleep(file));
+        statements->push_back(Statements::Sleep(file));
         return true;
     }
     else if (funcname == "DisplayItemPriceMessage")
     {
-        statements.push_back(Statements::DisplayPrice(file));
+        statements->push_back(Statements::DisplayPrice(file));
         return true;
     }
     else if (funcname == "HandleShopInterraction")
     {
-        statements.push_back(Statements::ShopInteraction(file));
+        statements->push_back(Statements::ShopInteraction(file));
         return true;
     }
     else if (funcname == "HandleChurchInterraction")
     {
-        statements.push_back(Statements::ChurchInteraction(file));
+        statements->push_back(Statements::ChurchInteraction(file));
         return true;
     }
     else if (funcname == "PickValueBasedOnFlags")
     {
-        statements.push_back(Statements::ProgressFlagMapping(file));
+        statements->push_back(Statements::ProgressFlagMapping(file));
         return true;
     }
     return false;
@@ -1346,13 +1359,13 @@ bool ScriptFunction::ProcessScriptTrap(const AsmFile::Instruction& ins, AsmFile&
     switch (trap_number)
     {
     case 0:
-        statements.push_back(Statements::PlaySound(file));
+        statements->push_back(Statements::PlaySound(file));
         return true;
     case 1:
-        statements.push_back(Statements::Action(file));
+        statements->push_back(Statements::Action(file));
         return true;
     case 2:
-        statements.push_back(Statements::CustomItemScript(file));
+        statements->push_back(Statements::CustomItemScript(file));
         return true;
     default:
         return false;
@@ -1363,23 +1376,23 @@ bool ScriptFunction::ProcessScriptMiscInstructions(const AsmFile::Instruction& i
 {
     if (ins.mnemonic == "bra" && ins.operands.size() == 1 && std::holds_alternative<std::string>(ins.operands[0]))
     {
-        statements.push_back(Statements::Branch(ins));
+        statements->push_back(Statements::Branch(ins));
         return true;
     }
     else if (ins.mnemonic == "rts")
     {
-        statements.push_back(Statements::Rts());
+        statements->push_back(Statements::Rts());
         return true;
     }
     else
     {
-        if (!statements.empty() && std::holds_alternative<Statements::CustomAsm>(statements.back()))
+        if (!statements->empty() && std::holds_alternative<Statements::CustomAsm>(statements->back()))
         {
-            std::get<Statements::CustomAsm>(statements.back()).Append(ins);
+            std::get<Statements::CustomAsm>(statements->back()).Append(ins);
         }
         else
         {
-            statements.push_back(Statements::CustomAsm(ins));
+            statements->push_back(Statements::CustomAsm(ins));
         }
         return true;
     }
@@ -1520,9 +1533,9 @@ void ScriptFunctionTable::Consolidate()
     std::set<std::string> non_relocatable_funcs;
     auto Increment = [&func_call_counts](const Statements::Action& action)
     {
-        if (action.action.has_value() && std::holds_alternative<AsmFile::ScriptJump>(*action.action))
+        if (std::holds_alternative<AsmFile::ScriptJump>(action.action))
         {
-            func_call_counts[std::get<AsmFile::ScriptJump>(*action.action).func]++;
+            func_call_counts[std::get<AsmFile::ScriptJump>(action.action).func]++;
         }
     };
     auto MarkNonRelocatable = [&](const std::string& funcname)
@@ -1538,7 +1551,7 @@ void ScriptFunctionTable::Consolidate()
     };
     for (const auto& func : function_mapping)
     {
-        for (const auto& statement : func.second.statements)
+        for (const auto& statement : *func.second.statements)
         {
             std::visit([&](const auto& arg)
                 {
@@ -1598,11 +1611,11 @@ void ScriptFunctionTable::Consolidate()
     }
     for (const auto& func : function_mapping)
     {
-        if (func.second.statements.size() == 0)
+        if (func.second.statements->size() == 0)
         {
             continue;
         }
-        const auto& last_statement = func.second.statements.back();
+        const auto& last_statement = func.second.statements->back();
         std::visit([&](const auto& arg)
             {
                 if (!arg.IsEndOfFunction())
@@ -1614,9 +1627,9 @@ void ScriptFunctionTable::Consolidate()
     std::vector<std::pair<std::string, Statements::Action&>> action_list;
     auto Replace = [&](Statements::Action& action)
     {
-        if (action.action.has_value() && std::holds_alternative<AsmFile::ScriptJump>(*action.action))
+        if (std::holds_alternative<AsmFile::ScriptJump>(action.action))
         {
-            std::string func_name = std::get<AsmFile::ScriptJump>(*action.action).func;
+            std::string func_name = std::get<AsmFile::ScriptJump>(action.action).func;
             if (func_call_counts.find(func_name) != func_call_counts.cend() && func_call_counts.at(func_name) == 1
                 && function_mapping.find(func_name) != function_mapping.cend()
                 && non_relocatable_funcs.find(func_name) == non_relocatable_funcs.cend())
@@ -1631,7 +1644,7 @@ void ScriptFunctionTable::Consolidate()
         action_list.clear();
         for (auto& func : function_mapping)
         {
-            for (auto& statement : func.second.statements)
+            for (auto& statement : *func.second.statements)
             {
                 std::visit([&](auto& arg)
                     {
@@ -1691,7 +1704,7 @@ void ScriptFunctionTable::Consolidate()
         }
         for (const auto& action : action_list)
         {
-            action.second.action = ScriptFunction(action.first, function_mapping.at(action.first).statements);
+            action.second.action = ScriptFunction(action.first, *function_mapping.at(action.first).statements);
         }
         for (const auto& action : action_list)
         {
@@ -1707,9 +1720,9 @@ void ScriptFunctionTable::Unconsolidate()
     std::vector<std::string> new_funcnames;
     auto Insert = [&](Statements::Action& action)
     {
-        if (action.action.has_value() && std::holds_alternative<ScriptFunction>(*action.action))
+        if (std::holds_alternative<ScriptFunction>(action.action))
         {
-            ScriptFunction consolidated_func = std::get<ScriptFunction>(*action.action);
+            ScriptFunction consolidated_func = std::get<ScriptFunction>(action.action);
             std::string func_name = consolidated_func.name;
             action.action = AsmFile::ScriptJump(func_name, action.offset);
             if (std::find(new_funcnames.cbegin(), new_funcnames.cend(), func_name) == new_funcnames.cend() &&
@@ -1725,7 +1738,7 @@ void ScriptFunctionTable::Unconsolidate()
         for (auto& funcname : funcnames)
         {
             new_funcnames.push_back(funcname);
-            for (auto& statement : function_mapping.at(funcname).statements)
+            for (auto& statement : *function_mapping.at(funcname).statements)
             {
                 std::visit([&](auto& arg)
                     {

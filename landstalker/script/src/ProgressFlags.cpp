@@ -12,7 +12,7 @@ ProgressFlags::Flags ProgressFlags::GetFlags(ScriptFunctionTable& table)
     }
     uint8_t quest = 0;
     std::vector<uint16_t> flaglist;
-    for (const auto& statement : func->statements)
+    for (const auto& statement : *func->statements)
     {
         if (std::holds_alternative<Statements::ProgressFlagMapping>(statement))
         {
@@ -80,14 +80,14 @@ ScriptFunctionTable ProgressFlags::MakeAsm(const ProgressFlags::Flags& flags)
                 }
             }
         }
-        func.statements.emplace_back(Statements::ProgressFlagMapping(std::move(quest_flags)));
+        func.statements->emplace_back(Statements::ProgressFlagMapping(std::move(quest_flags)));
         if (quest < last_quest)
         {
-            func.statements.push_back(Statements::CustomAsm({AsmFile::Instruction("addq", AsmFile::Width::L, {AsmFile::Immediate(1), "a0"})}));
+            func.statements->push_back(Statements::CustomAsm({AsmFile::Instruction("addq", AsmFile::Width::L, {AsmFile::Immediate(1), "a0"})}));
         }
     }
-    func.statements.push_back(Statements::CustomAsm({ AsmFile::Instruction("movea", AsmFile::Width::L, {"(sp)+", "a0"}) }));
-    func.statements.push_back(Statements::Rts());
+    func.statements->push_back(Statements::CustomAsm({ AsmFile::Instruction("movea", AsmFile::Width::L, {"(sp)+", "a0"}) }));
+    func.statements->push_back(Statements::Rts());
     
     table.AddFunction(std::move(func));
     return table;

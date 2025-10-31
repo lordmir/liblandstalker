@@ -49,10 +49,14 @@ public:
 		Statements::ProgressFlagMapping, Statements::Rts
 	>;
 
-	ScriptFunction(const std::string& name, const std::vector<ScriptStatement>& statements = {});
+	using ScriptStatementVector = std::vector<ScriptStatement>;
+
+	ScriptFunction(const std::string& name, const ScriptStatementVector& statements);
 	ScriptFunction(AsmFile& file);
 	ScriptFunction(const YAML::Node::const_iterator& it);
+	ScriptFunction(const ScriptFunction& other);
 
+	ScriptFunction& operator= (const ScriptFunction& rhs);
 	bool operator== (const ScriptFunction& rhs) const;
 	bool operator!= (const ScriptFunction& rhs) const;
 
@@ -64,7 +68,7 @@ public:
 	bool ProcessScriptMiscInstructions(const AsmFile::Instruction& ins);
 
 	std::string name;
-	std::vector<ScriptStatement> statements;
+	std::unique_ptr<ScriptStatementVector> statements;
 };
 
 class ScriptFunctionTable
@@ -102,14 +106,10 @@ namespace Statements
 	struct Action : public Statement
 	{
 		Action() = default;
-		Action(const Action&) = default;
-		Action(Action&&) = default;
 		Action(const AsmFile::ScriptAction& scriptaction);
 		Action(const ScriptFunction& func) : action(func) {}
 		Action(AsmFile& file);
 		Action(const YAML::Node::const_iterator& it);
-		Action& operator=(const Action& rhs) = default;
-		Action& operator=(Action&&) = default;
 		bool operator== (const Action& rhs) const;
 		bool operator!= (const Action& rhs) const;
 		operator AsmFile::ScriptAction() const;
@@ -119,7 +119,7 @@ namespace Statements
 		std::string ActionToYaml(int indent = 0) const;
 		virtual std::string Print(int indent = 0) const override;
 		virtual bool IsEndOfFunction() const override;
-		std::optional<std::variant<AsmFile::ScriptId, AsmFile::ScriptJump, ScriptFunction>> action;
+		std::variant<std::monostate, AsmFile::ScriptId, AsmFile::ScriptJump, ScriptFunction> action;
 		std::size_t offset = 0;
 	};
 

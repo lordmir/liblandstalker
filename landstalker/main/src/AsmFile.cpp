@@ -450,7 +450,6 @@ bool AsmFile::Read(const GotoLabel& label)
 	return true;
 }
 
-template<>
 bool AsmFile::Read(std::filesystem::path& path)
 {
 	bool ret = false;
@@ -503,7 +502,6 @@ bool AsmFile::Read(std::string& value)
 	return ret;
 }
 
-template <>
 bool AsmFile::Read(IncludeFile& value)
 {
 	bool ret = false;
@@ -521,7 +519,7 @@ bool AsmFile::Read(IncludeFile& value)
 	}
 	return ret;
 }
-template <>
+
 bool AsmFile::Read(Label& value)
 {
 	std::size_t pos = m_readptr - m_data.begin();
@@ -533,7 +531,6 @@ bool AsmFile::Read(Label& value)
 	return true;
 }
 
-template <>
 bool AsmFile::Read(ScriptAction& value)
 {
 	bool ret = false;
@@ -557,7 +554,6 @@ bool AsmFile::Read(ScriptAction& value)
 	return ret;
 }
 
-template <>
 bool AsmFile::Read(Instruction& value)
 {
 	bool ret = false;
@@ -631,7 +627,7 @@ bool AsmFile::Write(const Align& align)
 		PushNextLine();
 	}
 	m_nextline.instruction = FindMapKey(INSTRUCTIONS, Inst::ALIGN)->first;
-	m_nextline.operand = ToAsmValue(align.amount);
+	m_nextline.operand = ToAsmValue(align.amount, AsmFile::Base::HEX);
 	return true;
 }
 

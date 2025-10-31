@@ -4,7 +4,6 @@
 #include <cstring>
 #include <png.h>
 #include <numeric>
-#include <emmintrin.h>
 #include <landstalker/misc/include/Utils.h>
 
 #if defined(_MSC_VER)

@@ -203,6 +203,13 @@ public:
 	bool Read(T(&array)[N]);
 	template<typename T, typename... Args>
 	bool Read(T& value, Args&&... args);
+	template<>
+	bool Read(std::string& value);
+	bool Read(IncludeFile& value);
+	bool Read(Label& label);
+	bool Read(std::filesystem::path& label);
+	bool Read(ScriptAction& action);
+	bool Read(Instruction& inst);
 
 	template<typename T>
 	bool Write(const T& data);

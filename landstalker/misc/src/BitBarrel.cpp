@@ -70,16 +70,16 @@ uint8_t BitBarrel::out()
     return tmp;
 }
 
-template <class T>
-T BitBarrel::read() const
-{
-    return static_cast<T>(readBits(sizeof(T) * CHAR_BIT));
-}
-
 template <>
 bool BitBarrel::read() const
 {
     return getNextBit();
+}
+
+template <class T>
+T BitBarrel::read() const
+{
+    return static_cast<T>(readBits(sizeof(T) * CHAR_BIT));
 }
 
 uint32_t BitBarrel::readBits(size_t numBits) const
@@ -117,7 +117,6 @@ void BitBarrel::advanceNextByte()
     }
 }
 
-template bool     BitBarrel::read() const;
 template uint8_t  BitBarrel::read() const;
 template uint16_t BitBarrel::read() const;
 template uint32_t BitBarrel::read() const;
