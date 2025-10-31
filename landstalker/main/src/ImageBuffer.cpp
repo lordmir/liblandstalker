@@ -1,6 +1,7 @@
 #include <landstalker/main/include/ImageBuffer.h>
 
 #include <cassert>
+#include <cstring>
 #include <png.h>
 #include <numeric>
 #include <emmintrin.h>
