@@ -1,19 +1,61 @@
 cmake_minimum_required(VERSION 3.16)
-set(MODULE_NAME "liblandstalker")
-project(${MODULE_NAME})
+project(liblandstalker)
 set(CMAKE_CXX_STANDARD 20)
+include(ExternalProject)
 
-add_library(${MODULE_NAME} STATIC)
-if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(${MODULE_NAME} PRIVATE -D_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING)
-endif()
-add_subdirectory("landstalker")
-target_include_directories(${MODULE_NAME} PUBLIC ".")
-if(EMSCRIPTEN)
-    add_compile_options(-sUSE_LIBPNG)
-    add_definitions("-sUSE_LIBPNG -fexceptions")
-    set(CMAKE_EXE_LINKER_FLAGS "-sASSERTIONS -sUSE_LIBPNG")
+# set the output directory for built objects.
+# This makes sure that the dynamic library goes into the build directory automatically.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
+
+find_package(Git QUIET)
+if(GIT_FOUND)
+    message(STATUS "Git found: initializing/updating submodules...")
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE _git_submodule_result
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    if(NOT _git_submodule_result EQUAL 0)
+        message(WARNING "git submodule update --init --recursive failed with exit code ${_git_submodule_result}")
+    endif()
 else()
-    target_link_libraries(${MODULE_NAME} PRIVATE png_static)
+    message(STATUS "Git not found; skipping automatic git submodule initialization")
 endif()
-target_link_libraries(${MODULE_NAME} PRIVATE yaml-cpp)
+
+set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(ZLIB_BUILD_SHARED ON CACHE BOOL "" FORCE)
+set(ZLIB_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(ZLIB_BUILD_MINIZIP OFF CACHE BOOL "" FORCE)
+ExternalProject_Add(zlib
+  PREFIX zlib
+  GIT_REPOSITORY https://github.com/madler/zlib.git
+  CMAKE_CACHE_ARGS
+        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/zlib
+)
+
+# set(ZLIB_ROOT "${CMAKE_SOURCE_DIR}/third_party/zlib")
+# add_subdirectory(third_party/zlib EXCLUDE_FROM_ALL)
+
+# set(ZLIB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/zlib/")
+# set(ZLIB_INCLUDE_DIRS ${ZLIB_INCLUDE_DIR})
+# set(ZLIB_LIBRARY zlib)
+# set(PNG_SHARED OFF CACHE BOOL "" FORCE)
+# set(PNG_STATIC ON CACHE BOOL "" FORCE)
+# set(PNG_TOOLS OFF CACHE BOOL "" FORCE)
+# set(PNG_BUILD_ZLIB OFF CACHE BOOL "" FORCE)
+# set(PNG_TESTS OFF CACHE BOOL "" FORCE)
+# add_subdirectory(third_party/libpng EXCLUDE_FROM_ALL)
+
+# set(YAML_CPP_BUILD_CONTRIB ON CACHE BOOL "" FORCE)
+# set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+# set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+# set(YAML_CPP_INSTALL OFF CACHE BOOL "" FORCE)
+# set(YAML_CPP_FORMAT_SOURCE OFF CACHE BOOL "" FORCE)
+# set(YAML_CPP_DISABLE_UNINSTALL ON CACHE BOOL "" FORCE)
+# set(YAML_USE_SYSTEM_GTEST OFF CACHE BOOL "" FORCE)
+# set(YAML_ENABLE_PIC ON CACHE BOOL "" FORCE)
+# add_subdirectory(third_party/yaml-cpp EXCLUDE_FROM_ALL)
+
+# add_subdirectory(landstalker)

@@ -25,30 +25,24 @@ jobs:
                 gcc-11 \
                 g++-11 \
                 cmake \
-                libx11-dev \
-                xserver-xorg-dev \
-                xorg-dev \
-                libwayland-server0 \
-                libwayland-cursor0 \
-                libwayland-client0
 
       - name: 'Configure'
-        working-directory: ${{github.workspace}}/landstalker_engine
+        working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build
 
       - name: 'Build'
-        working-directory: ${{github.workspace}}/landstalker_engine
+        working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake --build build --config Release --verbose
 
       - name: Compress artifacts
-        working-directory: ${{github.workspace}}/landstalker_engine/build
+        working-directory: ${{github.workspace}}/liblandstalker/build
         shell: bash
-        run: tar zvcf landstalker_engine.tar.gz dds520 libSDL3.so assets/
+        run: find . -name "*.h" -o -name "*.a" -o -name "*.so" | tar czvf liblandstalker.tar.gz -T -
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: landstalker_engine_binary_ubuntu
-          path: ${{github.workspace}}/landstalker_engine/build/landstalker_engine.tar.gz
+          name: liblandstalker_binary_ubuntu
+          path: ${{github.workspace}}/liblandstalker/build/liblandstalker.tar.gz
