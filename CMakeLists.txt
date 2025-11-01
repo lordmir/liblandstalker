@@ -3,59 +3,51 @@ project(liblandstalker)
 set(CMAKE_CXX_STANDARD 20)
 include(ExternalProject)
 
-# set the output directory for built objects.
-# This makes sure that the dynamic library goes into the build directory automatically.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
-
-find_package(Git QUIET)
-if(GIT_FOUND)
-    message(STATUS "Git found: initializing/updating submodules...")
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        RESULT_VARIABLE _git_submodule_result
-        OUTPUT_QUIET ERROR_QUIET
-    )
-    if(NOT _git_submodule_result EQUAL 0)
-        message(WARNING "git submodule update --init --recursive failed with exit code ${_git_submodule_result}")
-    endif()
-else()
-    message(STATUS "Git not found; skipping automatic git submodule initialization")
-endif()
-
-set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(ZLIB_BUILD_SHARED ON CACHE BOOL "" FORCE)
-set(ZLIB_BUILD_STATIC ON CACHE BOOL "" FORCE)
-set(ZLIB_BUILD_MINIZIP OFF CACHE BOOL "" FORCE)
 ExternalProject_Add(zlib
-  PREFIX zlib
-  GIT_REPOSITORY https://github.com/madler/zlib.git
-  CMAKE_CACHE_ARGS
+    PREFIX zlib
+    GIT_REPOSITORY https://github.com/madler/zlib.git
+    CMAKE_CACHE_ARGS
         -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/zlib
+        -DZLIB_BUILD_SHARED:BOOL=OFF
+        -DZLIB_BUILD_STATIC:BOOL=ON
+        -DZLIB_BUILD_TESTS:BOOL=OFF
+        -DZLIB_BUILD_MINIZIP:BOOL=OFF
+        -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
 )
+find_package(ZLIB PATHS ${CMAKE_CURRENT_BINARY_DIR}/zlib)
 
-# set(ZLIB_ROOT "${CMAKE_SOURCE_DIR}/third_party/zlib")
-# add_subdirectory(third_party/zlib EXCLUDE_FROM_ALL)
+ExternalProject_Add(libpng
+    PREFIX libpng
+    GIT_REPOSITORY https://github.com/pnggroup/libpng.git
+	INSTALL_DIR "${CMAKE_BINARY_DIR}/libpng"
+    CMAKE_CACHE_ARGS
+        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/libpng
+        -DPNG_SHARED:BOOL=OFF
+        -DPNG_STATIC:BOOL=ON
+        -DPNG_TOOLS:BOOL=OFF
+        -DPNG_BUILD_ZLIB:BOOL=OFF
+        -DPNG_TESTS:BOOL=OFF
+        -DZLIB_ROOT:PATH=${CMAKE_CURRENT_BINARY_DIR}/zlib
+)
+add_library(png_static STATIC IMPORTED)
+set_target_properties(png_static PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/libpng/lib)
+set_target_properties(png_static PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/libpng/include)
 
-# set(ZLIB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/zlib/")
-# set(ZLIB_INCLUDE_DIRS ${ZLIB_INCLUDE_DIR})
-# set(ZLIB_LIBRARY zlib)
-# set(PNG_SHARED OFF CACHE BOOL "" FORCE)
-# set(PNG_STATIC ON CACHE BOOL "" FORCE)
-# set(PNG_TOOLS OFF CACHE BOOL "" FORCE)
-# set(PNG_BUILD_ZLIB OFF CACHE BOOL "" FORCE)
-# set(PNG_TESTS OFF CACHE BOOL "" FORCE)
-# add_subdirectory(third_party/libpng EXCLUDE_FROM_ALL)
+ExternalProject_Add(yaml_cpp
+    PREFIX yaml-cpp
+    GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+    CMAKE_CACHE_ARGS
+        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/yaml-cpp
+        -DYAML_CPP_BUILD_CONTRIB:BOOL=ON
+        -DYAML_CPP_BUILD_TOOLS:BOOL=OFF
+        -DYAML_BUILD_SHARED_LIBS:BOOL=OFF
+        -DYAML_CPP_INSTALL:BOOL=ON
+        -DYAML_CPP_FORMAT_SOURCE:BOOL=OFF
+        -DYAML_CPP_DISABLE_UNINSTALL:BOOL=ON
+        -DYAML_USE_SYSTEM_GTEST:BOOL=OFF
+        -DYAML_ENABLE_PIC:BOOL=ON
+)
+find_package(yaml-cpp PATHS ${CMAKE_CURRENT_BINARY_DIR}/yaml-cpp)
 
-# set(YAML_CPP_BUILD_CONTRIB ON CACHE BOOL "" FORCE)
-# set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-# set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-# set(YAML_CPP_INSTALL OFF CACHE BOOL "" FORCE)
-# set(YAML_CPP_FORMAT_SOURCE OFF CACHE BOOL "" FORCE)
-# set(YAML_CPP_DISABLE_UNINSTALL ON CACHE BOOL "" FORCE)
-# set(YAML_USE_SYSTEM_GTEST OFF CACHE BOOL "" FORCE)
-# set(YAML_ENABLE_PIC ON CACHE BOOL "" FORCE)
-# add_subdirectory(third_party/yaml-cpp EXCLUDE_FROM_ALL)
 
-# add_subdirectory(landstalker)
+add_subdirectory(landstalker)

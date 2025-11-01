@@ -23,25 +23,25 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v5
         with:
-          path: landstalker_engine
+          path: liblandstalker
           submodules: 'recursive'
 
       - name: 'Configure'
-        working-directory: ${{github.workspace}}/landstalker_engine
+        working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build
 
       - name: 'Build'
-        working-directory: ${{github.workspace}}/landstalker_engine
+        working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake --build build --config Release --verbose
 
       - name: Compress artifacts
-        working-directory: ${{github.workspace}}/landstalker_engine/build/Release
-        run: Compress-Archive -Path assets, dds520.exe, SDL3.dll -Destination landstalker_engine.zip
+        working-directory: ${{github.workspace}}/liblandstalker/build/liblandstalker/Release
+        run: Compress-Archive -Path liblandstalker.*, -Destination liblandstalker.zip
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: landstalker_engine_binary_windows
-          path: ${{github.workspace}}/landstalker_engine/build/Release/landstalker_engine.zip
+          name: landstalker_binary_windows
+          path: ${{github.workspace}}/liblandstalker/build/Release/liblandstalker.zip

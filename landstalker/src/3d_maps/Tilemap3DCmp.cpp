@@ -400,7 +400,7 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
         auto result = findMatch(tiles, idx, offsets);
         if ((result.first != 0) || (lz77.back().back_offset_idx != 0))
         {
-            lz77.emplace_back(result.second, result.first, idx);
+            lz77.emplace_back(result.second, result.first, static_cast<int>(idx));
         }
         else
         {
@@ -453,7 +453,7 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
                 {
                     if (count > 0)
                     {
-                        it->vertical_info.emplace_back(right, count);
+                        it->vertical_info.emplace_back(right, static_cast<int>(count));
                         count = 0;
                     }
                     else

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-set(MODULE_NAME "liblandstalker")
+set(MODULE_NAME "landstalker")
 project(${MODULE_NAME})
 set(CMAKE_CXX_STANDARD 20)
 
@@ -14,6 +14,10 @@ if(EMSCRIPTEN)
     add_definitions("-sUSE_LIBPNG -fexceptions")
     set(CMAKE_EXE_LINKER_FLAGS "-sASSERTIONS -sUSE_LIBPNG")
 else()
+    add_dependencies(${MODULE_NAME} png_static) 
     target_link_libraries(${MODULE_NAME} PRIVATE png_static)
 endif()
+
+add_dependencies(${MODULE_NAME} yaml-cpp) 
+
 target_link_libraries(${MODULE_NAME} PRIVATE yaml-cpp)

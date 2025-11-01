@@ -39,10 +39,15 @@ jobs:
       - name: Compress artifacts
         working-directory: ${{github.workspace}}/liblandstalker/build
         shell: bash
-        run: find . -name "*.h" -o -name "*.a" -o -name "*.so" | tar czvf liblandstalker.tar.gz -T -
+        run: |
+          mkdir package
+          cd package
+          cp -r ../liblandstalker.{a,so} .
+          cp -r ../../liblandstalker/include .
+          tar czvf liblandstalker.tar.gz *
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           name: liblandstalker_binary_ubuntu
-          path: ${{github.workspace}}/liblandstalker/build/liblandstalker.tar.gz
+          path: ${{github.workspace}}/liblandstalker/build/package/liblandstalker.tar.gz
