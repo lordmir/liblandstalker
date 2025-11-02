@@ -24,27 +24,31 @@ jobs:
              sudo apt-get install -y \
                 gcc-11 \
                 g++-11 \
-                cmake \
+                cmake
 
-      - name: 'Configure'
+      - name: 'Build Static'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build
+          cmake --build build --config Release -j32
+          cmake --install build --prefix ./lib --config Release
+          cmake --build build --config Debug --j32
+          cmake --install build --prefix ./lib_debug --config Debug
 
-      - name: 'Build'
+      - name: 'Build Shared'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake --build build --config Release --verbose
+          cmake -S . -B build_shared -DLANDSTALKER_BUILD_SHARED=ON
+          cmake --build build_shared --config Release -j32
+          cmake --install build_shared --prefix ./lib --config Release
+          cmake --build build_shared --config Debug -j32
+          cmake --install build_shared --prefix ./lib_debug --config Debug
 
       - name: Compress artifacts
-        working-directory: ${{github.workspace}}/liblandstalker/build
+        working-directory: ${{github.workspace}}/liblandstalker
         shell: bash
         run: |
-          mkdir package
-          cd package
-          cp -r ../liblandstalker.{a,so} .
-          cp -r ../../liblandstalker/include .
-          tar czvf liblandstalker.tar.gz *
+          tar czvf liblandstalker.tar.gz ./lib ./lib_debug
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4

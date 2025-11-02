@@ -26,19 +26,28 @@ jobs:
           path: liblandstalker
           submodules: 'recursive'
 
-      - name: 'Configure'
+      - name: 'Build Static'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build
+          cmake --build build --config Release -j32
+          cmake --install build --prefix ./lib --config Release
+          cmake --build build --config Debug --j32
+          cmake --install build --prefix ./lib_debug --config Debug
 
-      - name: 'Build'
+      - name: 'Build DLL'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake --build build --config Release --verbose
+          cmake -S . -B build_dll -DLANDSTALKER_BUILD_SHARED=ON
+          cmake --build build_dll --config Release -j32
+          cmake --install build_dll --prefix ./dll --config Release
+          cmake --build build_dll --config Debug -j32
+          cmake --install build_dll --prefix ./dll_debug --config Debug
 
       - name: Compress artifacts
-        working-directory: ${{github.workspace}}/liblandstalker/build/liblandstalker/Release
-        run: Compress-Archive -Path liblandstalker.*, -Destination liblandstalker.zip
+        working-directory: ${{github.workspace}}/liblandstalker
+        run: |
+          Compress-Archive -Path dll/*,dll_debug/*,lib/*,lib_debug/* -Destination liblandstalker.zip
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
