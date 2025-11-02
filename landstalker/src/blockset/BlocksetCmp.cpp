@@ -17,6 +17,8 @@
 #include <landstalker/blockset/Block.h>
 #include <landstalker/tileset/TileAttributes.h>
 
+namespace Landstalker {
+
 template<class T, size_t N>
 class TileQueue
 {
@@ -311,3 +313,5 @@ uint16_t BlocksetCmp::Encode(const Blockset& blocks, uint8_t* dst, size_t bufsiz
     }
     return static_cast<uint16_t>(cbs.GetByteCount());
 }
+
+} // namespace Landstalker

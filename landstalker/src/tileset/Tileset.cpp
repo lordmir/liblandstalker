@@ -7,7 +7,9 @@
 #include <landstalker/misc/LZ77.h>
 #include <landstalker/misc/Literals.h>
 
-static const std::size_t MAXIMUM_CAPACITY = 0x400;
+namespace Landstalker {
+    
+const std::size_t MAXIMUM_CAPACITY = 0x400;
 
 template<class T>
 void HFlip(std::vector<T>& elems, int width)
@@ -639,3 +641,5 @@ std::vector<uint8_t>& Tileset::GetTilePixels(int tile_index)
     }
     return m_tiles[tile_index];
 }
+
+} // namespace Landstalker

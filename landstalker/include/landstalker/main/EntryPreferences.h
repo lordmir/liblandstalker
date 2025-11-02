@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+namespace Landstalker {
+
 class PalettePreferences
 {
 public:
@@ -20,5 +22,7 @@ private:
 	std::vector<std::string> m_recommended_palettes;
 	std::vector<std::string> m_all_palettes;
 };
+
+} // namespace Landstalker
 
 #endif // _ENTRY_PREFERENCES_H_

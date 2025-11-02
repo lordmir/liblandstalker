@@ -6,6 +6,8 @@
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
 
+namespace Landstalker {
+
 WarpList::WarpList(const std::filesystem::path& warp_path, const std::filesystem::path& fall_dest_path, const std::filesystem::path& climb_dest_path, const std::filesystem::path& transition_path)
 {
 	auto warp_buf = ReadBytes(warp_path);
@@ -489,3 +491,5 @@ bool WarpList::Transition::operator>=(const Transition& rhs) const
 {
 	return !(*this < rhs);
 }
+
+} // namespace Landstalker

@@ -14,6 +14,8 @@
 #include <landstalker/main/ScriptData.h>
 #include <landstalker/main/DataTypes.h>
 
+namespace Landstalker {
+
 class GameData : public DataManager
 {
 public:
@@ -68,5 +70,7 @@ private:
     std::map<std::string, std::shared_ptr<AnimatedTilesetEntry>> m_anim_tilesets;
     std::map<std::string, std::shared_ptr<Tilemap2DEntry>> m_tilemaps;
 };
+
+} // namespace Landstalker
 
 #endif // _GAME_DATA_H_

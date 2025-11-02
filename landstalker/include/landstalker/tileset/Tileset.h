@@ -8,7 +8,10 @@
 #include <landstalker/palettes/Palette.h>
 #include <landstalker/tileset/TileAttributes.h>
 #include <landstalker/tileset/Tile.h>
-    
+
+namespace Landstalker
+{
+
 class Tileset
 {
 public:
@@ -90,5 +93,7 @@ private:
     std::vector<std::vector<uint8_t>> m_tiles;
     std::vector<uint8_t> m_colour_indicies;
 };
+
+} // namespace Landstalker
 
 #endif // TILESET_H

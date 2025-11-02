@@ -13,6 +13,8 @@
 #include <landstalker/misc/BitBarrelWriter.h>
 #include <landstalker/misc/Literals.h>
 
+namespace Landstalker {
+
 static uint16_t getCodedNumber(BitBarrel& bb)
 {
     uint16_t exp = 0, num = 0;
@@ -1139,14 +1141,14 @@ Point2D Tilemap3D::PixelToCartesian(const PixelPoint2D& pix, Layer layer) const
 
 IsoPoint2D Tilemap3D::ToIsometric(const Point2D& p, Layer layer) const
 {
-    if (IsPointValid(p, layer) == false) return { -1, -1 };
-
     int xgrid = (p.x - GetLeft()) / 2;
     int ygrid = (2 * (p.y - GetTop())) / 2;
     int x = (ygrid + xgrid - GetHeight() + 1) / 2;
     int y = (ygrid - xgrid + GetHeight() - 1) / 2;
 
-    return IsoPoint2D{ x, y };
+    auto retval = IsoPoint2D{ x, y };
+
+    return IsIsoPointValid(retval) ? retval : IsoPoint2D{0, 0};
 }
 
 IsoPoint2D Tilemap3D::PixelToIsometric(const PixelPoint2D& /*pix*/, Layer /*layer*/) const
@@ -1370,3 +1372,5 @@ bool Tilemap3D::SetHeightmapCell(const HMPoint2D& iso, uint16_t value)
     }
     return false;
 }
+
+} // namespace Landstalker

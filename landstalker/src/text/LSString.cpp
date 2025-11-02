@@ -10,6 +10,8 @@
 #include <landstalker/text/Charset.h>
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 const LSString::CharacterSet& LSString::DEFAULT_CHARACTER_SET = Charset::DEFAULT_ENGLISH_CHARSET;
 
 const LSString::DiacriticMap& LSString::DEFAULT_DIACRITIC_MAP = Charset::DEFAULT_DIACRITIC_MAP;
@@ -259,3 +261,5 @@ void LSString::SetCharset(const CharacterSet& charset)
 {
 	m_charset = charset;
 }
+
+} // namespace Landstalker

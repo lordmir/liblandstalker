@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <array>
 
+namespace Landstalker {
+
 enum class FlagType
 {
 	ENTITY_VISIBILITY,
@@ -116,5 +118,7 @@ struct TreeWarpFlag : public FlagTrigger
 	bool operator==(const TreeWarpFlag& rhs) const;
 	bool operator!=(const TreeWarpFlag& rhs) const;
 };
+
+} // namespace Landstalker
 
 #endif // _FLAGS_H_

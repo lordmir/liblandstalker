@@ -14,6 +14,8 @@
 #include <landstalker/misc/Utils.h>
 #include <landstalker/main/RomOffsets.h>
 
+namespace Landstalker {
+
 class Rom
 {
 public:
@@ -110,6 +112,7 @@ inline T Rom::read(uint32_t offset) const
 		retval <<= (8 % (8 * sizeof(T)));
 		retval |= m_rom[offset + i];
 	}
+
 	return retval;
 }
 
@@ -297,5 +300,7 @@ inline void Rom::write_array(const C<T, N>& arr, uint32_t offset)
 {
 	write_array(arr.begin(), arr.end(), offset);
 }
+
+} // namespace Landstalker
 
 #endif // ROM_H

@@ -3,6 +3,8 @@
 
 #include <landstalker/tileset/Tileset.h>
 
+namespace Landstalker {
+
 class AnimatedTileset : public Tileset
 {
 public:
@@ -40,5 +42,7 @@ private:
     uint8_t m_frames;
     uint8_t m_base_tileset;
 };
+
+} // namespace Landstalker
 
 #endif // _ANIMATED_TILESET_H_

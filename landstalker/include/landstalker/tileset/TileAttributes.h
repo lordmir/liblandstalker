@@ -1,6 +1,8 @@
 #ifndef TILEATTRIBUTES_H
 #define TILEATTRIBUTES_H
 
+namespace Landstalker {
+
 class TileAttributes
 {
 public:
@@ -19,5 +21,7 @@ private:
     bool vflip_;
     bool priority_;
 };
+
+} // namespace Landstalker
 
 #endif // TILEATTRIBUTES_H

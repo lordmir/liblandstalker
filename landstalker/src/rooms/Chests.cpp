@@ -1,6 +1,8 @@
 #include <landstalker/rooms/Chests.h>
 #include <landstalker/main/GameData.h>
 
+namespace Landstalker {
+
 Chests::Chests(const std::vector<uint8_t>& offsets, const std::vector<uint8_t>& contents)
 {
 	uint8_t max_offset = offsets[0];
@@ -163,3 +165,5 @@ bool Chests::CleanupRoomChests(const GameData& gd)
 	}
 	return chest_count < 0x100;
 }
+
+} // namespace Landstalker

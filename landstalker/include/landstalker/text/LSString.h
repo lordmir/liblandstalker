@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <unordered_map>
 
+namespace Landstalker {
+
 class LSString
 {
 public:
@@ -51,5 +53,7 @@ private:
 	StringType ApplyDiacritics(const StringType& str) const;
 	StringType RemoveDiacritics(const StringType& str) const;
 };
+
+} // namespace Landstalker
 
 #endif // _LS_STRING_H_

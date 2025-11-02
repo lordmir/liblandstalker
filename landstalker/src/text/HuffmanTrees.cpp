@@ -9,6 +9,8 @@
 #include <landstalker/misc/BitBarrelWriter.h>
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 HuffmanTrees::HuffmanTrees()
 	: m_num_chars(0)
 {
@@ -127,3 +129,5 @@ void HuffmanTrees::RecalculateTrees(const std::vector<std::shared_ptr<LSString>>
 		m_trees[c.first] = std::make_shared<HuffmanTree>(c.second);
 	}
 }
+
+} // namespace Landstalker

@@ -6,6 +6,8 @@
 #include <fstream>
 #include <functional>
 
+namespace Landstalker {
+
 std::map<std::pair<std::wstring, int>, std::wstring> Labels::m_data;
 
 static const std::map<std::wstring, std::wstring> FORMAT_STRINGS
@@ -180,3 +182,5 @@ bool Labels::IsExistingValid(const std::wstring& what)
     }
     return true;
 }
+
+} // namespace Landstalker

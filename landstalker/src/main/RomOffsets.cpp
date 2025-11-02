@@ -1,6 +1,8 @@
 #include <landstalker/main/RomOffsets.h>
 #include <landstalker/main/RomLabels.h>
 
+namespace Landstalker {
+
 namespace RomOffsets
 {
 	using namespace RomLabels;
@@ -257,3 +259,4 @@ namespace RomOffsets
 	};
 
 } // namespace RomOffsets
+} // namespace Landstalker

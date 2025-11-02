@@ -11,6 +11,8 @@
 #include <landstalker/sprites/SpriteFrame.h>
 #include <landstalker/main/EntryPreferences.h>
 
+namespace Landstalker {
+
 class TilesetEntry : public DataManager::Entry<Tileset>, public PalettePreferences
 {
 public:
@@ -190,5 +192,7 @@ public:
 private:
 	uint8_t m_sprite;
 };
+
+} // namespace Landstalker
 
 #endif // _DATA_TYPES_H_

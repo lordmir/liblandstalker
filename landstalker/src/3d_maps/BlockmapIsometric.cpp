@@ -1,5 +1,7 @@
 #include <landstalker/3d_maps/BlockmapIsometric.h>
 
+namespace Landstalker {
+
 BlockmapIsometric::BlockmapIsometric(std::size_t width, std::size_t height, std::size_t tile_width, std::size_t tile_height, std::size_t left, std::size_t top, uint8_t palette)
 : Blockmap2D(width, height, tile_width, tile_height, left, top, palette)
 {
@@ -38,3 +40,5 @@ std::size_t BlockmapIsometric::GetHeightInTiles() const
 {
 	return (GetWidth() + GetHeight() + 1);
 }
+
+} // namespace Landstalker

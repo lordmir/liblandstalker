@@ -3,6 +3,8 @@
 
 #include <landstalker/script/ScriptFunction.h>
 
+namespace Landstalker {
+
 class ProgressFlags
 {
 public:
@@ -14,5 +16,7 @@ public:
 	static std::string ToYaml(ScriptFunctionTable& table);
 	static ScriptFunctionTable FromYaml(const std::string& flags);
 };
+
+} // namespace Landstalker
 
 #endif // _PROGRESS_FLAGS_H_

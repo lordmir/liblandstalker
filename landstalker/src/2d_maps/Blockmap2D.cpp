@@ -4,6 +4,8 @@
 #include <memory>
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 Blockmap2D::Blockmap2D(std::size_t width, std::size_t height, std::size_t tile_width, std::size_t tile_height, std::size_t left, std::size_t top, uint8_t palette)
 	: Tilemap(width, height, tile_width, tile_height, left, top, palette)
 {
@@ -92,3 +94,5 @@ std::size_t Blockmap2D::GetHeightInTiles() const
 {
 	return GetHeight() * MapBlock::GetBlockHeight() + GetTop();
 }
+
+} // namespace Landstalker

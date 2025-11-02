@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <vector>
 
+namespace Landstalker {
+
 struct Point2D
 {
     int x;
@@ -173,5 +175,7 @@ private:
     uint8_t tile_width;
     uint8_t tile_height;
 };
+
+} // namespace Landstalker
 
 #endif // TILEMAP3DCMP_H

@@ -1,6 +1,8 @@
 #include <landstalker/misc/DefaultLabels.h>
 #include <landstalker/misc/Labels.h>
 
+namespace Landstalker {
+
 namespace DefaultLabels
 {
 	const std::map<std::pair<std::wstring, int>, std::wstring> DEFAULT_LABELS
@@ -1308,3 +1310,5 @@ namespace DefaultLabels
                 {{L"sprites",       107}, L"107 Gola Fireball"                    },
     };
 }
+
+} // namespace Landstalker

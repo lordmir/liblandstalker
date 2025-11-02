@@ -1,6 +1,8 @@
 #include <landstalker/main/AsmUtils.h>
 #include <memory>
 
+namespace Landstalker {
+
 uint16_t Asm::PCRel16(uint32_t pc, uint32_t loc)
 {
 	uint16_t offset;
@@ -75,3 +77,5 @@ uint32_t Disasm::ReadOffset8(const Rom& rom, const std::string& pc)
 {
 	return Disasm::PCRel8(rom.read<uint32_t>(pc), rom.get_address(pc));
 }
+
+} // namespace Landstalker

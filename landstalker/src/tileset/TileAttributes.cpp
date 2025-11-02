@@ -2,6 +2,8 @@
 
 #include <stdexcept>
 
+namespace Landstalker {
+
 TileAttributes::TileAttributes()
 : hflip_(false),
   vflip_(false),
@@ -94,3 +96,5 @@ bool TileAttributes::getAttribute(const TileAttributes::Attribute& attr) const
     }
     return retval;
 }
+
+} // namespace Landstalker

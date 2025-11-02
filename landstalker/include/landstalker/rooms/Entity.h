@@ -9,6 +9,8 @@
 #include <memory>
 #include <landstalker/misc/Labels.h>
 
+namespace Landstalker {
+
 enum class Orientation
 {
     NE = 0,
@@ -123,5 +125,6 @@ private:
     bool m_reserved;
 };
 
+} // namespace Landstalker
 
 #endif // ENTITY_H

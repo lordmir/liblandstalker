@@ -5,6 +5,8 @@
 #include <wx/xml/xml.h>
 #include <landstalker/main/DataTypes.h>
 
+namespace Landstalker {
+
 class MapToTmx
 {
 public:
@@ -12,5 +14,7 @@ public:
 	static wxXmlDocument GenerateXmlDocument(const std::string& fname, const Tilemap3D& map, const std::string& blockset_filename);
 	static bool ExportToTmx(const std::string& fname, const Tilemap3D& map, const std::string& blockset_filename);
 };
+
+} // namespace Landstalker
 
 #endif // _MAP_TO_TMX_H_

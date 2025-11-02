@@ -9,6 +9,8 @@
 
 #include <landstalker/misc/BitBarrel.h>
 
+namespace Landstalker {
+
 size_t LZ77::Decode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf, size_t& esize)
 {
     size_t dsize = 0;
@@ -216,3 +218,4 @@ size_t LZ77::Encode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf)
     }
 }
 
+} // namespace Landstalker

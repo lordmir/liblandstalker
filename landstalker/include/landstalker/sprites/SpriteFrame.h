@@ -6,6 +6,8 @@
 #include <optional>
 #include <landstalker/tileset/Tileset.h>
 
+namespace Landstalker {
+
 class SpriteFrame
 {
 public:
@@ -95,5 +97,7 @@ private:
 	std::shared_ptr<Tileset> m_sprite_gfx;
 	bool m_compressed;
 };
+
+} // namespace Landstalker
 
 #endif // SPRITE_FRAME_H

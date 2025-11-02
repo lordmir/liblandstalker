@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstdlib>
 
+namespace Landstalker {
+
 class BitBarrel
 {
 public:
@@ -27,6 +29,10 @@ protected:
     const uint8_t* const m_start;
     mutable uint8_t m_val;
     mutable uint8_t m_pos;
+
     mutable uint8_t* m_buf;
 };
+
+} // namespace Landstalker
+
 #endif // BITBARREL_H

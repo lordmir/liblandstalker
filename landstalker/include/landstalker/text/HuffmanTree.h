@@ -9,6 +9,8 @@
 #include <landstalker/misc/BitBarrel.h>
 #include <landstalker/misc/BitBarrelWriter.h>
 
+namespace Landstalker {
+
 class HuffmanTree
 {
 public:
@@ -51,5 +53,7 @@ private:
 	Node* m_root;
 	std::unordered_map<uint8_t, std::string> m_encoding;
 };
+
+} // namespace Landstalker
 
 #endif // _HUFFMAN_TREE_

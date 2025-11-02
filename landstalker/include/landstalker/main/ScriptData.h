@@ -7,6 +7,8 @@
 #include <landstalker/script/ScriptTable.h>
 #include <landstalker/script/ScriptFunction.h>
 
+namespace Landstalker {
+
 class ScriptData : public DataManager
 {
 public:
@@ -115,5 +117,7 @@ private:
     std::shared_ptr<ScriptFunctionTable> m_flagprogress;
     std::shared_ptr<ScriptFunctionTable> m_flagprogress_orig;
 };
+
+} // namespace Landstalker
 
 #endif // _SCRIPT_DATA_H_

@@ -1,5 +1,7 @@
 #include <landstalker/main/Rom.h>
 
+namespace Landstalker {
+
 Rom::Rom(const std::string filename)
 	: m_filename(filename),
 	  m_initialised(false),
@@ -230,3 +232,5 @@ void Rom::FixRomChecksum()
 	}
 	write<uint16_t>(calculated_checksum, RomOffsets::CHECKSUM_ADDRESS);
 }
+
+} // namespace Landstalker

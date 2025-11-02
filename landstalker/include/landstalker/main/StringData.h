@@ -9,6 +9,8 @@
 #include <landstalker/text/Charset.h>
 #include <landstalker/rooms/RoomDialogueTable.h>
 
+namespace Landstalker {
+
 class StringData : public DataManager
 {
 public:
@@ -264,5 +266,7 @@ private:
     RomOffsets::Region m_region;
     bool m_has_region_check;
 };
+
+} // namespace Landstalker
 
 #endif // _STRING_DATA_H_

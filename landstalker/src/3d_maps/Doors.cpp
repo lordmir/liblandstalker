@@ -3,6 +3,8 @@
 #include <iterator>
 #include <landstalker/3d_maps/TileSwaps.h>
 
+namespace Landstalker {
+
 Doors::Doors(const std::vector<uint8_t>& offsets, const std::vector<uint8_t>& bytes)
 {
 	int offset = 0;
@@ -228,3 +230,5 @@ bool Door::operator!=(const Door& rhs) const
 {
 	return !(*this == rhs);
 }
+
+} // namespace Landstalker

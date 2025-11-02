@@ -7,6 +7,8 @@
 #include <numeric>
 #include <iomanip>
 
+namespace Landstalker {
+
 std::string BehaviourYamlConverter::ToYaml(int id, const std::string& name, const std::vector<Behaviours::Command>& behaviour)
 {
     std::ostringstream ss;
@@ -191,3 +193,5 @@ std::vector<std::string> BehaviourYamlConverter::AllToYaml(const std::map<int, s
     }
     return behaviours_yaml;
 }
+
+} // namespace Landstalker

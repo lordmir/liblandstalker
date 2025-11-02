@@ -12,6 +12,8 @@
 #include <arpa/inet.h>
 #endif
 
+namespace Landstalker {
+
 Tilemap::Tilemap(std::size_t width, std::size_t height, std::size_t tile_width, std::size_t tile_height, std::size_t left, std::size_t top, uint8_t palette)
 	: TILE_WIDTH(tile_width),
 	  TILE_HEIGHT(tile_height),
@@ -364,3 +366,5 @@ std::size_t Tilemap::GetBitmapHeight() const
 {
 	return GetHeightInTiles() * TILE_HEIGHT;
 }
+
+} // namespace Landstalker

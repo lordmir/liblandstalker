@@ -4,6 +4,8 @@
 #include <yaml-cpp/yaml.h>
 #include <optional>
 
+namespace Landstalker {
+
 Script::Script()
 {
 }
@@ -391,3 +393,5 @@ void Script::Copy(const Script& rhs)
 		m_table.push_back(std::move(ScriptTableEntry::FromBytes(e->ToBytes())));
 	}
 }
+
+} // namespace Landstalker

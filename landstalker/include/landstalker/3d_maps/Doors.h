@@ -9,6 +9,8 @@
 #include <landstalker/misc/Literals.h>
 #include <landstalker/3d_maps/Tilemap3DCmp.h>
 
+namespace Landstalker {
+
 struct Door
 {
 	enum class Size : uint8_t
@@ -68,5 +70,7 @@ public:
 private:
 	std::map<uint16_t, std::vector<Door>> m_doors;
 };
+
+} // namespace Landstalker
 
 #endif // _DOORS_H_

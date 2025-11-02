@@ -1,5 +1,7 @@
 #include <landstalker/main/RomLabels.h>
 
+namespace Landstalker {
+
 namespace RomLabels
 {
 	const std::string DEFINES_SECTION("Defines");
@@ -535,3 +537,4 @@ namespace RomLabels
 	}
 
 } // namespace RomOffsets
+} // namespace Landstalker

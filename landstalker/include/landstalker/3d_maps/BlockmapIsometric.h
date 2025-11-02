@@ -6,6 +6,8 @@
 #include <landstalker/tileset/Tile.h>
 #include <landstalker/blockset/Block.h>
 
+namespace Landstalker {
+
 struct TilePoint3D
 {
 	std::size_t x;
@@ -28,5 +30,7 @@ private:
 	std::shared_ptr<Tileset> m_tileset;
 	std::shared_ptr<std::vector<MapBlock>> m_blockset;
 };
+
+} // namespace Landstalker
 
 #endif // BLOCKMAP_ISOMETRIC_H

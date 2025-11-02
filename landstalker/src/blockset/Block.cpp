@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <string>
 
+namespace Landstalker {
+
 template<std::size_t N, std::size_t M>
 Block<N,M>::Block()
 {
@@ -70,3 +72,5 @@ void Block<N, M>::SetTile(std::size_t x, std::size_t y, const Tile& tile)
 }
 
 template class Block<2,2>;
+
+} // namespace Landstalker

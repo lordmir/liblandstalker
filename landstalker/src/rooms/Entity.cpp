@@ -3,6 +3,8 @@
 #include <cmath>
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 Entity::Entity(std::array<uint8_t, 8> data)
 {
     m_x_pos = (data[0] & 0x3F) << 8;
@@ -418,3 +420,5 @@ uint16_t Entity::DoubleToCoordinate(double coord, bool z) const
     }
     return static_cast<uint16_t>(tmp);
 }
+
+} // namespace Landstalker

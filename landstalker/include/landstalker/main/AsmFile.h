@@ -13,6 +13,8 @@
 #include <filesystem>
 #include <optional>
 
+namespace Landstalker {
+
 class AsmFile
 {
 private:
@@ -314,6 +316,8 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& stream, AsmFile& file);
+
+} // namespace Landstalker
 
 #include <landstalker/main/AsmFile_inl.h>
 

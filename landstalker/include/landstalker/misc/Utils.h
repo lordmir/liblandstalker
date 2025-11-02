@@ -11,6 +11,8 @@
 #include <cwchar>
 #include <filesystem>
 
+namespace Landstalker {
+
 void Debug(const std::string& message);
 
 template<template<typename, typename, typename...> class C, typename T, typename U, typename... Rest>
@@ -155,5 +157,7 @@ Iter Insert(Iter it, T data)
 	}
 	return it;
 }
+
+} // namespace Landstalker
 
 #endif // UTILS_H

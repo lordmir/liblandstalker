@@ -2,6 +2,8 @@
 #include <landstalker/main/ScriptData.h>
 #include <yaml-cpp/yaml.h>
 
+namespace Landstalker {
+
 ProgressFlags::Flags ProgressFlags::GetFlags(ScriptFunctionTable& table)
 {
     Flags flags;
@@ -128,3 +130,5 @@ ScriptFunctionTable ProgressFlags::FromYaml(const std::string& yaml)
     }
     return MakeAsm(flags);
 }
+
+} // namespace Landstalker

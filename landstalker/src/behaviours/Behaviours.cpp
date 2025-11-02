@@ -6,6 +6,8 @@
 #include <cassert>
 #include <numeric>
 
+namespace Landstalker {
+
 const std::unordered_map<Behaviours::ParamType, int> Behaviours::PARAM_SIZES =
 {
     {ParamType::UINT8,           1},
@@ -306,3 +308,5 @@ std::pair<std::vector<uint8_t>, std::vector<uint8_t>> Behaviours::Pack(const std
     }
     return { offset_bytes, behaviour_bytes };
 }
+
+} // namespace Landstalker

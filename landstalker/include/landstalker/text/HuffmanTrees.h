@@ -9,6 +9,8 @@
 #include <landstalker/text/LSString.h>
 #include <landstalker/text/HuffmanTree.h>
 
+namespace Landstalker {
+
 class HuffmanTrees
 {
 public:
@@ -31,5 +33,7 @@ private:
 	std::map<uint8_t, std::shared_ptr<HuffmanTree>> m_trees;
 	size_t m_num_chars;
 };
+
+} // namespace Landstalker
 
 #endif // _HUFFMAN_TREES_H_

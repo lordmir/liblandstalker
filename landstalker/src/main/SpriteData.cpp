@@ -7,6 +7,8 @@
 #include <landstalker/main/RomLabels.h>
 #include <landstalker/misc/Literals.h>
 
+namespace Landstalker {
+
 template <std::size_t N>
 std::vector<std::array<uint8_t, N>> DeserialiseFixedWidth(const std::vector<uint8_t>& bytes)
 {
@@ -2358,3 +2360,5 @@ std::array<uint8_t, 5> SpriteData::EnemyStats::Pack() const
 		static_cast<uint8_t>((item_drop & 0x3F) | (prob << 6))
 	};
 }
+
+} // namespace Landstalker

@@ -1,6 +1,8 @@
 #include <landstalker/text/HuffmanString.h>
 #include <stdexcept>
 
+namespace Landstalker {
+
 HuffmanString::HuffmanString(const uint8_t* data, size_t len, std::shared_ptr<HuffmanTrees> ht,
                              const HuffmanString::CharacterSet& charset, uint8_t eos_marker,
                              const DiacriticMap& diacritic_map)
@@ -95,4 +97,7 @@ size_t HuffmanString::EncodeString(uint8_t* string, size_t len) const
 	}
 	string[i] = m_eos_marker;
 	return i + 1;
+
 }
+
+} // namespace Landstalker

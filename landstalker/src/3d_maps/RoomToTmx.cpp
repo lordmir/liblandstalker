@@ -8,6 +8,8 @@
 #include <wx/filename.h>
 #include <wx/xml/xml.h>
 
+namespace Landstalker {
+
 bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_ptr<GameData> gameData, const std::string& blockset_filename)
 {
 	std::shared_ptr<RoomData> roomData = gameData->GetRoomData();
@@ -325,3 +327,5 @@ for (const auto& entity : entities) {
 
 	return tmx.Save(fname);
 }
+
+} // namespace Landstalker

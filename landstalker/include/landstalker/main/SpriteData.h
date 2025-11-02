@@ -9,6 +9,8 @@
 #include <landstalker/rooms/Flags.h>
 #include <landstalker/behaviours/Behaviours.h>
 
+namespace Landstalker {
+
 class SpriteData : public DataManager
 {
 public:
@@ -322,5 +324,7 @@ private:
 	std::map<int, std::pair<std::string, std::vector<Behaviours::Command>>> m_sprite_behaviours;
 	std::map<int, std::pair<std::string, std::vector<Behaviours::Command>>> m_sprite_behaviours_orig;
 };
+
+} // namespace Landstalker
 
 #endif // _SPRITE_DATA_H_

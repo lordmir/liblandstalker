@@ -5,6 +5,8 @@
 #include <iterator>
 #include <landstalker/misc/Literals.h>
 
+namespace Landstalker {
+
 TileSwaps::TileSwaps(const std::vector<uint8_t>& bytes)
 {
 	assert(bytes.size() % 16 == 0);
@@ -365,3 +367,5 @@ bool TileSwap::operator!=(const TileSwap& rhs) const
 {
 	return !(*this == rhs);
 }
+
+} // namespace Landstalker

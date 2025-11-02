@@ -6,6 +6,8 @@
 #include <vector>
 #include <map>
 
+namespace Landstalker {
+
 class BehaviourYamlConverter
 {
 public:
@@ -17,5 +19,7 @@ public:
     static std::vector<Behaviours::Command> FromYaml(const std::string& yaml, int& id, std::string& name);
     static std::vector<Behaviours::Command> FromYaml(const std::string& yaml);
 };
+
+} // namespace Landstalker
 
 #endif // _BEHAVIOUR_YAML_CONVERTER_H_

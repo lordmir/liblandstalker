@@ -7,6 +7,8 @@
 
 #include <landstalker/script/ScriptTableEntry.h>
 
+namespace Landstalker {
+
 class Script
 {
 public:
@@ -45,5 +47,7 @@ private:
 	void Copy(const Script& rhs);
 	std::vector<std::unique_ptr<ScriptTableEntry>> m_table;
 };
+
+} // namespace Landstalker
 
 #endif // _SCRIPT_H_

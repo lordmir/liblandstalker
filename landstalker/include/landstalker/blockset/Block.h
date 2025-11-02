@@ -6,6 +6,8 @@
 #include <memory>
 #include <landstalker/tileset/Tile.h>
 
+namespace Landstalker {
+
 template<std::size_t N, std::size_t M>
 class Block
 {
@@ -31,11 +33,14 @@ public:
     
 private:
     TileArray tiles;
+
 };
 
 typedef Block<2, 2> MapBlock;
 typedef std::vector<MapBlock> Blockset;
 typedef std::shared_ptr<Blockset> BlocksetPtr;
 typedef std::pair<BlocksetPtr, BlocksetPtr> BlocksetPair;
+
+} // namespace Landstalker
 
 #endif // BLOCK_H

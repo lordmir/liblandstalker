@@ -6,6 +6,7 @@
 #include <landstalker/text/LSString.h>
 #include <memory>
 
+namespace Landstalker {
 
 class GraphicsData : public DataManager
 {
@@ -196,5 +197,7 @@ private:
     std::map<std::string, std::shared_ptr<PaletteEntry>> m_load_game_pals_orig;
     std::map<std::string, std::shared_ptr<PaletteEntry>> m_load_game_pals_internal;
 };
+
+} // namespace Landstalker
 
 #endif // _GRAPHICS_DATA_H_

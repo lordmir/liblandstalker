@@ -3,6 +3,7 @@
 
 #include <string>
 
+namespace Landstalker {
 namespace RomLabels
 {
 	extern const std::string DEFINES_SECTION;
@@ -537,5 +538,7 @@ namespace RomLabels
 		extern const std::string CHEST_OFFSETS_FILENAME;
 	}
 }
+
+} // namespace Landstalker
 
 #endif // _ROM_LABELS_H_

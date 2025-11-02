@@ -1,5 +1,7 @@
 #include <landstalker/rooms/RoomDialogueTable.h>
 
+namespace Landstalker {
+
 RoomDialogueTable::RoomDialogueTable(const std::vector<uint16_t>& data)
 {
 	std::size_t i = 0;
@@ -89,3 +91,5 @@ void RoomDialogueTable::SetRoomCharacters(uint16_t room, const std::vector<Chara
 		m_dialogue_table.erase(room);
 	}
 }
+
+} // namespace Landstalker

@@ -5,6 +5,8 @@
 #include <landstalker/misc/Literals.h>
 #include <landstalker/misc/Labels.h>
 
+namespace Landstalker {
+
 ScriptData::ScriptData(const std::filesystem::path& asm_file)
 	: DataManager("Script Data", asm_file),
 	  m_is_asm(true)
@@ -465,3 +467,5 @@ bool ScriptData::RomPrepareInjectScript(const Rom& /*rom*/)
 	m_pending_writes.push_back({ RomLabels::Script::SCRIPT_SECTION, std::make_shared<ByteVector>(m_script->ToBytes()) });
 	return true;
 }
+
+} // namespace Landstalker

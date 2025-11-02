@@ -3,6 +3,8 @@
 
 #include <landstalker/text/LSString.h>
 
+namespace Landstalker {
+
 class IntroString : public LSString
 {
 public:
@@ -42,5 +44,7 @@ private:
 	uint16_t m_displayTime;
 	StringType m_line2;
 };
+
+} // namespace Landstalker
 
 #endif // _INTRO_STRING_H

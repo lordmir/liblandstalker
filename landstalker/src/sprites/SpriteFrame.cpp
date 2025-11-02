@@ -6,6 +6,8 @@
 #include <landstalker/misc/LZ77.h>
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 SpriteFrame::SpriteFrame(const std::vector<uint8_t>& src)
 	: m_compressed(false)
 {
@@ -572,3 +574,5 @@ bool SpriteFrame::SubSprite::Collides(const SubSprite& rhs) const
 		this->y < static_cast<int>(rhs.y + rhs.h * TILE_HEIGHT) &&
 		static_cast<int>(this->y + this->h * TILE_HEIGHT) > rhs.y;
 }
+
+} // namespace Landstalker

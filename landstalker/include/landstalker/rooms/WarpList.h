@@ -8,6 +8,8 @@
 #include <landstalker/main/Rom.h>
 #include <filesystem>
 
+namespace Landstalker {
+
 class WarpList
 {
 public:
@@ -98,5 +100,7 @@ private:
 	std::map<uint16_t, uint16_t> m_climb_dests;
 	std::vector<Transition> m_transitions;
 };
+
+} // namespace Landstalker
 
 #endif // _WARP_LIST_H_

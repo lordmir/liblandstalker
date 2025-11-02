@@ -4,6 +4,8 @@
 #include <landstalker/misc/BitBarrel.h>
 #include <vector>
 
+namespace Landstalker {
+
 class BitBarrelWriter
 {
 public:
@@ -22,5 +24,8 @@ private:
     std::vector<uint8_t> m_buffer;
     int m_bitpos;
 };
+
+
+} // namespace Landstalker
 
 #endif // BITBARRELWRITER_H

@@ -5,6 +5,8 @@
 #include <string>
 #include <landstalker/tileset/TileAttributes.h>
 
+namespace Landstalker {
+
 class Tile
 {
 public:
@@ -48,5 +50,7 @@ private:
     TileAttributes m_attrs;
     uint16_t m_index;
 };
+
+} // namespace Landstalker
 
 #endif // _TILE_H_

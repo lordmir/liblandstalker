@@ -16,6 +16,8 @@
 #endif
 #endif
 
+namespace Landstalker {
+
 ImageBuffer::ImageBuffer()
     : m_width(0), m_height(0)
 {}
@@ -398,3 +400,5 @@ std::size_t ImageBuffer::GetWidth() const
 {
 	return m_width;
 }
+
+} // namespace Landstalker

@@ -6,6 +6,8 @@
 
 #include <landstalker/misc/Literals.h>
 
+namespace Landstalker {
+
 const LSString::CharacterSet ENDING_CHARSET = {
 	{ 1_u8, L" "}, { 2_u8, L"A"}, { 3_u8, L"B"}, { 4_u8, L"C"}, { 5_u8, L"D"}, { 6_u8, L"E"}, { 7_u8, L"F"}, { 8_u8, L"G"},
 	{ 9_u8, L"H"}, {10_u8, L"I"}, {11_u8, L"J"}, {12_u8, L"K"}, {13_u8, L"L"}, {14_u8, L"M"}, {15_u8, L"N"}, {16_u8, L"O"},
@@ -184,3 +186,5 @@ size_t EndCreditString::EncodeString(uint8_t* string, size_t len) const
 	string[i] = 0x00;
 	return i + 1;
 }
+
+} // namespace Landstalker

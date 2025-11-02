@@ -11,6 +11,8 @@
 #include <memory>
 #include <filesystem>
 
+namespace Landstalker {
+
 class GameData;
 
 namespace ScriptTable
@@ -73,5 +75,7 @@ namespace ScriptTable
 	std::string ToString(const Action& action);
 	Action FromString(const std::string& string);
 }
+
+} // namespace Landstalker
 
 #endif // _SCRIPT_TABLE_

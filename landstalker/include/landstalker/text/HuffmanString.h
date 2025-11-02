@@ -8,6 +8,8 @@
 #include <landstalker/text/LSString.h>
 #include <landstalker/text/HuffmanTrees.h>
 
+namespace Landstalker {
+
 class HuffmanString : public LSString
 {
 public:
@@ -34,5 +36,7 @@ protected:
 private:
 	std::shared_ptr<HuffmanTrees> m_ht;
 };
+
+} // namespace Landstalker
 
 #endif // _HUFFMAN_STRING_H_

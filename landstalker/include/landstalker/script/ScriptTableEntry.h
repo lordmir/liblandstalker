@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <unordered_map>
 
+namespace Landstalker {
+
 class GameData;
 
 enum class ScriptTableEntryType
@@ -282,5 +284,7 @@ public:
 
 	uint16_t bits;
 };
+
+} // namespace Landstalker
 
 #endif // _SCRIPT_TABLE_ENTRY_H_

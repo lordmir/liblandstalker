@@ -9,6 +9,8 @@
 
 #include <yaml-cpp/yaml.h>
 
+namespace Landstalker {
+
 StringData::StringData(const std::filesystem::path& asm_file)
 	: DataManager("String Data", asm_file), m_has_region_check(false)
 {
@@ -2334,3 +2336,5 @@ bool StringData::RomPrepareInjectScriptData(const Rom& rom)
 	m_pending_writes.push_back({ RomLabels::Strings::ROOM_CHARACTER_TABLE_SECTION, bytes });
 	return true;
 }
+
+} // namespace Landstalker

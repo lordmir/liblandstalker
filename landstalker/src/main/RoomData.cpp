@@ -11,6 +11,8 @@
 #include <landstalker/misc/Literals.h>
 #include <landstalker/misc/Labels.h>
 
+namespace Landstalker {
+
 std::map<uint16_t, std::vector<TileSwapFlag>> DecodeGfxSwap(const ByteVector& data)
 {
     std::map<uint16_t, std::vector<TileSwapFlag>> flags;
@@ -2767,3 +2769,5 @@ void RoomData::ResetTilesetDefaultPalettes()
         }
     }
 }
+
+} // namespace Landstalker

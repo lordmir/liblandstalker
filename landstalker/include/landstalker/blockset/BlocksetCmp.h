@@ -5,6 +5,8 @@
 #include <vector>
 #include <landstalker/blockset/Block.h>
 
+namespace Landstalker {
+
 class BlocksetCmp
 {
 public:
@@ -13,5 +15,7 @@ public:
 private:
     BlocksetCmp();
 };
+
+} // namespace Landstalker
 
 #endif // _BLOCKSETCMP_H

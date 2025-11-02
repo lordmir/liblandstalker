@@ -14,6 +14,8 @@
 #include <landstalker/3d_maps/TileSwaps.h>
 #include <landstalker/rooms/Flags.h>
 
+namespace Landstalker {
+
 class GameData;
 
 class RoomData : public DataManager
@@ -293,5 +295,7 @@ private:
     std::map<uint16_t, uint16_t> m_lantern_flag_list;
     std::map<uint16_t, uint16_t> m_lantern_flag_list_orig;
 };
+
+} // namespace Landstalker
 
 #endif // _ROOM_DATA_H_

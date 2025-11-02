@@ -8,6 +8,8 @@
 #include <fstream>
 #include <cstdio>
 
+namespace Landstalker {
+
 const std::unordered_map<std::string, AsmFile::Inst> AsmFile::INSTRUCTIONS
 {
 	{"dc", Inst::DC}, {"dcb", Inst::DCB}, {"include", Inst::INCLUDE}, {"incbin", Inst::INCBIN},
@@ -1170,3 +1172,5 @@ bool AsmFile::ScriptJump::operator!=(const ScriptJump& rhs) const
 {
 	return !(*this == rhs);
 }
+
+} // namespace Landstalker

@@ -2,6 +2,8 @@
 
 #include <climits>
 
+namespace Landstalker {
+
 BitBarrelWriter::BitBarrelWriter()
     :m_bitpos(-1)
 {}
@@ -66,3 +68,5 @@ template void BitBarrelWriter::Write(uint32_t);
 template void BitBarrelWriter::Write(int8_t);
 template void BitBarrelWriter::Write(int16_t);
 template void BitBarrelWriter::Write(int32_t);
+
+} // namespace Landstalker

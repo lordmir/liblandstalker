@@ -6,6 +6,8 @@
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
 
+namespace Landstalker {
+
 GraphicsData::GraphicsData(const std::filesystem::path& asm_file)
 	: DataManager("Graphics Data", asm_file)
 {
@@ -3087,3 +3089,5 @@ void GraphicsData::ResetTilesetDefaultPalettes()
 
 	m_end_credits_tileset->SetDefaultPalette(m_end_credits_palette->GetName());
 }
+
+} // namespace Landstalker

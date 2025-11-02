@@ -9,6 +9,7 @@
 #include <landstalker/misc/LZ77.h>
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
 
 Tilemap2D::Tilemap2D()
 	: m_width(0),
@@ -815,3 +816,5 @@ Tile* Tilemap2D::Data()
 {
 	return m_tiles.data();
 }
+
+} // namespace Landstalker

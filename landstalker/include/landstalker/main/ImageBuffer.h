@@ -15,6 +15,8 @@
 #include <landstalker/3d_maps/TileSwaps.h>
 #include <landstalker/3d_maps/Doors.h>
 
+namespace Landstalker {
+
 class ImageBuffer
 {
 public:
@@ -51,5 +53,7 @@ private:
 	mutable std::vector<uint8_t> m_alpha;
 	//mutable wxImage m_img;
 };
+
+} // namespace Landstalker
 
 #endif // IMAGE_BUFFER_H

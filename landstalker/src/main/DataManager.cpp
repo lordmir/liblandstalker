@@ -1,5 +1,7 @@
 #include <landstalker/main/DataManager.h>
 
+namespace Landstalker {
+
 PendingWrites DataManager::GetPendingWrites() const
 {
 	return m_pending_writes;
@@ -106,3 +108,5 @@ bool DataManager::GetFilenameFromAsm(AsmFile& file, const std::string& label, st
 	file >> path;
 	return std::filesystem::exists(std::filesystem::path(m_base_path / path));
 }
+
+} // namespace Landstalker

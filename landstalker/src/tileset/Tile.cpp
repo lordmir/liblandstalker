@@ -5,6 +5,8 @@
 
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 Tile::Tile()
 : m_attrs(),
   m_index(0)
@@ -170,3 +172,5 @@ const TileAttributes& Tile::Attributes() const
 {
     return m_attrs;
 }
+
+} // namespace Landstalker

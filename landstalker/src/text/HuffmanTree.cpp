@@ -3,6 +3,8 @@
 #include <queue>
 #include <algorithm>
 
+namespace Landstalker {
+
 HuffmanTree::HuffmanTree()
 {
 	m_root = new Node();
@@ -209,3 +211,5 @@ void HuffmanTree::UpdateEncodingTable(Node* node, std::string encoding)
 		}
 	}
 }
+
+} // namespace Landstalker

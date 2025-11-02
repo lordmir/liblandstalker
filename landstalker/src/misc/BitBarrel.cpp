@@ -3,6 +3,8 @@
 #include <climits>
 #include <stdexcept>
 
+namespace Landstalker {
+
 BitBarrel::BitBarrel(const uint8_t* buf)
 : m_start(buf),
   m_val(0),
@@ -123,3 +125,5 @@ template uint32_t BitBarrel::read() const;
 template int8_t   BitBarrel::read() const;
 template int16_t  BitBarrel::read() const;
 template int32_t  BitBarrel::read() const;
+
+} // namespace Landstalker

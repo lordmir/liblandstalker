@@ -1,6 +1,8 @@
 #include <landstalker/rooms/Flags.h>
 #include <cassert>
 
+namespace Landstalker {
+
 EntityFlag::EntityFlag(const std::array<uint8_t, 4>& data)
 {
 	room = (data[0] << 8) | data[1];
@@ -196,3 +198,5 @@ bool RoomClearFlag::operator!=(const RoomClearFlag& rhs) const
 {
 	return !(*this == rhs);
 }
+
+} // namespace Landstalker

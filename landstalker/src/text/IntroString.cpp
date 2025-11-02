@@ -7,6 +7,8 @@
 
 #include <landstalker/misc/Literals.h>
 
+namespace Landstalker {
+
 const LSString::CharacterSet INTRO_CHARSET = {
 	{ 0_u8, L" "}, { 1_u8, L"A"}, { 2_u8, L"B"}, { 3_u8, L"C"}, { 4_u8, L"D"}, { 5_u8, L"E"}, { 6_u8, L"F"}, { 7_u8, L"G"},
 	{ 8_u8, L"H"}, { 9_u8, L"I"}, {10_u8, L"J"}, {11_u8, L"K"}, {12_u8, L"L"}, {13_u8, L"M"}, {14_u8, L"N"}, {15_u8, L"O"},
@@ -301,3 +303,5 @@ size_t IntroString::EncodeString(uint8_t* string, size_t len) const
 	}
 	return i;
 }
+
+} // namespace Landstalker

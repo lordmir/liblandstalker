@@ -3,6 +3,8 @@
 #include <iomanip>
 #include <wx/filename.h>
 
+namespace Landstalker {
+
 std::string GetData(const Tilemap3D& map, Tilemap3D::Layer layer)
 {
 	std::ostringstream ss;
@@ -160,3 +162,5 @@ bool MapToTmx::ExportToTmx(const std::string& fname, const Tilemap3D& map, const
 	wxXmlDocument tmx = MapToTmx::GenerateXmlDocument(fname, map, blockset_filename);
 	return tmx.Save(fname);
 }
+
+} // namespace Landstalker

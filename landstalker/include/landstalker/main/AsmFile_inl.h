@@ -10,6 +10,8 @@
 #include <landstalker/main/AsmFile.h>
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 template<typename T>
 AsmFile& AsmFile::operator<<(const T& data)
 {
@@ -331,5 +333,7 @@ std::string AsmFile::ToAsmValue(const C<T, N>& val)
 {
 	return ToAsmValue(val.begin(), val.end());
 }
+
+} // namespace Landstalker
 
 #endif // _ASM_FILE_INL_H_

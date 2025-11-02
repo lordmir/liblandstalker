@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <landstalker/tileset/Tile.h>
 
+namespace Landstalker {
+
 class Tilemap2D
 {
 public:
@@ -78,5 +80,7 @@ private:
 	Compression m_compression;
 	std::vector<Tile> m_tiles;
 };
+
+} // namespace Landstalker
 
 #endif // _TILEMAP_2D_RLE_

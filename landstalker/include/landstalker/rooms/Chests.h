@@ -6,10 +6,11 @@
 #include <set>
 #include <map>
 
+namespace Landstalker {
+	
 typedef uint8_t ChestItem;
-
 class GameData;
-
+	
 class Chests
 {
 public:
@@ -35,5 +36,7 @@ private:
 	std::map<uint16_t, std::vector<ChestItem>> m_chests;
 
 };
+
+} // namespace Landstalker
 
 #endif // _CHESTS_H_

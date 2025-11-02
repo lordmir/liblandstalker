@@ -9,6 +9,8 @@
 #include <landstalker/main/ImageBuffer.h>
 #include <landstalker/misc/Point.h>
 
+namespace Landstalker {
+
 struct TilePoint
 {
 	std::size_t x;
@@ -64,5 +66,7 @@ private:
 	std::size_t m_top;
 	uint8_t m_palette;
 };
+
+} // namespace Landstalker
 
 #endif // TILEMAP_H

@@ -5,6 +5,8 @@
 #include <landstalker/main/Rom.h>
 #include <landstalker/main/DataManager.h>
 
+namespace Landstalker {
+
 namespace Asm
 {
 	uint16_t PCRel16(uint32_t pc, uint32_t loc);
@@ -21,5 +23,7 @@ namespace Disasm
 	uint32_t ReadOffset16(const Rom& rom, const std::string& pc);
 	uint32_t ReadOffset8(const Rom& rom, const std::string& pc);
 }
+
+} // namespace Landstalker
 
 #endif // _ASM_UTILS_H_

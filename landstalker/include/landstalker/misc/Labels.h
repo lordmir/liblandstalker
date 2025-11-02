@@ -8,6 +8,8 @@
 #include <string>
 #include <utility>
 
+namespace Landstalker {
+
 class Labels {
 public:
     static void InitDefaults();
@@ -41,6 +43,9 @@ public:
 private:
     static bool IsExistingValid(const std::wstring& what);
     static std::map<std::pair<std::wstring, int>, std::wstring> m_data;
+
 };
+
+} // namespace Landstalker
 
 #endif // LABELS_H_

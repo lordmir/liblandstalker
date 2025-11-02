@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <string>
 
+namespace Landstalker {
+
 namespace RomOffsets
 {
 
@@ -41,5 +43,7 @@ namespace RomOffsets
 	extern const std::unordered_map<std::string, std::unordered_map<Region, uint32_t>> ADDRESS;
 	extern const std::unordered_map<std::string, std::unordered_map<Region, Section>> SECTION;
 } // namespace RomOffsets
+
+} // namespace Landstalker
 
 #endif // _ROM_OFFSETS_H_

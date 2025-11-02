@@ -1,5 +1,7 @@
 #include <landstalker/tileset/AnimatedTileset.h>
 
+namespace Landstalker {
+
 AnimatedTileset::AnimatedTileset(uint16_t base, uint16_t length, uint8_t speed, uint8_t frames)
 	: m_base(base),
 	  m_length(length),
@@ -137,3 +139,5 @@ void AnimatedTileset::SetBaseTileset(uint8_t base_tileset)
 {
 	m_base_tileset = base_tileset;
 }
+
+} // namespace Landstalker

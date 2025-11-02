@@ -8,6 +8,8 @@
 #include <variant>
 #include <yaml-cpp/yaml.h>
 
+namespace Landstalker {
+
 namespace Statements
 {
 	struct Statement
@@ -400,5 +402,7 @@ namespace Statements
 std::ostream& operator<<(std::ostream& lhs, const Statements::Statement& rhs);
 std::ostream& operator<<(std::ostream& lhs, const ScriptFunction& rhs);
 std::ostream& operator<<(std::ostream& lhs, const ScriptFunctionTable& rhs);
+
+} // namespace Landstalker
 
 #endif // _SCRIPT_FUNCTION_H_

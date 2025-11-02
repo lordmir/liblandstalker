@@ -1,5 +1,7 @@
 #include <landstalker/main/DataTypes.h>
 
+namespace Landstalker {
+
 std::shared_ptr<TilesetEntry> TilesetEntry::Create(DataManager* owner, const ByteVector& b, const std::string& name, const std::filesystem::path& filename, bool compressed, std::size_t width, std::size_t height, uint8_t bit_depth, Tileset::BlockType blocktype)
 {
 	auto o = std::make_shared<TilesetEntry>(owner, b, name, filename, compressed, width, height, bit_depth, blocktype);
@@ -156,3 +158,5 @@ bool SpriteFrameEntry::Deserialise(const ByteVectorPtr in, std::shared_ptr<Sprit
 	in->resize(out->SetBits(*in));
 	return true;
 }
+
+} // namespace Landstalker

@@ -9,6 +9,8 @@
 
 #include <landstalker/misc/Labels.h>
 
+namespace Landstalker {
+
 class Room
 {
     // Stored in ROM in following format:
@@ -48,5 +50,7 @@ public:
     uint8_t GetBlocksetId() const;
     std::wstring GetDisplayName();
 };
+
+} // namespace Landstalker
 
 #endif // _ROOM_H_

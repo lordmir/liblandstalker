@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <vector>
 
+namespace Landstalker {
+
 class LZ77
 {
 public:
@@ -12,6 +14,9 @@ public:
     static std::size_t Encode(const uint8_t* inbuf, std::size_t bufsize, uint8_t* outbuf);
 private:
     LZ77();
+
 };
+
+} // namespace Landstalker
 
 #endif // LZ77_H

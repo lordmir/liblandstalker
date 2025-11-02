@@ -4,6 +4,8 @@
 #include <vector>
 #include <landstalker/text/LSString.h>
 
+namespace Landstalker {
+
 class EndCreditString : public LSString
 {
 public:
@@ -32,5 +34,7 @@ private:
 	int8_t m_height;
 	int8_t m_column;
 };
+
+} // namespace Landstalker
 
 #endif // _END_CREDIT_STRING_H

@@ -8,6 +8,8 @@
 
 #include <landstalker/main/Rom.h>
 
+namespace Landstalker {
+
 class Palette
 {
 public:
@@ -238,6 +240,7 @@ public:
 	bool IsVarWidth() const;
 
 	static const std::vector<bool>& GetLockedColours(const Type& type);
+
 	static int GetSize(const Type& type);
 	static int GetSizeBytes(const Type& type);
 	static bool IsVarWidth(const Type& type);
@@ -249,5 +252,7 @@ private:
 	std::vector<std::string> m_owner;
 	std::vector<bool> m_locked;
 };
+
+} // namespace Landstalker
 
 #endif // PALETTE_H

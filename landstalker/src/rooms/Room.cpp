@@ -2,6 +2,8 @@
 
 #include <cassert>
 
+namespace Landstalker {
+
 Room::Room(const std::string& name_, const std::string& map_name, uint16_t index_, const std::vector<uint8_t>& params)
     : map(map_name),
       name(name_),
@@ -70,3 +72,5 @@ std::wstring Room::GetDisplayName()
 {
     return Labels::Get(Labels::C_ROOMS, index).value_or(std::wstring(name.cbegin(), name.cend()));
 }
+
+} // namespace Landstalker

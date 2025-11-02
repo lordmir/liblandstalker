@@ -6,6 +6,8 @@
 
 #include <landstalker/misc/Utils.h>
 
+namespace Landstalker {
+
 const std::unordered_map<Palette::Type, std::vector<bool>> LOCKED_ENTRIES =
 {
 	{Palette::Type::NONE,        { true,  true,  true,  true,  true,  true,  true,  true,
@@ -494,3 +496,5 @@ bool Palette::IsVarWidth(const Type& type)
 {
 	return PALETTE_SIZES[type] == -1;
 }
+
+} // namespace Landstalker

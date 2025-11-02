@@ -7,6 +7,8 @@
 #include <memory>
 #include <landstalker/3d_maps/Tilemap3DCmp.h>
 
+namespace Landstalker {
+
 struct TileSwap
 {
 	enum class Mode : uint8_t
@@ -72,5 +74,7 @@ public:
 private:
 	std::map<uint16_t, std::vector<TileSwap>> m_swaps;
 };
+
+} // namespace Landstalker
 
 #endif // _TILE_SWAPS_H_

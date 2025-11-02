@@ -5,6 +5,8 @@
 #include <vector>
 #include <map>
 
+namespace Landstalker {
+
 typedef uint16_t Character;
 
 class RoomDialogueTable
@@ -23,5 +25,7 @@ public:
 private:
 	std::map<uint16_t, std::vector<Character>> m_dialogue_table;
 };
+
+} // namespace Landstalker
 
 #endif // _ROOM_DIALOGUE_TABLE_H_

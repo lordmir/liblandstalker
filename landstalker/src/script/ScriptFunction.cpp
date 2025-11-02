@@ -1,8 +1,8 @@
 #include <landstalker/script/ScriptFunction.h>
 #include <landstalker/misc/Literals.h>
 
-namespace Statements
-{
+namespace Landstalker {
+namespace Statements {
 
 YesNoPrompt::YesNoPrompt(AsmFile& file)
 {
@@ -1827,3 +1827,5 @@ std::ostream& operator<<(std::ostream& lhs, const ScriptFunctionTable& rhs)
     lhs << rhs.Print();
     return lhs;
 }
+
+} // namespace Landstalker

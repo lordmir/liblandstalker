@@ -11,6 +11,8 @@
 #include <atomic>
 #include <mutex>
 
+namespace Landstalker {
+
 using ByteVector = std::vector<uint8_t>;
 using ByteVectorPtr = std::shared_ptr<ByteVector>;
 using ConstByteVectorPtr = std::shared_ptr<const ByteVector>;
@@ -300,5 +302,7 @@ inline bool DataManager::Entry<T>::Save(const std::filesystem::path& dir)
 	WriteBytes(*bytes, fname);
 	return true;
 }
+
+} // namespace Landstalker
 
 #endif // _DATA_MANAGER_H_

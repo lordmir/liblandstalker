@@ -4,6 +4,8 @@
 
 #include <landstalker/main/RomLabels.h>
 
+namespace Landstalker {
+
 GameData::GameData()
 	: DataManager("Game Data")
 {
@@ -356,3 +358,5 @@ void GameData::SetDefaults()
 		t->SetDefaultPalette(RomLabels::Graphics::PLAYER_PAL);
 	}
 }
+
+} // namespace Landstalker

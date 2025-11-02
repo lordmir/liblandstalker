@@ -3,6 +3,8 @@
 
 #include <codecvt>
 
+namespace Landstalker {
+
 const std::unordered_map<ScriptTableEntryType, std::string> ScriptTableEntry::ENTRY_NAMES{
 	{ScriptTableEntryType::STRING, "String"},
 	{ScriptTableEntryType::GIVE_ITEM, "GiveItem"},
@@ -705,3 +707,5 @@ void ScriptTableEntry::SetEnd(bool p_end)
 {
 	end = p_end;
 }
+
+} // namespace Landstalker

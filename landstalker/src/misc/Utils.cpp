@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <codecvt>
 
+namespace Landstalker {
+
 #ifndef NDEBUG
 void Debug(const std::string& message)
 {
@@ -191,3 +193,5 @@ std::string str_to_lower(const std::string& str)
 
 	return result;
 }
+
+} // namespace Landstalker

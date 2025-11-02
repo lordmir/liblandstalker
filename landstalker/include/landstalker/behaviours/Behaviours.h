@@ -9,6 +9,8 @@
 #include <variant>
 #include <tuple>
 
+namespace Landstalker {
+
 class Behaviours
 {
 public:
@@ -171,6 +173,8 @@ private:
     static const std::unordered_map<ParamType, int> PARAM_SIZES;
     static const std::unordered_map<CommandType, CommandDefinition> COMMANDS_BY_ID;
     static std::unordered_map<std::string, CommandType> commands_by_name;
-}; // namespace Behaviours
+};
+
+} // namespace Landstalker
 
 #endif // _BEHAVIOURS_H_

@@ -1,5 +1,7 @@
 #include <landstalker/main/EntryPreferences.h>
 
+namespace Landstalker {
+
 const std::string& PalettePreferences::GetDefaultPalette() const
 {
 	return m_default_palette;
@@ -37,3 +39,5 @@ void PalettePreferences::SetAllPalettes(const std::vector<std::string>& pl, bool
 		SetRecommendedPalettes(pl, set_default);
 	}
 }
+
+} // namespace Landstalker

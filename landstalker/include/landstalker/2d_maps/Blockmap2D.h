@@ -6,6 +6,8 @@
 #include <landstalker/2d_maps/Tilemap.h>
 #include <landstalker/blockset/Block.h>
 
+namespace Landstalker {
+
 class Blockmap2D : public Tilemap
 {
 public:
@@ -28,5 +30,7 @@ private:
 	std::shared_ptr<const Tileset> m_tileset;
 	BlocksetPtr m_blockset;
 };
+
+} // namespace Landstalker
 
 #endif // TILEMAP2D_H

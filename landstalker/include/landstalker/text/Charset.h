@@ -5,9 +5,10 @@
 #include <landstalker/text/LSString.h>
 #include <landstalker/misc/Literals.h>
 
+namespace Landstalker {
+
 namespace Charset
 {
-
 	const LSString::CharacterSet DEFAULT_ENGLISH_CHARSET = {
 		{ 0_u8, L" "}, { 1_u8, L"0"}, { 2_u8, L"1"}, { 3_u8, L"2"}, { 4_u8, L"3"}, { 5_u8, L"4"}, { 6_u8, L"5"}, { 7_u8, L"6"},
 		{ 8_u8, L"7"}, { 9_u8, L"8"}, {10_u8, L"9"}, {11_u8, L"A"}, {12_u8, L"B"}, {13_u8, L"C"}, {14_u8, L"D"}, {15_u8, L"E"},
@@ -159,5 +160,7 @@ namespace Charset
 	}
 
 } // namespace Charset
+
+} // namespace Landstalker
 
 #endif // _CHARSET_H_
