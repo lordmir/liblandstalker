@@ -61,4 +61,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: landstalker_binary_windows
-          path: ${{github.workspace}}/liblandstalker/build/Release/liblandstalker.zip
+          path: ${{github.workspace}}/liblandstalker/liblandstalker.zip

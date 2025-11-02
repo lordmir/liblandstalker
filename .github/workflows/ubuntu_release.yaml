@@ -62,4 +62,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: liblandstalker_binary_ubuntu
-          path: ${{github.workspace}}/liblandstalker/build/package/liblandstalker.tar.gz
+          path: ${{github.workspace}}/liblandstalker/liblandstalker.tar.gz
