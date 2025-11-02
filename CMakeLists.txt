@@ -29,7 +29,7 @@ if(${LANDSTALKER_BUILD_SHARED})
 
     if(WIN32)
         if (MSVC)
-            target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE COMPILEDLL)
+            target_compile_definitions(${MODULE_NAME} PRIVATE COMPILEDLL)
         endif()
         target_link_libraries(${MODULE_NAME} PRIVATE ws2_32)
     endif()
@@ -39,7 +39,7 @@ else()
     add_library(${MODULE_NAME} STATIC)
 
     if (MSVC)
-        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE COMPILELIB)
+        target_compile_definitions(${MODULE_NAME} PRIVATE COMPILELIB)
     endif()
 
     if(EMSCRIPTEN)

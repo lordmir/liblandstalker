@@ -26,23 +26,31 @@ jobs:
                 g++-11 \
                 cmake
 
-      - name: 'Build Static'
+      - name: 'Build Static Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build
           cmake --build build --config Release -j32
           cmake --install build --prefix ./lib --config Release
+
+      - name: 'Build Static Debug'
+        working-directory: ${{github.workspace}}/liblandstalker
+        run: |
           cmake --build build --config Debug -j32
           cmake --install build --prefix ./lib_debug --config Debug
 
-      - name: 'Build Shared'
+      - name: 'Build Shared Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build_shared -DLANDSTALKER_BUILD_SHARED=ON
-          cmake --build build_shared --config Release -j32
-          cmake --install build_shared --prefix ./lib --config Release
-          cmake --build build_shared --config Debug -j32
-          cmake --install build_shared --prefix ./lib_debug --config Debug
+          cmake --build build_shared --config Release -DLANDSTALKER_BUILD_SHARED=ON -j32
+          cmake --install build_shared --prefix ./lib -DLANDSTALKER_BUILD_SHARED=ON --config Release
+
+      - name: 'Build Shared Debug'
+        working-directory: ${{github.workspace}}/liblandstalker
+        run: |
+          cmake --build build_shared --config Debug -DLANDSTALKER_BUILD_SHARED=ON -j32
+          cmake --install build_shared --prefix ./lib_debug -DLANDSTALKER_BUILD_SHARED=ON --config Debug
 
       - name: Compress artifacts
         working-directory: ${{github.workspace}}/liblandstalker
