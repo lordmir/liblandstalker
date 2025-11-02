@@ -32,7 +32,7 @@ jobs:
           cmake -S . -B build
           cmake --build build --config Release -j32
           cmake --install build --prefix ./lib --config Release
-          cmake --build build --config Debug --j32
+          cmake --build build --config Debug -j32
           cmake --install build --prefix ./lib_debug --config Debug
 
       - name: 'Build Shared'
