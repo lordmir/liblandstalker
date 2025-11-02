@@ -23,7 +23,7 @@ function(InstallZlib)
     message("Fetching ZLIB sources...")
     FetchContent_Declare(
         zlib
-        GIT_REPOSITORY git@github.com:madler/zlib.git
+        GIT_REPOSITORY https://github.com/madler/zlib.git
         GIT_TAG "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf" # "v1.3.1"
         EXCLUDE_FROM_ALL
     )
@@ -44,7 +44,7 @@ function(InstallLibpng)
     message("Fetching LIBPNG sources...")
     FetchContent_Declare(
         png
-        GIT_REPOSITORY git@github.com:pnggroup/libpng.git
+        GIT_REPOSITORY https://github.com/pnggroup/libpng.git
         GIT_TAG "7c67f70da1db5f1d7a75cf518d8e5bd704ba89ce" # "libpng18"
         EXCLUDE_FROM_ALL
     )
@@ -62,7 +62,7 @@ function(InstallYamlcpp)
     message("Fetching YAML-CPP sources...")
     FetchContent_Declare(
         yaml-cpp
-        GIT_REPOSITORY git@github.com:jbeder/yaml-cpp.git
+        GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
         GIT_TAG "0579ae3d976091d7d664aa9d2527e0d0cff25763" # "yaml-cpp-0.7.0"
         EXCLUDE_FROM_ALL
     )
