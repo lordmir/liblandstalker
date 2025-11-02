@@ -29,7 +29,7 @@ jobs:
       - name: 'Build Static Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake -S . -B build
+          cmake -S . -B build -DLANDSTALKER_BUILD_SHARED=OFF
           cmake --build build --config Release -j32
           cmake --install build --prefix ./lib --config Release
 
@@ -43,14 +43,14 @@ jobs:
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build_dll -DLANDSTALKER_BUILD_SHARED=ON
-          cmake --build build_dll --config Release -j32 -DLANDSTALKER_BUILD_SHARED=ON
-          cmake --install build_dll --prefix ./dll --config Release -DLANDSTALKER_BUILD_SHARED=ON
+          cmake --build build_dll --config Release -j32
+          cmake --install build_dll --prefix ./dll --config Release
 
       - name: 'Build DLL Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake --build build_dll --config Debug -j32 -DLANDSTALKER_BUILD_SHARED=ON
-          cmake --install build_dll --prefix ./dll_debug --config Debug -DLANDSTALKER_BUILD_SHARED=ON
+          cmake --build build_dll --config Debug -j32
+          cmake --install build_dll --prefix ./dll_debug --config Debug
 
       - name: Compress artifacts
         working-directory: ${{github.workspace}}/liblandstalker
