@@ -112,32 +112,22 @@ void Rom::write_string(const std::string& str, uint32_t offset)
 
 uint32_t Rom::get_address(const std::string& name) const
 {
-	auto addrs = RomOffsets::ADDRESS.find(name);
-	if (addrs == RomOffsets::ADDRESS.end())
+	auto addrs = RomOffsets::GetAddress(name, m_region);
+	if (!addrs)
 	{
-		throw std::runtime_error("Named address " + name + " does not exist!");
+		throw std::runtime_error("Named address " + name + " does not exist for " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " ROM!");
 	}
-	auto addr = addrs->second.find(m_region);
-	if (addrs == RomOffsets::ADDRESS.end())
-	{
-		throw std::runtime_error("Named address " + name + " does not exist for " + RomOffsets::REGION_NAMES.find(m_region)->second + " ROM!");
-	}
-	return addr->second;
+	return *addrs;
 }
 
 RomOffsets::Section Rom::get_section(const std::string& name) const
 {
-	auto addrs = RomOffsets::SECTION.find(name);
-	if (addrs == RomOffsets::SECTION.end())
+	auto addrs = RomOffsets::GetSection(name, m_region);
+	if (!addrs)
 	{
-		throw std::runtime_error("Named section " + name + " does not exist!");
+		throw std::runtime_error("Named section " + name + " does not exist for " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " ROM!");
 	}
-	auto addr = addrs->second.find(m_region);
-	if (addrs == RomOffsets::SECTION.end())
-	{
-		throw std::runtime_error("Named section " + name + " does not exist for " + RomOffsets::REGION_NAMES.find(m_region)->second + " ROM!");
-	}
-	return addr->second;
+	return *addrs;
 }
 
 const uint8_t* Rom::data(uint32_t address) const
@@ -157,7 +147,7 @@ void Rom::resize(std::size_t amt)
 
 std::string Rom::get_description() const
 {
-	return "[" + m_filename + "] - " + RomOffsets::REGION_NAMES.find(m_region)->second + " Release ROM";
+	return "[" + m_filename + "] - " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " Release ROM";
 }
 
 RomOffsets::Region Rom::get_region() const
@@ -172,12 +162,12 @@ const std::vector<uint8_t>& Rom::get_vec() const
 
 bool Rom::section_exists(const std::string& name)
 {
-	return RomOffsets::SECTION.find(name) != RomOffsets::SECTION.cend();
+	return RomOffsets::SectionExists(name);
 }
 
 bool Rom::address_exists(const std::string& name)
 {
-	return RomOffsets::ADDRESS.find(name) != RomOffsets::ADDRESS.cend();
+	return RomOffsets::AddressExists(name);
 }
 
 uint16_t Rom::calc_checksum()
@@ -209,10 +199,10 @@ void Rom::ValidateRomChecksum()
 
 	auto build_date_vec = read_array<char>(RomOffsets::BUILD_DATE_BEGIN, RomOffsets::BUILD_DATE_LENGTH);
 	std::string build_date(build_date_vec.begin(), build_date_vec.end());
-	auto region = RomOffsets::RELEASE_BUILD_DATE.find(build_date);
-	if (region != RomOffsets::RELEASE_BUILD_DATE.end())
+	auto region = RomOffsets::GetRegionFromReleaseDate(build_date);
+	if (region != std::nullopt)
 	{
-		m_region = region->second;
+		m_region = *region;
 	}
 	else
 	{

@@ -2,39 +2,103 @@
 #include <landstalker/main/RomLabels.h>
 
 namespace Landstalker {
+using namespace RomLabels;
 
-namespace RomOffsets
+std::optional<std::string> RomOffsets::GetRegionName(Region region)
 {
-	using namespace RomLabels;
-
-	const uint32_t CHECKSUM_ADDRESS  = 0x00018E;
-	const uint32_t CHECKSUM_BEGIN    = 0x000200;
-	const uint32_t BUILD_DATE_BEGIN  = 0x000202;
-	const uint32_t BUILD_DATE_LENGTH = 0x00000E;
-	const uint32_t EXPECTED_SIZE     = 0x200000;
-
-	const std::unordered_map<Region, std::string> REGION_NAMES
+	const auto& offsets = GetInstance();
+	auto it = offsets.REGION_NAMES.find(region);
+	if (it != offsets.REGION_NAMES.end())
 	{
-		{Region::JP,      "Japanese"},
-		{Region::US,      "USA"     },
-		{Region::UK,      "UK"      },
-		{Region::FR,      "French"  },
-		{Region::DE,      "German"  },
-		{Region::US_BETA, "USA Beta"}
-	};
+		return it->second;
+	}
+	return std::nullopt;
+}
 
-	const std::unordered_map<std::string, Region> RELEASE_BUILD_DATE
+std::optional<RomOffsets::Region> RomOffsets::GetRegionFromReleaseDate(const std::string& release_date)
+{
+	const auto& offsets = GetInstance();
+	auto it = offsets.RELEASE_BUILD_DATE.find(release_date);
+	if (it != offsets.RELEASE_BUILD_DATE.end())
 	{
-		{"92/09/18 14:30", Region::JP},
-		{"93/07/13 20:03", Region::US},
-		{"93/07/15 18:08", Region::UK},
-		{"93/11/05 13:22", Region::FR},
-		{"93/11/05 13:58", Region::DE},
-		{"93/02/24 11:55", Region::US_BETA}
-	};
+		return it->second;
+	}
+	return std::nullopt;
+}
 
-	const std::unordered_map<std::string, std::unordered_map<Region, uint32_t>> ADDRESS
+std::optional<uint32_t> RomOffsets::GetAddress(const std::string& label, std::optional<Region> region)
+{
+	const auto& offsets = GetInstance();
+	if(region == std::nullopt)
 	{
+		region = Region::US;
+	}
+	auto addr_it = offsets.ADDRESS.find(std::string(label));
+	if (addr_it != offsets.ADDRESS.end())
+	{
+		auto region_it = addr_it->second.find(*region);
+		if (region_it != addr_it->second.end())
+		{
+			return region_it->second;
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<RomOffsets::Section> RomOffsets::GetSection(const std::string& label, std::optional<Region> region)
+{
+	const auto& offsets = GetInstance();
+	if(region == std::nullopt)
+	{
+		region = Region::US;
+	}
+	auto sec_it = offsets.SECTION.find(std::string(label));
+	if (sec_it != offsets.SECTION.end())
+	{
+		auto region_it = sec_it->second.find(*region);
+		if (region_it != sec_it->second.end())
+		{
+			return region_it->second;
+		}
+	}
+	return std::nullopt;
+}
+
+bool RomOffsets::SectionExists(const std::string &label)
+{
+	const auto& offsets = GetInstance();
+	auto sec_it = offsets.SECTION.find(label);
+	return sec_it != offsets.SECTION.end();
+}
+
+bool RomOffsets::AddressExists(const std::string &label)
+{
+	const auto& offsets = GetInstance();
+	auto addr_it = offsets.ADDRESS.find(label);
+	return addr_it != offsets.ADDRESS.end();
+}
+
+RomOffsets::RomOffsets()
+	: REGION_NAMES
+	  ({
+			{Region::JP,      "Japanese"},
+			{Region::US,      "USA"     },
+			{Region::UK,      "UK"      },
+			{Region::FR,      "French"  },
+			{Region::DE,      "German"  },
+			{Region::US_BETA, "USA Beta"}
+	  }),
+	  RELEASE_BUILD_DATE
+	  ({
+			{"92/09/18 14:30", Region::JP},
+			{"93/07/13 20:03", Region::US},
+			{"93/07/15 18:08", Region::UK},
+			{"93/11/05 13:22", Region::FR},
+			{"93/11/05 13:58", Region::DE},
+			{"93/02/24 11:55", Region::US_BETA}
+	  }),
+	  ADDRESS
+	  ({
 		{ Sprites::POINTER,                        {{Region::JP, 0x120000}, {Region::US, 0x120000}, {Region::UK, 0x120000}, {Region::FR, 0x120000}, {Region::DE, 0x120000}, {Region::US_BETA, 0x120000}}},
 		{ Sprites::SPRITE_VISIBILITY_FLAGS,        {{Region::JP, 0x01A35E}, {Region::US, 0x01A382}, {Region::UK, 0x01A382}, {Region::FR, 0x01A376}, {Region::DE, 0x01A37C}, {Region::US_BETA, 0x01A35E}}},
 		{ Sprites::ONE_TIME_EVENT_FLAGS,           {{Region::JP, 0x01A3B4}, {Region::US, 0x01A3D8}, {Region::UK, 0x01A3D8}, {Region::FR, 0x01A3CC}, {Region::DE, 0x01A3D2}, {Region::US_BETA, 0x01A3B4}}},
@@ -192,10 +256,9 @@ namespace RomOffsets
 		{ Tilesets::INTRO_FONT_PTR,                {{Region::JP, 0x00C4C2}, {Region::US, 0x00C528}, {Region::UK, 0x00C528}, {Region::FR, 0x00C528}, {Region::DE, 0x00C532}, {Region::US_BETA, 0x00C4D0}}},
 		{ Script::SCRIPT_END,                      {{Region::JP, 0x0262CE}, {Region::US, 0x025408}, {Region::UK, 0x025408}, {Region::FR, 0x0254D0}, {Region::DE, 0x0251B0}, {Region::US_BETA, 0x025330}}},
 		{ Script::SCRIPT_STRINGS_BEGIN,            {{Region::JP, 0x029B4C}, {Region::US, 0x028DB4}, {Region::UK, 0x028DB4}, {Region::FR, 0x028988}, {Region::DE, 0x02866E}, {Region::US_BETA, 0x028CA6}}}
-	};
-
-	const std::unordered_map<std::string, std::unordered_map<Region, Section>> SECTION
-	{
+	}),
+	SECTION
+	({
 		{ Sprites::SPRITE_SECTION,                   {{Region::JP, {0x120000, 0x1A4400}}, {Region::US, {0x120000, 0x1AF800}}, {Region::UK, {0x120000, 0x1AF800}}, {Region::FR, {0x120000, 0x1A4400}}, {Region::DE, {0x120000, 0x1A4400}}, {Region::US_BETA, {0x120000, 0x1A4400}}}},
 		{ Sprites::SPRITE_DATA_SECTION,              {{Region::JP, {0x01A58C, 0x022E00}}, {Region::US, {0x01A5BA, 0x022E80}}, {Region::UK, {0x01A5BA, 0x022E80}}, {Region::FR, {0x01A5AE, 0x022E80}}, {Region::DE, {0x01A5B4, 0x022E80}}, {Region::US_BETA, {0x01A58C, 0x022E00}}}},
 		{ Sprites::SPRITE_BEHAVIOUR_SECTION,         {{Region::JP, {0x09B058, 0x09E756}}, {Region::US, {0x09B058, 0x09E75E}}, {Region::UK, {0x09B058, 0x09E75E}}, {Region::FR, {0x09B058, 0x09E75E}}, {Region::DE, {0x09B058, 0x09E75E}}, {Region::US_BETA, {0x09B058, 0x09E75E}}}},
@@ -256,7 +319,13 @@ namespace RomOffsets
 		{ Graphics::MISC_PAL_SECTION,                {{Region::JP, {0x008FB6, 0x008FE0}}, {Region::US, {0x00901C, 0x009046}}, {Region::UK, {0x00901C, 0x009046}}, {Region::FR, {0x00901C, 0x009046}}, {Region::DE, {0x009026, 0x009050}}, {Region::US_BETA, {0x008FC4, 0x008FEE}}}},
 		{ Graphics::INV_ITEM_PAL_SECTION,            {{Region::JP, {0x00783C, 0x00785C}}, {Region::US, {0x007896, 0x0078B6}}, {Region::UK, {0x007896, 0x0078B6}}, {Region::FR, {0x007896, 0x0078B6}}, {Region::DE, {0x0078A0, 0x0078C0}}, {Region::US_BETA, {0x00784A, 0x00786A}}}},
 		{ Script::SCRIPT_SECTION,                    {{Region::JP, {0x0286BC, 0x029AFC}}, {Region::US, {0x0277F6, 0x028D64}}, {Region::UK, {0x0277F6, 0x028D64}}, {Region::FR, {0x02791A, 0x028938}}, {Region::DE, {0x0275FA, 0x02861E}}, {Region::US_BETA, {0x02771E, 0x028C56}}}}
-	};
+	})
+	{}
 
-} // namespace RomOffsets
+	const RomOffsets& RomOffsets::GetInstance()
+	{
+		static RomOffsets offsets;
+		return offsets;
+	}
+
 } // namespace Landstalker

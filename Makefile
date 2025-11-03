@@ -18,8 +18,6 @@ SRC		:= $(foreach sdir,$(SRCDIR),$(wildcard $(sdir)/*/*.cpp))
 OBJ		:= $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 INCLUDES	:= $(addprefix -I,$(INCS))
 
-$(info $(SRCDIR))
-
 vpath %.cpp $(SRCDIR) $(EXEC_SDIR)
 
 DEBUG=no
@@ -31,7 +29,7 @@ endif
 
 .PHONY: all checkdirs clean clean-all
 
-all: checkdirs $(EXEC)
+all: checkdirs $(BUILDDIR)/$(EXEC)
 
 checkdirs: $(BUILDDIR)
 
@@ -48,6 +46,6 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
 
-$(EXEC): $(OBJ) $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(wildcard $(SRCDIR)/*.cpp))
+$(BUILDDIR)/$(EXEC): $(OBJ) $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(wildcard $(SRCDIR)/*.cpp))
 	$(AR) rcs $@ $^
 

@@ -129,17 +129,12 @@ inline bool Rom::read<bool>(uint32_t offset) const
 template<class T>
 inline T Rom::read(const std::string& name) const
 {
-	auto addrs = RomOffsets::ADDRESS.find(name);
-	if (addrs == RomOffsets::ADDRESS.end())
+	auto addrs = RomOffsets::GetAddress(name, m_region);
+	if (!addrs)
 	{
-		throw std::runtime_error("Named address " + name + " does not exist!");
+		throw std::runtime_error("Named address " + name + " does not exist for " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " ROM!");
 	}
-	auto addr = addrs->second.find(m_region);
-	if (addrs == RomOffsets::ADDRESS.end())
-	{
-		throw std::runtime_error("Named address " + name + " does not exist for " + RomOffsets::REGION_NAMES.find(m_region)->second + " ROM!");
-	}
-	return read<T>(addr->second);
+	return read<T>(*addrs);
 }
 
 template< class T >
@@ -177,33 +172,23 @@ inline std::vector<bool> Rom::read_array(uint32_t offset, uint32_t count) const
 template<class T>
 inline std::vector<T> Rom::read_array(const std::string& name) const
 {
-	auto secs = RomOffsets::SECTION.find(name);
-	if (secs == RomOffsets::SECTION.end())
+	auto secs = RomOffsets::GetSection(name);
+	if (!secs)
 	{
-		throw std::runtime_error("Named section " + name + " does not exist!");
+		throw std::runtime_error("Named section " + name + " does not exist for " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " ROM!");
 	}
-	auto sec = secs->second.find(m_region);
-	if (sec == secs->second.end())
-	{
-		throw std::runtime_error("Named section " + name + " does not exist for " + RomOffsets::REGION_NAMES.find(m_region)->second + " ROM!");
-	}
-	return read_array<T>(sec->second.begin, sec->second.size() / sizeof(T));
+	return read_array<T>(secs->begin, secs->size() / sizeof(T));
 }
 
 template<>
 inline std::vector<bool> Rom::read_array<bool>(const std::string& name) const
 {
-	auto secs = RomOffsets::SECTION.find(name);
-	if (secs == RomOffsets::SECTION.end())
+	auto secs = RomOffsets::GetSection(name);
+	if (!secs)
 	{
-		throw std::runtime_error("Named section " + name + " does not exist!");
+		throw std::runtime_error("Named section " + name + " does not exist for " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " ROM!");
 	}
-	auto sec = secs->second.find(m_region);
-	if (sec == secs->second.end())
-	{
-		throw std::runtime_error("Named section " + name + " does not exist for " + RomOffsets::REGION_NAMES.find(m_region)->second + " ROM!");
-	}
-	return read_array<bool>(sec->second.begin, sec->second.size());
+	return read_array<bool>(secs->begin, secs->size());
 }
 
 template<class T>
