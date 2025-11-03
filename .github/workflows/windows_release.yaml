@@ -29,28 +29,30 @@ jobs:
       - name: 'Build Static Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake -S . -B build -DLANDSTALKER_BUILD_SHARED=OFF
+          cmake -S . -B build -DLANDSTALKER_BUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release -j32
           cmake --install build --prefix ./lib --config Release
 
       - name: 'Build Static Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake --build build --config Debug -j32
-          cmake --install build --prefix ./lib_debug --config Debug
+          cmake -S . -B build_debug -DLANDSTALKER_BUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build_debug -j32
+          cmake --install build_debug --prefix ./lib_debug --config Debug
 
       - name: 'Build DLL Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake -S . -B build_dll -DLANDSTALKER_BUILD_SHARED=ON
-          cmake --build build_dll --config Release -j32
+          cmake -S . -B build_dll -DLANDSTALKER_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build_dll -j32
           cmake --install build_dll --prefix ./dll --config Release
 
       - name: 'Build DLL Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake --build build_dll --config Debug -j32
-          cmake --install build_dll --prefix ./dll_debug --config Debug
+          cmake -S . -B build_dll_debug -DLANDSTALKER_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build_dll_debug -j32
+          cmake --install build_dll_debug --prefix ./dll_debug --config Debug
 
       - name: Compress artifacts
         working-directory: ${{github.workspace}}/liblandstalker

@@ -36,6 +36,7 @@ jobs:
       - name: 'Build Static Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
+          cmake --build build --target clean
           cmake --build build --config Debug -j32
           cmake --install build --prefix ./lib_debug --config Debug
 
@@ -49,6 +50,7 @@ jobs:
       - name: 'Build Shared Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
+          cmake --build build --target clean
           cmake --build build_shared --config Debug -j32
           cmake --install build_shared --prefix ./lib_debug --config Debug
 
