@@ -54,14 +54,10 @@ jobs:
           cmake --build build_shared_debug -j32
           cmake --install build_shared_debug --prefix ./lib_debug
 
-      - name: Compress artifacts
-        working-directory: ${{github.workspace}}/liblandstalker
-        shell: bash
-        run: |
-          tar czvf liblandstalker.tar.gz lib lib_debug
-
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           name: liblandstalker_binary_ubuntu
-          path: ${{github.workspace}}/liblandstalker/liblandstalker.tar.gz
+          path: |
+            ${{github.workspace}}/liblandstalker/lib
+            ${{github.workspace}}/liblandstalker/lib_debug
