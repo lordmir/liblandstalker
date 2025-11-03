@@ -29,36 +29,36 @@ jobs:
       - name: 'Build Static Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake -S . -B build -DLANDSTALKER_BUILD_SHARED=OFF
-          cmake --build build --config Release -j32
-          cmake --install build --prefix ./lib --config Release
+          cmake -S . -B build -DLANDSTALKER_BUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j32
+          cmake --install build --prefix ./lib
 
       - name: 'Build Static Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake --build build --target clean
-          cmake --build build --config Debug -j32
-          cmake --install build --prefix ./lib_debug --config Debug
+          cmake -S . -B build_debug -DLANDSTALKER_BUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build_debug -j32
+          cmake --install build_debug --prefix ./lib
 
       - name: 'Build Shared Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake -S . -B build_shared -DLANDSTALKER_BUILD_SHARED=ON
-          cmake --build build_shared --config Release -j32
-          cmake --install build_shared --prefix ./lib --config Release
+          cmake -S . -B build_shared -DLANDSTALKER_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build_shared -j32
+          cmake --install build_shared --prefix ./lib
 
       - name: 'Build Shared Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake --build build --target clean
-          cmake --build build_shared --config Debug -j32
-          cmake --install build_shared --prefix ./lib_debug --config Debug
+          cmake -S . -B build_shared_debug -DLANDSTALKER_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build_shared_debug -j32
+          cmake --install build_shared_debug --prefix ./lib
 
       - name: Compress artifacts
         working-directory: ${{github.workspace}}/liblandstalker
         shell: bash
         run: |
-          tar czvf liblandstalker.tar.gz ./lib ./lib_debug
+          tar czvf liblandstalker.tar.gz ./lib
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
