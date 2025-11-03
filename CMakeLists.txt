@@ -22,18 +22,18 @@ if(${LANDSTALKER_BUILD_SHARED})
     endif()
 
     set( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS True )
-    set(${MODULE_NAME}_RUNTIME_DEPENDENCIES png_shared yaml-cpp zlib pugixml-shared)
     add_library(${MODULE_NAME} SHARED)
     set_target_properties(${MODULE_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
     set_target_properties(${MODULE_NAME} PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
-
+    
     if(WIN32)
         if (MSVC)
             target_compile_definitions(${MODULE_NAME} PRIVATE COMPILEDLL)
         endif()
-        target_link_libraries(${MODULE_NAME} PRIVATE ws2_32)
+            target_link_libraries(${MODULE_NAME} PRIVATE ws2_32)
     endif()
-
+    
+    set(${MODULE_NAME}_RUNTIME_DEPENDENCIES png_shared yaml-cpp zlib pugixml-shared)
     target_link_libraries(${MODULE_NAME} PRIVATE png_shared yaml-cpp::yaml-cpp pugixml::shared)
 else()
     add_library(${MODULE_NAME} STATIC)
