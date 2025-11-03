@@ -92,7 +92,7 @@ bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_p
 
 	auto tileset_properties = tmx.child("map").child("tileset").append_child("properties");
 	add_property(tileset_properties, "Palette", roomData->GetRoomPaletteDisplayName(room->room_palette));
-	for(unsigned int i = 0; i < roomData->GetPaletteForRoom(roomnum)->GetData()->GetSize(); i++)
+	for(unsigned int i = 0; i < static_cast<unsigned int>(roomData->GetPaletteForRoom(roomnum)->GetData()->GetSize()); i++)
 	{
 		std::string palette_name = "PaletteColour" + std::to_string(i);
 		add_property(tileset_properties, palette_name, roomData->GetPaletteForRoom(roomnum)->GetData()->GetColour(i));

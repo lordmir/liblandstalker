@@ -6,7 +6,6 @@
 #include <iostream>
 #include <array>
 #include <algorithm>
-#include <concepts>
 #include <landstalker/main/AsmFile.h>
 #include <landstalker/misc/Utils.h>
 
@@ -49,7 +48,7 @@ bool AsmFile::Read(T& value, Args&&... args)
 	return Read(value) && Read(args...);
 }
 
-template<typename T> requires std::integral<T>
+template<typename T>
 bool AsmFile::Read(T& value)
 {
 	value = 0;

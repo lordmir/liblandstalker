@@ -23,6 +23,24 @@ static std::string GetData(const Tilemap3D& map, Tilemap3D::Layer layer)
 	}
 	return ss.str();
 }
+static std::string GetHMData(const Tilemap3D& map)
+{
+	std::ostringstream ss;
+	int i = 0;
+	for (int y = 0; y < map.GetHeightmapHeight(); ++y)
+	{
+		for (int x = 0; x < map.GetHeightmapWidth(); ++x, ++i)
+		{
+			ss << Landstalker::Hex(map.GetHeightmapCell({ x, y }));
+			if (i < map.GetWidth() * map.GetHeight() - 1)
+			{
+				ss << ",";
+			}
+		}
+		ss << std::endl;
+	}
+	return ss.str();
+}
 
 static std::vector<uint16_t> ReadData(int width, int height, const std::string& csv)
 {
@@ -107,6 +125,22 @@ pugi::xml_document MapToTmx::GenerateXmlDocument(const std::string& fname, const
 	map_node.append_attribute("backgroundcolor") = "#181818";
 	map_node.append_attribute("nextlayerid") = 3;
 	map_node.append_attribute("nextobjectid") = 1;
+	auto map_properties = map_node.append_child("properties");
+	auto hmwidth_property = map_properties.append_child("property");
+	hmwidth_property.append_attribute("name") = "hmwidth";
+	hmwidth_property.append_attribute("value") = map.GetHeightmapWidth();
+	auto hmheight_property = map_properties.append_child("property");
+	hmheight_property.append_attribute("name") = "hmheight";
+	hmheight_property.append_attribute("value") = map.GetHeightmapHeight();
+	auto hmleft_property = map_properties.append_child("property");
+	hmleft_property.append_attribute("name") = "hmleft";
+	hmleft_property.append_attribute("value") = map.GetLeft();
+	auto hmtop_property = map_properties.append_child("property");
+	hmtop_property.append_attribute("name") = "hmtop";
+	hmtop_property.append_attribute("value") = map.GetTop();
+	auto heightmap_property = map_properties.append_child("property");
+	heightmap_property.append_attribute("name") = "heightmap";
+	heightmap_property.append_attribute("value") = GetHMData(map).c_str();
 
 	auto tileset_node = map_node.append_child("tileset");
 	tileset_node.append_attribute("firstgid") = 1;
@@ -117,7 +151,7 @@ pugi::xml_document MapToTmx::GenerateXmlDocument(const std::string& fname, const
 	tileset_node.append_attribute("columns") = 16;
 
 	auto image_node = tileset_node.append_child("image");
-	image_node.append_attribute("source") = std::filesystem::relative(fn.parent_path(), bsfn).string().c_str();
+	image_node.append_attribute("source") = std::filesystem::proximate(bsfn, fn.parent_path()).string().c_str();
 	image_node.append_attribute("width") = 256;
 	image_node.append_attribute("height") = 1024;
 
@@ -130,7 +164,7 @@ pugi::xml_document MapToTmx::GenerateXmlDocument(const std::string& fname, const
 	bg_layer.append_attribute("offsety") = 0;
 	auto bg_data = bg_layer.append_child("data");
 	bg_data.append_attribute("encoding") = "csv";
-	bg_data.set_value(GetData(map, Tilemap3D::Layer::BG).c_str());
+	bg_data.append_child(pugi::node_pcdata).set_value(GetData(map, Tilemap3D::Layer::BG).c_str());
 
 	auto fg_layer = map_node.append_child("layer");
 	fg_layer.append_attribute("id") = 2;
@@ -141,7 +175,7 @@ pugi::xml_document MapToTmx::GenerateXmlDocument(const std::string& fname, const
 	fg_layer.append_attribute("offsety") = 0;
 	auto fg_data = fg_layer.append_child("data");
 	fg_data.append_attribute("encoding") = "csv";
-	fg_data.set_value(GetData(map, Tilemap3D::Layer::FG).c_str());
+	fg_data.append_child(pugi::node_pcdata).set_value(GetData(map, Tilemap3D::Layer::FG).c_str());
 
 	return tmx;
 }

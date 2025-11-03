@@ -193,7 +193,7 @@ public:
 
 	const AsmData& Peek() const;
 
-	template<typename T> requires std::integral<T>
+	template<typename T>
 	bool Read(T& value);
 	bool Read(const GotoLabel& label);
 	template<template<typename, typename...> class C, typename T, typename... Rest>
