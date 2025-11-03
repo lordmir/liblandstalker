@@ -68,6 +68,7 @@ target_include_directories(${MODULE_NAME}
 
 install(
     TARGETS ${MODULE_NAME} ${${MODULE_NAME}_RUNTIME_DEPENDENCIES}
+    CONFIGURATIONS Release Debug
     EXPORT ${MODULE_NAME}Targets
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
