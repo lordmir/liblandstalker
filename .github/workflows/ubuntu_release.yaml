@@ -38,7 +38,7 @@ jobs:
         run: |
           cmake -S . -B build_debug -DLANDSTALKER_BUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Debug
           cmake --build build_debug -j32
-          cmake --install build_debug --prefix ./lib
+          cmake --install build_debug --prefix ./lib_debug
 
       - name: 'Build Shared Release'
         working-directory: ${{github.workspace}}/liblandstalker
@@ -52,13 +52,13 @@ jobs:
         run: |
           cmake -S . -B build_shared_debug -DLANDSTALKER_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug
           cmake --build build_shared_debug -j32
-          cmake --install build_shared_debug --prefix ./lib
+          cmake --install build_shared_debug --prefix ./lib_debug
 
       - name: Compress artifacts
         working-directory: ${{github.workspace}}/liblandstalker
         shell: bash
         run: |
-          tar czvf liblandstalker.tar.gz ./lib
+          tar czvf liblandstalker.tar.gz lib lib_debug
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4

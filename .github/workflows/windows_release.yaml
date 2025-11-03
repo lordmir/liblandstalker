@@ -54,13 +54,12 @@ jobs:
           cmake --build build_dll --config Debug -j32
           cmake --install build_dll --prefix ./dll_debug --config Debug
 
-      - name: Compress artifacts
-        working-directory: ${{github.workspace}}/liblandstalker
-        run: |
-          Compress-Archive -Path dll/*,dll_debug/*,lib/*,lib_debug/* -Destination liblandstalker.zip
-
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           name: landstalker_binary_windows
-          path: ${{github.workspace}}/liblandstalker/liblandstalker.zip
+          path: |
+            ${{github.workspace}}/liblandstalker/lib
+            ${{github.workspace}}/liblandstalker/lib_debug
+            ${{github.workspace}}/liblandstalker/dll
+            ${{github.workspace}}/liblandstalker/dll_debug
