@@ -2,7 +2,7 @@
 #define _MAP_TO_TMX_H_
 
 #include <string>
-#include <wx/xml/xml.h>
+#include <pugixml.hpp>
 #include <landstalker/main/DataTypes.h>
 
 namespace Landstalker {
@@ -11,7 +11,7 @@ class MapToTmx
 {
 public:
 	static bool ImportFromTmx(const std::string& fname, Tilemap3D& map);
-	static wxXmlDocument GenerateXmlDocument(const std::string& fname, const Tilemap3D& map, const std::string& blockset_filename);
+	static pugi::xml_document GenerateXmlDocument(const std::string& fname, const Tilemap3D& map, const std::string& blockset_filename);
 	static bool ExportToTmx(const std::string& fname, const Tilemap3D& map, const std::string& blockset_filename);
 };
 

@@ -22,7 +22,7 @@ if(${LANDSTALKER_BUILD_SHARED})
     endif()
 
     set( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS True )
-    set(${MODULE_NAME}_RUNTIME_DEPENDENCIES png_shared yaml-cpp zlib)
+    set(${MODULE_NAME}_RUNTIME_DEPENDENCIES png_shared yaml-cpp zlib pugixml-shared)
     add_library(${MODULE_NAME} SHARED)
     set_target_properties(${MODULE_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
     set_target_properties(${MODULE_NAME} PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
@@ -34,7 +34,7 @@ if(${LANDSTALKER_BUILD_SHARED})
         target_link_libraries(${MODULE_NAME} PRIVATE ws2_32)
     endif()
 
-    target_link_libraries(${MODULE_NAME} PRIVATE png_shared yaml-cpp::yaml-cpp)
+    target_link_libraries(${MODULE_NAME} PRIVATE png_shared yaml-cpp::yaml-cpp pugixml::shared)
 else()
     add_library(${MODULE_NAME} STATIC)
 
@@ -46,9 +46,9 @@ else()
         add_compile_options(-sUSE_LIBPNG)
         add_definitions("-sUSE_LIBPNG -fexceptions")
         set(CMAKE_EXE_LINKER_FLAGS "-sASSERTIONS -sUSE_LIBPNG")
-        target_link_libraries(${MODULE_NAME} PRIVATE yaml-cpp::yaml-cpp)
+        target_link_libraries(${MODULE_NAME} PRIVATE yaml-cpp::yaml-cpp pugixml::static)
     else()
-        target_link_libraries(${MODULE_NAME} PRIVATE png_static yaml-cpp::yaml-cpp)
+        target_link_libraries(${MODULE_NAME} PRIVATE png_static yaml-cpp::yaml-cpp pugixml::static)
     endif()
 endif()
 
@@ -59,24 +59,12 @@ endif()
 set_target_properties(${MODULE_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
 add_subdirectory("landstalker")
-target_include_directories(${MODULE_NAME} PUBLIC "landstalker/include")
-
-if(EMSCRIPTEN)
-    add_compile_options(-sUSE_LIBPNG)
-    add_definitions("-sUSE_LIBPNG -fexceptions")
-    set(CMAKE_EXE_LINKER_FLAGS "-sASSERTIONS -sUSE_LIBPNG")
-    target_link_libraries(${MODULE_NAME} PRIVATE yaml-cpp::yaml-cpp)
-else()
-    target_link_libraries(${MODULE_NAME} PRIVATE png_static yaml-cpp::yaml-cpp)
-endif()
 
 target_include_directories(${MODULE_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-
-set({MODULE_NAME}_RUNTIME_DEPENDENCIES $<?IF:$<BOOL:${LANDSTALKER_BUILD_SHARED}>,png_shared yaml-cpp zlib>)
 
 install(
     TARGETS ${MODULE_NAME} ${${MODULE_NAME}_RUNTIME_DEPENDENCIES}

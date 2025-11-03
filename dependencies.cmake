@@ -25,6 +25,7 @@ function(InstallZlib)
         zlib
         GIT_REPOSITORY https://github.com/madler/zlib.git
         GIT_TAG "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf" # "v1.3.1"
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -46,6 +47,7 @@ function(InstallLibpng)
         png
         GIT_REPOSITORY https://github.com/pnggroup/libpng.git
         GIT_TAG "7c67f70da1db5f1d7a75cf518d8e5bd704ba89ce" # "libpng18"
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     set(PNG_SHARED $<IF:$<BOOL:${LANDSTALKER_BUILD_SHARED}>,ON,OFF> CACHE BOOL "" FORCE)
@@ -58,12 +60,27 @@ function(InstallLibpng)
     FetchContent_MakeAvailable(png)
 endfunction()
 
+function(InstallPugixml)
+    message("Fetching Pugixml sources...")
+    FetchContent_Declare(
+        pugixml
+        GIT_REPOSITORY https://github.com/zeux/pugixml
+        GIT_TAG "ee86beb30e4973f5feffe3ce63bfa4fbadf72f38" # "v1.15"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL
+    )
+    set(BUILD_SHARED_LIBS $<IF:$<BOOL:${LANDSTALKER_BUILD_SHARED}>,ON,OFF> CACHE BOOL "" FORCE)
+    message("Configuring Pugixml...")
+    FetchContent_MakeAvailable(pugixml)
+endfunction()
+
 function(InstallYamlcpp)
     message("Fetching YAML-CPP sources...")
     FetchContent_Declare(
         yaml-cpp
         GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
         GIT_TAG "0579ae3d976091d7d664aa9d2527e0d0cff25763" # "yaml-cpp-0.7.0"
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     set(YAML_CPP_BUILD_CONTRIB ON CACHE BOOL "" FORCE)
@@ -78,11 +95,26 @@ function(InstallYamlcpp)
     FetchContent_MakeAvailable(yaml-cpp)
 endfunction()
 
+function(InstallBoost)
+    message("Fetching Boost sources...")
+    FetchContent_Declare(
+        boost
+        GIT_REPOSITORY https://github.com/boostorg/boost.git
+        GIT_TAG "ef7fea34711a189472893b88205b1dd3c275677b" # "boost-1.89.0"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL
+    )
+    message("Configuring Boost...")
+    FetchContent_MakeAvailable(boost)
+endfunction()
+
 function(InstallDependencies)
     # Emscripten has it's own version of libpng
     if(NOT(EMSCRIPTEN))
         InstallZlib()
         InstallLibpng()
     endif()
+    InstallPugixml()
     InstallYamlcpp()
+    # InstallBoost()
 endfunction()

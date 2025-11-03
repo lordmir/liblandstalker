@@ -5,327 +5,210 @@
 #include <landstalker/rooms/WarpList.h>
 #include <sstream>
 #include <iomanip>
-#include <wx/filename.h>
-#include <wx/xml/xml.h>
+#include <filesystem>
+#include <pugixml.hpp>
+#include <landstalker/misc/Utils.h>
+
+template<class> constexpr bool ALWAYS_FALSE = false;
 
 namespace Landstalker {
+
+static std::string GetBlocksetData(const std::shared_ptr<BlocksetEntry>& blockset)
+{
+	std::ostringstream ss;
+	for (auto it = blockset->GetData()->cbegin(); it != blockset->GetData()->cend(); ++it)
+	{
+		for(unsigned int i = 0; i < MapBlock::GetBlockSize(); ++i)
+		{
+			const auto& tile = it->GetTile(i);
+			ss << std::setw(8) << StrPrintf("%s%s%s%04X",
+				tile.Attributes().getAttribute(Landstalker::TileAttributes::Attribute::ATTR_PRIORITY) ? "P" : "",
+				tile.Attributes().getAttribute(Landstalker::TileAttributes::Attribute::ATTR_VFLIP) ? "V" : "",
+				tile.Attributes().getAttribute(Landstalker::TileAttributes::Attribute::ATTR_HFLIP) ? "H" : "",
+			 	tile.GetIndex());
+			if(i < MapBlock::GetBlockSize() - 1 && it != std::prev(blockset->GetData()->cend()))
+			{
+				ss << ",";
+			}
+		}
+		ss << "\n";
+	}
+	return ss.str();
+}
 
 bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_ptr<GameData> gameData, const std::string& blockset_filename)
 {
 	std::shared_ptr<RoomData> roomData = gameData->GetRoomData();
-	wxXmlDocument tmx = MapToTmx::GenerateXmlDocument(fname, *(roomData->GetMapForRoom(roomnum)->GetData()), blockset_filename);
+	pugi::xml_document tmx = MapToTmx::GenerateXmlDocument(fname, *(roomData->GetMapForRoom(roomnum)->GetData()), blockset_filename);
+
+	auto add_property = [&](pugi::xml_node& parent, const std::string& name, auto value)
+	{
+		auto property = parent.append_child("property");
+		property.append_attribute("name") = name.c_str();
+		if constexpr (std::is_same_v<decltype(value), std::string>)
+		{
+			property.append_attribute("type") = "string";
+			property.append_attribute("value") = value.c_str();
+		}
+		else if constexpr (std::is_same_v<decltype(value), std::wstring>)
+		{
+			property.append_attribute("type") = "string";
+			property.append_attribute("value") = wstr_to_utf8(value).c_str();
+		}
+		else if constexpr (std::is_same_v<decltype(value), const char*>)
+		{
+			property.append_attribute("type") = "string";
+			property.append_attribute("value") = value;
+		}
+		else if constexpr (std::is_same_v<decltype(value), bool>)
+		{
+			property.append_attribute("type") = "bool";
+			property.append_attribute("value") = value ? "true" : "false";
+		}
+		else if constexpr (std::is_integral_v<decltype(value)>)
+		{
+			property.append_attribute("type") = "int";
+			property.append_attribute("value") = value;
+		}
+		else if constexpr (std::is_floating_point_v<decltype(value)>)
+		{
+			property.append_attribute("type") = "float";
+			property.append_attribute("value") = value;
+		}
+		else if constexpr (std::is_same_v<decltype(value), Landstalker::Palette::Colour>)
+		{
+			property.append_attribute("type") = "color";
+			property.append_attribute("value") = StrPrintf("#%08X", value.GetRGB(true)).c_str();
+		}
+		else
+		{
+			static_assert(ALWAYS_FALSE<decltype(value)>, "Unsupported property value type");
+		}
+	};
 
 	// Properties
 	auto room = roomData->GetRoom(roomnum);
-	auto properties = new wxXmlNode(wxXML_ELEMENT_NODE, "properties");
+	auto properties = tmx.child("map").append_child("properties");
 
+	auto tileset_properties = tmx.child("map").child("tileset").append_child("properties");
+	add_property(tileset_properties, "Palette", roomData->GetRoomPaletteDisplayName(room->room_palette));
+	for(unsigned int i = 0; i < roomData->GetPaletteForRoom(roomnum)->GetData()->GetSize(); i++)
+	{
+		std::string palette_name = "PaletteColour" + std::to_string(i);
+		add_property(tileset_properties, palette_name, roomData->GetPaletteForRoom(roomnum)->GetData()->GetColour(i));
+	}
+	auto blocksets = roomData->GetBlocksetsForRoom(roomnum);
+	if(blocksets.size() > 0)
+	{
+		add_property(tileset_properties, "PrimaryBlocksetName", blocksets.front()->GetName());
+		add_property(tileset_properties, "PrimaryBlocksetData", GetBlocksetData(blocksets.front()));
+	}
+	if(blocksets.size() > 1)
+	{
+		add_property(tileset_properties, "SecondaryBlocksetName", (*std::next(blocksets.begin()))->GetName());
+		add_property(tileset_properties, "SecondaryBlocksetData", GetBlocksetData(*std::next(blocksets.begin())));
+	}
+	add_property(tileset_properties, "TilesetName", roomData->GetTilesetDisplayName(room->tileset));
+	
 	// Room Properties
-	auto name_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	name_property->AddAttribute("name", "RoomName");
-	name_property->AddAttribute("value", room->GetDisplayName());
-	properties->AddChild(name_property);
-
-	auto label_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	name_property->AddAttribute("name", "RoomLabel");
-	name_property->AddAttribute("value", room->name);
-	properties->AddChild(label_property);
-
-	auto room_number_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	room_number_property->AddAttribute("name", "RoomNumber");
-	room_number_property->AddAttribute("value", std::to_string(roomnum));
-	properties->AddChild(room_number_property);
-
-	auto tileset_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	tileset_property->AddAttribute("name", "RoomTileset");
-	tileset_property->AddAttribute("value", std::to_string(room->tileset));
-	properties->AddChild(tileset_property);
-
-	auto palette_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	palette_property->AddAttribute("name", "RoomPalette");
-	palette_property->AddAttribute("value", std::to_string(room->room_palette));
-	properties->AddChild(palette_property);
-
-	auto pri_blockset_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	pri_blockset_property->AddAttribute("name", "RoomPrimaryBlockset");
-	pri_blockset_property->AddAttribute("value", std::to_string(room->pri_blockset));
-	properties->AddChild(pri_blockset_property);
-
-	auto sec_blockset_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	sec_blockset_property->AddAttribute("name", "RoomSecondaryBlockset");
-	sec_blockset_property->AddAttribute("value", std::to_string(room->sec_blockset));
-	properties->AddChild(sec_blockset_property);
-
-	auto bgm_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	bgm_property->AddAttribute("name", "RoomBGM");
-	bgm_property->AddAttribute("value", std::to_string(room->bgm));
-	properties->AddChild(bgm_property);
-
-	auto map_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	map_property->AddAttribute("name", "RoomMap");
-	map_property->AddAttribute("value", room->map);
-	properties->AddChild(map_property);
-
-	auto unknown_param1_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	unknown_param1_property->AddAttribute("name", "RoomUnknownParam1");
-	unknown_param1_property->AddAttribute("value", std::to_string(room->unknown_param1));
-	properties->AddChild(unknown_param1_property);
-
-	auto unknown_param2_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	unknown_param2_property->AddAttribute("name", "RoomUnknownParam2");
-	unknown_param2_property->AddAttribute("value", std::to_string(room->unknown_param2));
-	properties->AddChild(unknown_param2_property);
-
-	auto z_begin_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	z_begin_property->AddAttribute("name", "RoomZBegin");
-	z_begin_property->AddAttribute("value", std::to_string(room->room_z_begin));
-	properties->AddChild(z_begin_property);
-
-	auto z_end_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	z_end_property->AddAttribute("name", "RoomZEnd");
-	z_end_property->AddAttribute("value", std::to_string(room->room_z_end));
-	properties->AddChild(z_end_property);
-
+	add_property(properties, "RoomName", room->GetDisplayName());
+	add_property(properties, "RoomLabel", room->name);
+	add_property(properties, "RoomNumber", roomnum);
+	add_property(properties, "RoomTileset", room->tileset);
+	add_property(properties, "RoomPalette", room->room_palette);
+	add_property(properties, "RoomPrimaryBlockset", room->pri_blockset);
+	add_property(properties, "RoomSecondaryBlockset", room->sec_blockset);
+	add_property(properties, "RoomBGM", room->bgm);
+	add_property(properties, "RoomMap", room->map);
+	add_property(properties, "RoomUnknownParam1", room->unknown_param1);
+	add_property(properties, "RoomUnknownParam2", room->unknown_param2);
+	add_property(properties, "RoomZBegin", room->room_z_begin);
+	add_property(properties, "RoomZEnd", room->room_z_end);
 	// Warps Properties
-	auto fall_destination_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	fall_destination_property->AddAttribute("name", "WarpFallDestination");
-	fall_destination_property->AddAttribute("type", "int");
-	fall_destination_property->AddAttribute("value", std::to_string(roomData->GetFallDestination(roomnum)));
-	properties->AddChild(fall_destination_property);
-
-	auto climb_destination_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	climb_destination_property->AddAttribute("name", "WarpClimbDestination");
-	climb_destination_property->AddAttribute("type", "int");
-	climb_destination_property->AddAttribute("value", std::to_string(roomData->GetClimbDestination(roomnum)));
-	properties->AddChild(climb_destination_property);
-
+	add_property(properties, "WarpFallDestination", roomData->GetFallDestination(roomnum));
+	add_property(properties, "WarpClimbDestination", roomData->GetClimbDestination(roomnum));
 	// Flags Properties
-	auto lantern_room_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	lantern_room_property->AddAttribute("name", "FlagHasLantern");
-	lantern_room_property->AddAttribute("type", "bool");
-	lantern_room_property->AddAttribute("value", roomData->HasLanternFlag(roomnum) ? "true" : "false");
-	properties->AddChild(lantern_room_property);
-
-	auto lantern_flags_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	lantern_flags_property->AddAttribute("name", "FlagLantern");
-	lantern_flags_property->AddAttribute("type", "int");
-	lantern_flags_property->AddAttribute("value", std::to_string(roomData->GetLanternFlag(roomnum)));
-	properties->AddChild(lantern_flags_property);
-	tmx.GetRoot()->AddChild(properties);
-
+	add_property(properties, "FlagHasLantern", roomData->HasLanternFlag(roomnum));
+	add_property(properties, "FlagLantern", roomData->GetLanternFlag(roomnum));
 	// Misc Properties
-	auto shop_room_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	shop_room_property->AddAttribute("name", "FlagIsShopChurchInn");
-	shop_room_property->AddAttribute("type", "bool");
-	shop_room_property->AddAttribute("value", roomData->IsShop(roomnum) ? "true" : "false");
-	properties->AddChild(shop_room_property);
-
-	auto lifestock_for_sale_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	lifestock_for_sale_property->AddAttribute("name", "MiscLifestockForSale");
-	lifestock_for_sale_property->AddAttribute("type", "bool");
-	lifestock_for_sale_property->AddAttribute("value", roomData->HasLifestockSaleFlag(roomnum) ? "true" : "false");
-	properties->AddChild(lifestock_for_sale_property);
-
-	auto lifestock_sale_flags_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	lifestock_sale_flags_property->AddAttribute("name", "MiscLifestockSaleFlag");
-	lifestock_sale_flags_property->AddAttribute("type", "int");
-	lifestock_sale_flags_property->AddAttribute("value", std::to_string(roomData->GetLifestockSaleFlag(roomnum)));
-	properties->AddChild(lifestock_sale_flags_property);
-	tmx.GetRoot()->AddChild(properties);
-
+	add_property(properties, "FlagIsShopChurchInn", roomData->IsShop(roomnum));
+	add_property(properties, "MiscLifestockForSale", roomData->HasLifestockSaleFlag(roomnum));
+	add_property(properties, "MiscLifestockSaleFlag", roomData->GetLifestockSaleFlag(roomnum));
 
 	// Warp objects
-	auto warps_objectgroup = new wxXmlNode(wxXML_ELEMENT_NODE, "objectgroup");
-	warps_objectgroup->AddAttribute("id", "3");
-	warps_objectgroup->AddAttribute("name", "Warps");
+	auto warps_objectgroup = tmx.child("map").append_child("objectgroup");
+	warps_objectgroup.append_attribute("id") = "3";
+	warps_objectgroup.append_attribute("name") = "Warps";
 
 	int warp_id = 1;
     std::vector<WarpList::Warp> warps = roomData->GetWarpsForRoom(roomnum);
 	for (const auto& warp : warps) {
-		auto warp_object = new wxXmlNode(wxXML_ELEMENT_NODE, "object");
-		warp_object->AddAttribute("id", std::to_string(warp_id));
-		warp_object->AddAttribute("visible", "0");
-		warp_object->AddAttribute("name", "Warp");
-		warp_object->AddAttribute("x", std::to_string(warp.x1));
-		warp_object->AddAttribute("y", std::to_string(warp.y1));
-		warp_object->AddAttribute("width", std::to_string(warp.x_size));
-		warp_object->AddAttribute("height", std::to_string(warp.y_size));
-		
+		auto warp_object = warps_objectgroup.append_child("object");
+		warp_object.append_attribute("id") = warp_id;
+		warp_object.append_attribute("visible") = 0;
+		warp_object.append_attribute("name") = "Warp";
+		warp_object.append_attribute("x") = warp.x1;
+		warp_object.append_attribute("y") = warp.y1;
+		warp_object.append_attribute("width") = warp.x_size;
+		warp_object.append_attribute("height") = warp.y_size;
 		// Warp properties
-		auto warp_properties = new wxXmlNode(wxXML_ELEMENT_NODE, "properties");
-		
-		auto room1_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-		room1_property->AddAttribute("name", "room1");
-		room1_property->AddAttribute("value", std::to_string(warp.room1));
-		warp_properties->AddChild(room1_property);
-		
-		auto room2_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-		room2_property->AddAttribute("name", "room2");
-		room2_property->AddAttribute("value", std::to_string(warp.room2));
-		warp_properties->AddChild(room2_property);
-		
-		auto x2_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-		x2_property->AddAttribute("name", "x2");
-		x2_property->AddAttribute("value", std::to_string(warp.x2));
-		warp_properties->AddChild(x2_property);
-		
-		auto y2_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-		y2_property->AddAttribute("name", "y2");
-		y2_property->AddAttribute("value", std::to_string(warp.y2));
-		warp_properties->AddChild(y2_property);
-		
-		auto type_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-		type_property->AddAttribute("name", "warpType");
-
+		auto warp_properties = warp_object.append_child("properties");
+		add_property(warp_properties, "room1", warp.room1);
+		add_property(warp_properties, "room2", warp.room2);
+		add_property(warp_properties, "x2", warp.x2);
+		add_property(warp_properties, "y2", warp.y2);
 		// Convert the warp type to a string
 		std::string warp_type_str;
 		switch (warp.type) {
-			case WarpList::Warp::Type::NORMAL:   warp_type_str = "NORMAL"; break;
+			case WarpList::Warp::Type::NORMAL:   warp_type_str = "NORMAL";   break;
 			case WarpList::Warp::Type::STAIR_SE: warp_type_str = "STAIR_SE"; break;
 			case WarpList::Warp::Type::STAIR_SW: warp_type_str = "STAIR_SW"; break;
-			default:                   warp_type_str = "UNKNOWN"; break;
+			default:                             warp_type_str = "UNKNOWN";  break;
 		}
-
-		type_property->AddAttribute("value", warp_type_str);
-		warp_properties->AddChild(type_property);
-		
-		warp_object->AddChild(warp_properties);
+		add_property(warp_properties, "warpType", warp_type_str);
 		warp_id++;
-		warps_objectgroup->AddChild(warp_object);
 	}
 
-
-	tmx.GetRoot()->AddChild(warps_objectgroup);
-
-
 	// Entity objects
-	auto entities_objectgroup = new wxXmlNode(wxXML_ELEMENT_NODE, "objectgroup");
-	entities_objectgroup->AddAttribute("id", "4");
-	entities_objectgroup->AddAttribute("name", "Entities");
+	auto entities_objectgroup = tmx.child("map").append_child("objectgroup");
+	entities_objectgroup.append_attribute("id") = 4;
+	entities_objectgroup.append_attribute("name") = "Entities";
 
-int entity_id = 1;
-std::vector<Entity> entities = gameData->GetSpriteData()->GetRoomEntities(roomnum);
+	int entity_id = 1;
+	std::vector<Entity> entities = gameData->GetSpriteData()->GetRoomEntities(roomnum);
 
-for (const auto& entity : entities) {
-    auto entity_object = new wxXmlNode(wxXML_ELEMENT_NODE, "object");
-    entity_object->AddAttribute("id", std::to_string(entity_id));
-    entity_object->AddAttribute("visible", "0");
-    entity_object->AddAttribute("name", entity.GetTypeName());
-	entity_object->AddAttribute("class", entity.GetTypeName());
-    entities_objectgroup->AddChild(entity_object);
+	for (const auto& entity : entities) {
+		auto entity_object = entities_objectgroup.append_child("object");
+		entity_object.append_attribute("id") = entity_id;
+		entity_object.append_attribute("visible") = 0;
+		entity_object.append_attribute("name") = wstr_to_utf8(entity.GetTypeName()).c_str();
+		entity_object.append_attribute("class") = wstr_to_utf8(entity.GetTypeName()).c_str();
+		
+		auto entity_properties = entity_object.append_child("properties");
+		add_property(entity_properties, "Type", entity.GetType());
+		add_property(entity_properties, "X", entity.GetXDbl());
+		add_property(entity_properties, "Y", entity.GetYDbl());
+		add_property(entity_properties, "Z", entity.GetZDbl());
+		add_property(entity_properties, "Palette", entity.GetPalette());
+		add_property(entity_properties, "Behaviour", entity.GetBehaviour());
+		add_property(entity_properties, "Dialogue", entity.GetDialogue());
+		add_property(entity_properties, "Hostile", entity.IsHostile());
+		add_property(entity_properties, "NoRotate", entity.NoRotate());
+		add_property(entity_properties, "NoPickup", entity.NoPickup());
+		add_property(entity_properties, "HasDialogue", entity.HasDialogue());
+		add_property(entity_properties, "Visible", entity.IsVisible());
+		add_property(entity_properties, "Solid", entity.IsSolid());
+		add_property(entity_properties, "Gravity", entity.HasGravity());
+		add_property(entity_properties, "Friction", entity.HasFriction());
+		add_property(entity_properties, "Speed", entity.GetSpeed());
+		add_property(entity_properties, "Orientation", entity.GetOrientationName());
+		add_property(entity_properties, "Reserved", entity.IsReservedSet());
+		add_property(entity_properties, "TileCopy", entity.IsTileCopySet());
+		add_property(entity_properties, "TileSource", entity.GetCopySource());
+		entity_id++;
+	}
 
-    // Entity properties
-    auto entity_properties = new wxXmlNode(wxXML_ELEMENT_NODE, "properties");
-
-    auto type_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    type_property->AddAttribute("name", "Type");
-    type_property->AddAttribute("value", std::to_string(entity.GetType()));
-	entity_properties->AddChild(type_property);
-
-    auto x_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    x_property->AddAttribute("name", "X");
-	x_property->AddAttribute("type", "float");
-    x_property->AddAttribute("value", std::to_string(entity.GetXDbl()));
-	entity_properties->AddChild(x_property);
-
-    auto y_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    y_property->AddAttribute("name", "Y");
-	y_property->AddAttribute("type", "float");
-    y_property->AddAttribute("value", std::to_string(entity.GetYDbl()));
-	entity_properties->AddChild(y_property);
-
-    auto z_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    z_property->AddAttribute("name", "Z");
-	z_property->AddAttribute("type", "float");
-    z_property->AddAttribute("value", std::to_string(entity.GetZDbl()));
-	entity_properties->AddChild(z_property);
-
-    auto ent_palette_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-	ent_palette_property->AddAttribute("name", "Palette");
-	ent_palette_property->AddAttribute("value", std::to_string(entity.GetPalette()));
-	entity_properties->AddChild(ent_palette_property);
-
-    auto behaviour_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    behaviour_property->AddAttribute("name", "Behaviour");
-    behaviour_property->AddAttribute("value", std::to_string(entity.GetBehaviour()));
-	entity_properties->AddChild(behaviour_property);
-
-    auto dialogue_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    dialogue_property->AddAttribute("name", "Dialogue");
-    dialogue_property->AddAttribute("value", std::to_string(entity.GetDialogue()));
-	entity_properties->AddChild(dialogue_property);
-
-    auto hostile_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    hostile_property->AddAttribute("name", "Hostile");
-	hostile_property->AddAttribute("type", "bool");
-    hostile_property->AddAttribute("value", entity.IsHostile() ? "true" : "false");
-	entity_properties->AddChild(hostile_property);
-
-    auto no_rotate_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    no_rotate_property->AddAttribute("name", "NoRotate");
-	no_rotate_property->AddAttribute("type", "bool");
-    no_rotate_property->AddAttribute("value", entity.NoRotate() ? "true" : "false");
-	entity_properties->AddChild(no_rotate_property);
-
-    auto no_pickup_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    no_pickup_property->AddAttribute("name", "NoPickup");
-	no_pickup_property->AddAttribute("type", "bool");
-    no_pickup_property->AddAttribute("value", entity.NoPickup() ? "true" : "false");
-	entity_properties->AddChild(no_pickup_property);
-
-    auto has_dialogue_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    has_dialogue_property->AddAttribute("name", "HasDialogue");
-	has_dialogue_property->AddAttribute("type", "bool");
-    has_dialogue_property->AddAttribute("value", entity.HasDialogue() ? "true" : "false");
-	entity_properties->AddChild(has_dialogue_property);
-
-    auto visible_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    visible_property->AddAttribute("name", "Visible");
-	visible_property->AddAttribute("type", "bool");
-    visible_property->AddAttribute("value", entity.IsVisible() ? "true" : "false");
-	entity_properties->AddChild(visible_property);
-
-    auto solid_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    solid_property->AddAttribute("name", "Solid");
-	solid_property->AddAttribute("type", "bool");
-    solid_property->AddAttribute("value", entity.IsSolid() ? "true" : "false");
-	entity_properties->AddChild(solid_property);
-
-    auto gravity_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    gravity_property->AddAttribute("name", "Gravity");
-	gravity_property->AddAttribute("type", "bool");
-    gravity_property->AddAttribute("value", entity.HasGravity() ? "true" : "false");
-	entity_properties->AddChild(gravity_property);
-
-    auto friction_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    friction_property->AddAttribute("name", "Friction");
-	friction_property->AddAttribute("type", "bool");
-    friction_property->AddAttribute("value", entity.HasFriction() ? "true" : "false");
-	entity_properties->AddChild(friction_property);
-
-    auto speed_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    speed_property->AddAttribute("name", "Speed");
-	speed_property->AddAttribute("type", "int");
-    speed_property->AddAttribute("value", std::to_string(entity.GetSpeed()));
-	entity_properties->AddChild(speed_property);
-
-    auto orientation_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    orientation_property->AddAttribute("name", "Orientation");
-    orientation_property->AddAttribute("value", entity.GetOrientationName());
-	entity_properties->AddChild(orientation_property);
-
-    auto tile_source_property = new wxXmlNode(wxXML_ELEMENT_NODE, "property");
-    tile_source_property->AddAttribute("name", "TileSource");
-    tile_source_property->AddAttribute("value", std::to_string(entity.GetCopySource()));
-	entity_properties->AddChild(tile_source_property);
-
-    entity_object->AddChild(entity_properties);
-    
-    entity_id++;
-}
-
-	tmx.GetRoot()->AddChild(entities_objectgroup);
-
-	return tmx.Save(fname);
+	return tmx.save_file(fname.c_str());
 }
 
 } // namespace Landstalker

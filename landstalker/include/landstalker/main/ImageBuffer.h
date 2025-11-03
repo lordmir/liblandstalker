@@ -22,6 +22,7 @@ class ImageBuffer
 public:
 	ImageBuffer();
 	ImageBuffer(std::size_t width, std::size_t height);
+	virtual ~ImageBuffer() = default;
 	void Clear();
 	void Clear(uint8_t colour);
 	void Resize(std::size_t width, std::size_t height);
