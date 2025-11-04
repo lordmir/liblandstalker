@@ -1,0 +1,372 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\2d_maps\Blockmap2D.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\2d_maps\Tilemap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\2d_maps\Tilemap2DRLE.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\3d_maps\BlockmapIsometric.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\3d_maps\Doors.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\3d_maps\MapToTmx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\3d_maps\RoomToTmx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\3d_maps\Tilemap3DCmp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\3d_maps\TileSwaps.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\behaviours\Behaviours.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\behaviours\BehaviourYamlConverter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\blockset\Block.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\blockset\BlocksetCmp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\AsmFile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\AsmUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\DataManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\DataTypes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\EntryPreferences.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\GameData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\GraphicsData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\ImageBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\Rom.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\RomLabels.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\RomOffsets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\RoomData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\ScriptData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\SpriteData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\main\StringData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\misc\BitBarrel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\misc\BitBarrelWriter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\misc\DefaultLabels.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\misc\Labels.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\misc\LZ77.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\misc\Utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\palettes\Palette.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\rooms\Chests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\rooms\Entity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\rooms\Flags.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\rooms\Room.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\rooms\RoomDialogueTable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\rooms\WarpList.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\script\ProgressFlags.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\script\Script.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\script\ScriptFunction.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\script\ScriptTable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\script\ScriptTableEntry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\sprites\SpriteFrame.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\text\EndCreditString.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\text\HuffmanString.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\text\HuffmanTree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\text\HuffmanTrees.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\text\IntroString.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\text\LSString.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\tileset\AnimatedTileset.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\tileset\Tile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\tileset\TileAttributes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\src\tileset\Tileset.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\2d_maps\Blockmap2D.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\2d_maps\Tilemap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\2d_maps\Tilemap2DRLE.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\3d_maps\BlockmapIsometric.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\3d_maps\Doors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\3d_maps\MapToTmx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\3d_maps\RoomToTmx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\3d_maps\Tilemap3DCmp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\3d_maps\TileSwaps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\behaviours\Behaviours.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\behaviours\BehaviourYamlConverter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\blockset\Block.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\blockset\BlocksetCmp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\AsmFile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\AsmFile_inl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\AsmUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\DataManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\DataTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\EntryPreferences.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\GameData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\GraphicsData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\ImageBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\Rom.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\RomLabels.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\RomOffsets.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\RoomData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\ScriptData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\SpriteData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\main\StringData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\BitBarrel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\BitBarrelWriter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\DefaultLabels.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\Labels.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\Literals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\LZ77.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\Point.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\misc\Utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\palettes\Palette.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\rooms\Chests.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\rooms\Entity.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\rooms\Flags.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\rooms\Room.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\rooms\RoomDialogueTable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\rooms\WarpList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\script\ProgressFlags.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\script\Script.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\script\ScriptFunction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\script\ScriptTable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\script\ScriptTableEntry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\sprites\SpriteFrame.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\text\Charset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\text\EndCreditString.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\text\HuffmanString.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\text\HuffmanTree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\text\HuffmanTrees.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\text\IntroString.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\text\LSString.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\tileset\AnimatedTileset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\tileset\Tile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\tileset\TileAttributes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\landstalker\include\landstalker\tileset\Tileset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\PROJECTS\landstalker_editor\modules\liblandstalker\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{BBCB0CDB-5A4B-30A7-A00A-420025ED5846}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4DB303C7-CB1D-354B-8A15-DB410111EC6C}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

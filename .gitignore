@@ -1,2 +1,5 @@
 build/
 install/
+*.vcx.proj.user
+landstalker.dir
+.vs/
