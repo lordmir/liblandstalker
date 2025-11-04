@@ -35,7 +35,7 @@ if(${LANDSTALKER_BUILD_SHARED})
     endif()
     
     set(${MODULE_NAME}_RUNTIME_DEPENDENCIES png_shared yaml-cpp zlib pugixml-shared)
-    target_link_libraries(${MODULE_NAME} PRIVATE zlibshared png_shared yaml-cpp::yaml-cpp pugixml::shared)
+    target_link_libraries(${MODULE_NAME} PRIVATE zlib png_shared yaml-cpp::yaml-cpp pugixml::shared)
 else()
     add_library(${MODULE_NAME} STATIC)
 
