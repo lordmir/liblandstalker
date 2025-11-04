@@ -3,3 +3,4 @@ install/
 *.vcx.proj.user
 landstalker.dir
 .vs/
+*.ifc
