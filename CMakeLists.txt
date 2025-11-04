@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.28)
 set(MODULE_NAME "landstalker")
 project(${MODULE_NAME} VERSION 0.4.0 DESCRIPTION "Landstalker ROM Utility Library")
 set(CMAKE_CXX_STANDARD 20)
@@ -35,7 +35,7 @@ if(${LANDSTALKER_BUILD_SHARED})
     endif()
     
     set(${MODULE_NAME}_RUNTIME_DEPENDENCIES png_shared yaml-cpp zlib pugixml-shared)
-    target_link_libraries(${MODULE_NAME} PRIVATE png_shared yaml-cpp::yaml-cpp pugixml::shared)
+    target_link_libraries(${MODULE_NAME} PRIVATE zlibshared png_shared yaml-cpp::yaml-cpp pugixml::shared)
 else()
     add_library(${MODULE_NAME} STATIC)
 
@@ -49,7 +49,7 @@ else()
         set(CMAKE_EXE_LINKER_FLAGS "-sASSERTIONS -sUSE_LIBPNG")
         target_link_libraries(${MODULE_NAME} PRIVATE yaml-cpp::yaml-cpp pugixml::static)
     else()
-        target_link_libraries(${MODULE_NAME} PRIVATE png_static yaml-cpp::yaml-cpp pugixml::static)
+        target_link_libraries(${MODULE_NAME} PRIVATE zlibstatic png_static yaml-cpp::yaml-cpp pugixml::static)
     endif()
 endif()
 

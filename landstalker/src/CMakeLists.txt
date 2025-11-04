@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.28)
 
 add_subdirectory("2d_maps")
 add_subdirectory("3d_maps")

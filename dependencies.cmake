@@ -34,7 +34,7 @@ function(InstallZlib)
     FetchContent_Declare(
         zlib
         GIT_REPOSITORY https://github.com/madler/zlib.git
-        GIT_TAG "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf" # "v1.3.1"
+        GIT_TAG "5a82f71ed1dfc0bec044d9702463dbdf84ea3b71" # "master"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
@@ -45,7 +45,6 @@ function(InstallZlib)
     set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     message("Configuring ZLIB...")
     FetchContent_MakeAvailable(zlib)
-    add_library(ZLIB::ZLIB ALIAS zlib)
     set(ZLIB_ROOT "${zlib_SOURCE_DIR}" CACHE INTERNAL "Root for the zlib library, used by libpng")
     set(ZLIB_LIBRARY zlib CACHE INTERNAL "" FORCE)
     set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE INTERNAL "" FORCE)
@@ -88,7 +87,7 @@ function(InstallYamlcpp)
     FetchContent_Declare(
         yaml-cpp
         GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-        GIT_TAG "0579ae3d976091d7d664aa9d2527e0d0cff25763" # "yaml-cpp-0.7.0"
+        GIT_TAG "a83cd31548b19d50f3f983b069dceb4f4d50756d" # "master"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
