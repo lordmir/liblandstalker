@@ -1,365 +1,365 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include=".\landstalker\src\2d_maps\Blockmap2D.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\AnimatedTileset.cpp">
+      <Filter>Source Files\Tileset</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\2d_maps\Tilemap.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\AsmFile.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\2d_maps\Tilemap2DRLE.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\AsmUtils.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\3d_maps\BlockmapIsometric.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\DataManager.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\3d_maps\Doors.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\DataTypes.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\3d_maps\MapToTmx.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\EntryPreferences.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\3d_maps\RoomToTmx.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\GameData.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\3d_maps\Tilemap3DCmp.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\GraphicsData.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\3d_maps\TileSwaps.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\ImageBuffer.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\behaviours\Behaviours.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\Rom.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\behaviours\BehaviourYamlConverter.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\RomOffsets.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\blockset\Block.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\RomLabels.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\blockset\BlocksetCmp.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\RoomData.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\AsmFile.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\ScriptData.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\AsmUtils.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\SpriteData.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\DataManager.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\StringData.cpp">
+      <Filter>Source Files\Main</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\DataTypes.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\behaviours\Behaviours.cpp">
+      <Filter>Source Files\Behaviours</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\EntryPreferences.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\behaviours\BehaviourYamlConverter.cpp">
+      <Filter>Source Files\Behaviours</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\GameData.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\misc\BitBarrel.cpp">
+      <Filter>Source Files\Misc</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\GraphicsData.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\misc\BitBarrelWriter.cpp">
+      <Filter>Source Files\Misc</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\ImageBuffer.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\misc\DefaultLabels.cpp">
+      <Filter>Source Files\Misc</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\Rom.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\misc\Labels.cpp">
+      <Filter>Source Files\Misc</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\RomLabels.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\misc\LZ77.cpp">
+      <Filter>Source Files\Misc</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\RomOffsets.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\misc\Utils.cpp">
+      <Filter>Source Files\Misc</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\RoomData.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\blockset\Block.cpp">
+      <Filter>Source Files\Blockset</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\ScriptData.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\blockset\BlocksetCmp.cpp">
+      <Filter>Source Files\Blockset</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\SpriteData.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\2d_maps\Blockmap2D.cpp">
+      <Filter>Source Files\2D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\main\StringData.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\2d_maps\Tilemap.cpp">
+      <Filter>Source Files\2D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\misc\BitBarrel.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\2d_maps\Tilemap2DRLE.cpp">
+      <Filter>Source Files\2D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\misc\BitBarrelWriter.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\BlockmapIsometric.cpp">
+      <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\misc\DefaultLabels.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Doors.cpp">
+      <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\misc\Labels.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\MapToTmx.cpp">
+      <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\misc\LZ77.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\RoomToTmx.cpp">
+      <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\misc\Utils.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3DCmp.cpp">
+      <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\palettes\Palette.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\TileSwaps.cpp">
+      <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\rooms\Chests.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\Chests.cpp">
+      <Filter>Source Files\Rooms</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\rooms\Entity.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\Entity.cpp">
+      <Filter>Source Files\Rooms</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\rooms\Flags.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\Flags.cpp">
+      <Filter>Source Files\Rooms</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\rooms\Room.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\Room.cpp">
+      <Filter>Source Files\Rooms</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\rooms\RoomDialogueTable.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\RoomDialogueTable.cpp">
+      <Filter>Source Files\Rooms</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\rooms\WarpList.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\WarpList.cpp">
+      <Filter>Source Files\Rooms</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\script\ProgressFlags.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\EndCreditString.cpp">
+      <Filter>Source Files\Text</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\script\Script.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\HuffmanString.cpp">
+      <Filter>Source Files\Text</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\script\ScriptFunction.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\HuffmanTree.cpp">
+      <Filter>Source Files\Text</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\script\ScriptTable.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\HuffmanTrees.cpp">
+      <Filter>Source Files\Text</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\script\ScriptTableEntry.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\IntroString.cpp">
+      <Filter>Source Files\Text</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\sprites\SpriteFrame.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\LSString.cpp">
+      <Filter>Source Files\Text</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\text\EndCreditString.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\palettes\Palette.cpp">
+      <Filter>Source Files\Palettes</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\text\HuffmanString.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ProgressFlags.cpp">
+      <Filter>Source Files\Script</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\text\HuffmanTree.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\Script.cpp">
+      <Filter>Source Files\Script</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\text\HuffmanTrees.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunction.cpp">
+      <Filter>Source Files\Script</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\text\IntroString.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptTable.cpp">
+      <Filter>Source Files\Script</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\text\LSString.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptTableEntry.cpp">
+      <Filter>Source Files\Script</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\tileset\AnimatedTileset.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\sprites\SpriteFrame.cpp">
+      <Filter>Source Files\Sprites</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\tileset\Tile.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tileset.cpp">
+      <Filter>Source Files\Tileset</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\tileset\TileAttributes.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\TileAttributes.cpp">
+      <Filter>Source Files\Tileset</Filter>
     </ClCompile>
-    <ClCompile Include=".\landstalker\src\tileset\Tileset.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tile.cpp">
+      <Filter>Source Files\Tileset</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include=".\landstalker\include\landstalker\2d_maps\Blockmap2D.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\AnimatedTileset.h">
+      <Filter>Header Files\Tileset</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\2d_maps\Tilemap.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AsmFile.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\2d_maps\Tilemap2DRLE.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AsmFile_inl.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\3d_maps\BlockmapIsometric.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AsmUtils.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\3d_maps\Doors.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\DataManager.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\3d_maps\MapToTmx.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\DataTypes.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\3d_maps\RoomToTmx.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\EntryPreferences.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\3d_maps\Tilemap3DCmp.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\GameData.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\3d_maps\TileSwaps.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\GraphicsData.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\behaviours\Behaviours.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\ImageBuffer.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\behaviours\BehaviourYamlConverter.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\Rom.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\blockset\Block.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\RomLabels.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\blockset\BlocksetCmp.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\RomOffsets.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\AsmFile.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\RoomData.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\AsmFile_inl.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\ScriptData.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\AsmUtils.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\SpriteData.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\DataManager.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\StringData.h">
+      <Filter>Header Files\Main</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\DataTypes.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\behaviours\Behaviours.h">
+      <Filter>Header Files\Behaviours</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\EntryPreferences.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\behaviours\BehaviourYamlConverter.h">
+      <Filter>Header Files\Behaviours</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\GameData.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\BitBarrel.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\GraphicsData.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\BitBarrelWriter.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\ImageBuffer.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\DefaultLabels.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\Rom.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\Labels.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\RomLabels.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\Literals.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\RomOffsets.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\LZ77.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\RoomData.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\Point.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\ScriptData.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\Utils.h">
+      <Filter>Header Files\Misc</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\SpriteData.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\blockset\Block.h">
+      <Filter>Header Files\Blockset</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\main\StringData.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\blockset\BlocksetCmp.h">
+      <Filter>Header Files\Blockset</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\BitBarrel.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Blockmap2D.h">
+      <Filter>Header Files\2D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\BitBarrelWriter.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Tilemap.h">
+      <Filter>Header Files\2D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\DefaultLabels.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Tilemap2DRLE.h">
+      <Filter>Header Files\2D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\Labels.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\BlockmapIsometric.h">
+      <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\Literals.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Doors.h">
+      <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\LZ77.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\MapToTmx.h">
+      <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\Point.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\RoomToTmx.h">
+      <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\misc\Utils.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3DCmp.h">
+      <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\palettes\Palette.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\TileSwaps.h">
+      <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\rooms\Chests.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\text\Charset.h">
+      <Filter>Header Files\Text</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\rooms\Entity.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\text\EndCreditString.h">
+      <Filter>Header Files\Text</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\rooms\Flags.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\text\HuffmanString.h">
+      <Filter>Header Files\Text</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\rooms\Room.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\text\HuffmanTree.h">
+      <Filter>Header Files\Text</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\rooms\RoomDialogueTable.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\text\HuffmanTrees.h">
+      <Filter>Header Files\Text</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\rooms\WarpList.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\text\IntroString.h">
+      <Filter>Header Files\Text</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\script\ProgressFlags.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\text\LSString.h">
+      <Filter>Header Files\Text</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\script\Script.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\Chests.h">
+      <Filter>Header Files\Rooms</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\script\ScriptFunction.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\Entity.h">
+      <Filter>Header Files\Rooms</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\script\ScriptTable.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\Flags.h">
+      <Filter>Header Files\Rooms</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\script\ScriptTableEntry.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\Room.h">
+      <Filter>Header Files\Rooms</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\sprites\SpriteFrame.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\RoomDialogueTable.h">
+      <Filter>Header Files\Rooms</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\text\Charset.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\WarpList.h">
+      <Filter>Header Files\Rooms</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\text\EndCreditString.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\palettes\Palette.h">
+      <Filter>Header Files\Palettes</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\text\HuffmanString.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ProgressFlags.h">
+      <Filter>Header Files\Script</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\text\HuffmanTree.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\Script.h">
+      <Filter>Header Files\Script</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\text\HuffmanTrees.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunction.h">
+      <Filter>Header Files\Script</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\text\IntroString.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptTable.h">
+      <Filter>Header Files\Script</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\text\LSString.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptTableEntry.h">
+      <Filter>Header Files\Script</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\tileset\AnimatedTileset.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\sprites\SpriteFrame.h">
+      <Filter>Header Files\Sprites</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\tileset\Tile.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\Tile.h">
+      <Filter>Header Files\Tileset</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\tileset\TileAttributes.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\TileAttributes.h">
+      <Filter>Header Files\Tileset</Filter>
     </ClInclude>
-    <ClInclude Include=".\landstalker\include\landstalker\tileset\Tileset.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\Tileset.h">
+      <Filter>Header Files\Tileset</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include=".\CMakeLists.txt" />
+    <CustomBuild Include="$(ProjectDir)\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">
@@ -367,6 +367,78 @@
     </Filter>
     <Filter Include="Source Files">
       <UniqueIdentifier>{4DB303C7-CB1D-354B-8A15-DB410111EC6C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\2D Maps">
+      <UniqueIdentifier>{6ebb5ac3-58e9-4d26-a604-55b2ac133bfa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\3D Maps">
+      <UniqueIdentifier>{cbae2f50-d90c-4cec-a101-9f09281ce8cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Behaviours">
+      <UniqueIdentifier>{89158d01-d700-428e-b8f4-89f864e40803}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Blockset">
+      <UniqueIdentifier>{fc4ef3a1-ba49-4ed8-ad47-9c7ac618bc90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Main">
+      <UniqueIdentifier>{e72e0fc5-c036-4cf7-8414-3b8c92092c48}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Misc">
+      <UniqueIdentifier>{95860649-8660-4e01-bfb4-d9bbe6c0db38}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Palettes">
+      <UniqueIdentifier>{a6c3b321-7e31-4430-8568-fb0bbe79b416}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Rooms">
+      <UniqueIdentifier>{57607b96-a93a-4c28-9b4c-e7cb941e1cb1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Script">
+      <UniqueIdentifier>{f58b92a4-22cf-4338-97d4-56523cc3484e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Sprites">
+      <UniqueIdentifier>{fd08a974-95ee-4385-8150-f510fdf4b39c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Text">
+      <UniqueIdentifier>{f08494d0-268c-454e-84d7-2661d49b152b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Tileset">
+      <UniqueIdentifier>{a8df64c3-b409-4175-80d8-43a0ca0b197b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\2D Maps">
+      <UniqueIdentifier>{b0aef248-9f2c-4f5e-9f1d-7748ce983a0b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\3D Maps">
+      <UniqueIdentifier>{dc430fe9-064b-4402-9f22-7bd16061d048}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Behaviours">
+      <UniqueIdentifier>{5e568f5e-d2fe-40a6-be96-a6d8be9848ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Blockset">
+      <UniqueIdentifier>{1f487481-f081-4794-90ce-062422cc18ce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Main">
+      <UniqueIdentifier>{fc09e1de-2afb-4f36-af7a-47db33b1655d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Misc">
+      <UniqueIdentifier>{2273e545-9094-46f6-85d8-fa1dabd93690}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Palettes">
+      <UniqueIdentifier>{e1316f05-9895-4ea2-a9f2-1fb8871dec89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Rooms">
+      <UniqueIdentifier>{951cfbef-4574-4e45-89af-b2f6374b56ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Script">
+      <UniqueIdentifier>{4e82d02b-5139-4bf3-8b6e-80732e05b29f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Sprites">
+      <UniqueIdentifier>{37a314a2-8dc3-42ae-89fe-b98a098a365d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Text">
+      <UniqueIdentifier>{3caccbe5-1528-44cc-ba63-b304bd052c1e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Tileset">
+      <UniqueIdentifier>{3447a033-0072-4e99-9bd3-d82a89315ebe}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
