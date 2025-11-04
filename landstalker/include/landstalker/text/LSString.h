@@ -4,6 +4,7 @@
 #include <string>
 #include <cstdint>
 #include <unordered_map>
+#include <optional>
 
 namespace Landstalker {
 
@@ -15,8 +16,8 @@ public:
 	typedef std::unordered_map<uint8_t, StringType> CharacterSet;
 	typedef std::unordered_map<LSString::StringType, std::unordered_map<LSString::StringType, LSString::StringType>> DiacriticMap;
 
-	LSString(const CharacterSet& charset = DEFAULT_CHARACTER_SET, const DiacriticMap& diacritic_map = DEFAULT_DIACRITIC_MAP);
-	LSString(const StringType& s, const CharacterSet& charset = DEFAULT_CHARACTER_SET, const DiacriticMap& diacritic_map = DEFAULT_DIACRITIC_MAP);
+	LSString(const CharacterSet& charset = GetDefaultCharset(), const DiacriticMap& diacritic_map = GetDefaultDiacriticMap());
+	LSString(const StringType& s, const CharacterSet& charset = GetDefaultCharset(), const DiacriticMap& diacritic_map = GetDefaultDiacriticMap());
 
 	bool operator==(const LSString& rhs) const;
 	bool operator!=(const LSString& rhs) const;
@@ -36,8 +37,9 @@ public:
 		return ApplyDiacritics(m_str);
 	}
 
-	static const CharacterSet& DEFAULT_CHARACTER_SET;
-	static const DiacriticMap& DEFAULT_DIACRITIC_MAP;
+	static const CharacterSet& GetDefaultCharset();
+	static const DiacriticMap& GetDefaultDiacriticMap();
+
 	static const uint8_t DEFAULT_EOS_MARKER = 0x55;
 protected:
 	virtual size_t DecodeString(const uint8_t* string, size_t len);

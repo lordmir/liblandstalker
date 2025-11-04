@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <cstdint>
+#include <optional>
 
 #include <landstalker/text/LSString.h>
 #include <landstalker/text/HuffmanTrees.h>
@@ -14,14 +15,14 @@ class HuffmanString : public LSString
 {
 public:
 	HuffmanString(const uint8_t* data, size_t len, std::shared_ptr<HuffmanTrees> ht,
-	              const CharacterSet& charset = DEFAULT_CHARACTER_SET, uint8_t eos_marker = DEFAULT_EOS_MARKER,
-	              const DiacriticMap& diacritic_map = DEFAULT_DIACRITIC_MAP);
+	              const CharacterSet& charset = LSString::GetDefaultCharset(), uint8_t eos_marker = DEFAULT_EOS_MARKER,
+	              const DiacriticMap& diacritic_map = LSString::GetDefaultDiacriticMap());
 	HuffmanString(const StringType& str, std::shared_ptr<HuffmanTrees> ht,
-	              const CharacterSet& charset = DEFAULT_CHARACTER_SET, uint8_t eos_marker = DEFAULT_EOS_MARKER,
-	              const DiacriticMap& diacritic_map = DEFAULT_DIACRITIC_MAP);
-	HuffmanString(std::shared_ptr<HuffmanTrees> ht, const CharacterSet& charset = DEFAULT_CHARACTER_SET,
-	              uint8_t eos_marker = DEFAULT_EOS_MARKER,
-	              const DiacriticMap& diacritic_map = DEFAULT_DIACRITIC_MAP);
+	              const CharacterSet& charset = LSString::GetDefaultCharset(), uint8_t eos_marker = DEFAULT_EOS_MARKER,
+	              const DiacriticMap& diacritic_map = LSString::GetDefaultDiacriticMap());
+	HuffmanString(std::shared_ptr<HuffmanTrees> ht,
+	              const CharacterSet& charset = LSString::GetDefaultCharset(), uint8_t eos_marker = DEFAULT_EOS_MARKER,
+	              const DiacriticMap& diacritic_map = LSString::GetDefaultDiacriticMap());
 
 	bool operator==(const HuffmanString& rhs) const;
 	bool operator!=(const HuffmanString& rhs) const;

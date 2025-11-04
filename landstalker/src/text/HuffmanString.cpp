@@ -23,7 +23,7 @@ HuffmanString::HuffmanString(const HuffmanString::StringType& str, std::shared_p
 }
 
 HuffmanString::HuffmanString(std::shared_ptr<HuffmanTrees> ht, const HuffmanString::CharacterSet& charset,
-                             uint8_t eos_marker, const DiacriticMap& diacritic_map)
+	                         uint8_t eos_marker, const DiacriticMap& diacritic_map)
 	: LSString(charset, diacritic_map),
 	  m_ht(ht)
 {

@@ -12,10 +12,6 @@
 
 namespace Landstalker {
 
-const LSString::CharacterSet& LSString::DEFAULT_CHARACTER_SET = Charset::DEFAULT_ENGLISH_CHARSET;
-
-const LSString::DiacriticMap& LSString::DEFAULT_DIACRITIC_MAP = Charset::DEFAULT_DIACRITIC_MAP;
-
 LSString::LSString(const LSString::CharacterSet& charset, const LSString::DiacriticMap& diacritic_map)
 	: m_charset(charset),
 	  m_diacritic_map(diacritic_map),
@@ -72,6 +68,16 @@ LSString::StringType LSString::GetHeaderRow() const
 std::string LSString::GetEncodedFileExt() const
 {
 	return ".bin";
+}
+
+const LSString::CharacterSet& LSString::GetDefaultCharset()
+{
+	return Charset::DEFAULT_ENGLISH_CHARSET;
+}
+
+const LSString::DiacriticMap& LSString::GetDefaultDiacriticMap()
+{
+	return Charset::DEFAULT_DIACRITIC_MAP;
 }
 
 void LSString::AddFrequencyCounts(FrequencyCounts& frequencies) const
