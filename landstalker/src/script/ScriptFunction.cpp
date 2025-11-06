@@ -1091,7 +1091,7 @@ std::string Action::Print(int indent) const
 
 bool Action::IsEndOfFunction() const
 {
-    return std::holds_alternative<AsmFile::ScriptId>(action);
+    return false;
 }
 
 } // namespace Statements
