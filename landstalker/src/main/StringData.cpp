@@ -325,9 +325,13 @@ std::wstring StringData::GetCharacterDisplayName(int character) const
 	{
 		return *Labels::Get(Labels::C_CHARACTER, character);
 	}
-	else if (character < static_cast<int>(m_character_names.size()))
+	else if (character >= 0 && character < static_cast<int>(m_character_names.size()))
 	{
 		return LSString::RemoveControlCodes(m_character_names.at(character));
+	}
+	else if (character < 0)
+	{
+		return L"(Unknown)";
 	}
 	return m_default_character_name;
 }
