@@ -31,6 +31,8 @@ public:
 	virtual const CharacterSet& GetCharset() const;
 	void SetCharset(const CharacterSet& charset);
 	void AddFrequencyCounts(FrequencyCounts& frequencies) const;
+	StringType RemoveControlCodes() const;
+	static StringType RemoveControlCodes(const StringType& str);
 
 	StringType Str() const
 	{

@@ -12,6 +12,8 @@ class BlocksetCmp
 public:
     static uint16_t Decode(const uint8_t* src, size_t length, Blockset& blocks);
     static uint16_t Encode(const Blockset& blocks, uint8_t* dst, size_t bufsize);
+    static std::string ToCsv(const Blockset& blocks);
+    static Blockset FromCsv(const std::string& csv_data);
 private:
     BlocksetCmp();
 };

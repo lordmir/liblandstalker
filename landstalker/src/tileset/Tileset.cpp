@@ -402,11 +402,20 @@ void Tileset::SetColourIndicies(const std::vector<uint8_t>& colour_indicies)
     }
 }
 
+void Tileset::SetColourIndicies(const std::string& colour_indicies)
+{
+    SetColourIndicies(Landstalker::SplitStr<uint8_t>(colour_indicies));
+}
+
 std::vector<uint8_t> Tileset::GetColourIndicies() const
 {
     return m_colour_indicies;
 }
 
+std::string Tileset::GetColourIndiciesAsString() const
+{
+    return Landstalker::JoinStr(m_colour_indicies);
+}
 std::vector<uint8_t> Tileset::GetDefaultColourIndicies() const
 {
     std::vector<uint8_t> ret(1 << m_bit_depth);

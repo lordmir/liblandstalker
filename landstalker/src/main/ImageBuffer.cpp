@@ -54,11 +54,16 @@ void ImageBuffer::PutPixel(std::size_t x, std::size_t y, uint8_t colour)
     m_pixels[x + m_width * y] = colour;
 }
 
-void ImageBuffer::InsertTile(int x, int y, uint8_t palette_index, const Tile& tile, const Tileset& tileset, bool use_alpha)
+void ImageBuffer::InsertTile(int x, int y, uint8_t palette_index, const Tile& tile, const Tileset& tileset, bool use_alpha, BlockMode mode)
 {
 	int max_x = x + 7;
 	int max_y = y + 7;
     std::vector<uint8_t> cmap = tileset.GetColourIndicies();
+    if ((mode == BlockMode::PRIORITY_ONLY && tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_PRIORITY) == 0) ||
+        (mode == BlockMode::NO_PRIORITY_ONLY && tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_PRIORITY) != 0))
+    {
+        return;
+    }
     if (cmap.empty())
     {
         cmap = tileset.GetDefaultColourIndicies();
@@ -191,7 +196,7 @@ void ImageBuffer::InsertMap(int x, int y, uint8_t palette_index, const Tilemap2D
 
 void ImageBuffer::Insert3DMapLayer(int x, int y, uint8_t palette_index, Tilemap3D::Layer layer, const std::shared_ptr<const Tilemap3D> map,
     const std::shared_ptr<const Tileset> tileset, const std::shared_ptr<const std::vector<MapBlock>> blockset, bool offset,
-    std::optional<std::vector<TileSwap>> swaps, std::optional<std::vector<Door>> doors)
+    std::optional<std::vector<TileSwap>> swaps, std::optional<std::vector<Door>> doors, ImageBuffer::BlockMode mode)
 {
     Point2D tilepos = {0, 0};
     Tilemap3D disp_map = *map;
@@ -222,7 +227,7 @@ void ImageBuffer::Insert3DMapLayer(int x, int y, uint8_t palette_index, Tilemap3
                 Debug(ss.str());
                 tile = 0;
             }
-            InsertBlock(loc.x, loc.y, palette_index, blockset->at(tile), *tileset);
+            InsertBlock(loc.x, loc.y, palette_index, blockset->at(tile), *tileset, mode);
             tilepos.x++;
             if (tilepos.x == static_cast<int>(GetWidth()))
             {
@@ -302,14 +307,14 @@ bool ImageBuffer::WritePNG(const std::string& filename, const std::vector<std::s
     return retval;
 }
 
-void ImageBuffer::InsertBlock(std::size_t x, std::size_t y, uint8_t palette_index, const MapBlock& block, const Tileset& tileset)
+void ImageBuffer::InsertBlock(std::size_t x, std::size_t y, uint8_t palette_index, const MapBlock& block, const Tileset& tileset, BlockMode mode)
 {
     if ((y + 7) * m_width + x + 7 < m_pixels.size())
     {
-        InsertTile(x, y, palette_index, block.GetTile(0), tileset);
-        InsertTile(x + 8, y, palette_index, block.GetTile(1), tileset);
-        InsertTile(x, y + 8, palette_index, block.GetTile(2), tileset);
-        InsertTile(x + 8, y + 8, palette_index, block.GetTile(3), tileset);
+        InsertTile(x, y, palette_index, block.GetTile(0), tileset, true, mode);
+        InsertTile(x + 8, y, palette_index, block.GetTile(1), tileset, true, mode);
+        InsertTile(x, y + 8, palette_index, block.GetTile(2), tileset, true, mode);
+        InsertTile(x + 8, y + 8, palette_index, block.GetTile(3), tileset, true, mode);
     }
     else
     {
@@ -365,31 +370,6 @@ const std::vector<uint8_t>& ImageBuffer::GetAlpha(const std::vector<std::shared_
     }
     return m_alpha;
 }
-
-// std::shared_ptr<wxBitmap> ImageBuffer::MakeBitmap(const std::vector<std::shared_ptr<Palette>>& pals, bool use_alpha, uint8_t low_pri_max_opacity, uint8_t high_pri_max_opacity) const
-// {
-//     GetRGB(pals);
-//     wxImage* img = new wxImage(m_width, m_height, m_rgb.data(), true);
-//     if (use_alpha)
-//     {
-//         GetAlpha(pals, low_pri_max_opacity, high_pri_max_opacity);
-//         img->SetAlpha(m_alpha.data(), true);
-//     }
-//     auto ret = std::make_shared<wxBitmap>(*img);
-//     return ret;
-// }
-
-// wxImage ImageBuffer::MakeImage(const std::vector<std::shared_ptr<Palette>>& pals, bool use_alpha, uint8_t low_pri_max_opacity, uint8_t high_pri_max_opacity) const
-// {
-//     GetRGB(pals);
-//     wxImage img(m_width, m_height, m_rgb.data(), true);
-//     if (use_alpha)
-//     {
-//         GetAlpha(pals, low_pri_max_opacity, high_pri_max_opacity);
-//         img.SetAlpha(m_alpha.data(), true);
-//     }
-//     return img;
-// }
 
 std::size_t ImageBuffer::GetHeight() const
 {

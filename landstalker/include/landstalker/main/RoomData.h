@@ -13,6 +13,7 @@
 #include <landstalker/3d_maps/Doors.h>
 #include <landstalker/3d_maps/TileSwaps.h>
 #include <landstalker/rooms/Flags.h>
+#include <landstalker/rooms/Room.h>
 
 namespace Landstalker {
 

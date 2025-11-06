@@ -342,6 +342,68 @@ std::vector<uint8_t> Palette::GetBytes() const
 	return retval;
 }
 
+std::string Palette::ToGpl() const
+{
+	std::ostringstream gpl;
+	gpl << "GIMP Palette" << std::endl;
+	gpl << "Name: " << m_name << std::endl;
+	int i = 0;
+	for (const auto& colour : m_pal)
+	{
+		gpl << static_cast<int>(colour->GetR()) << " "
+		    << static_cast<int>(colour->GetG()) << " "
+			<< static_cast<int>(colour->GetB()) << " "
+			<< "Color" << i++ << std::endl;
+	}
+	return gpl.str();
+}
+
+Palette Palette::FromGpl(const std::string &gpl_data, const Type& type)
+{
+	std::vector<Palette::Colour> colours;
+	std::istringstream stream(gpl_data);
+	std::string line;
+	std::getline(stream, line); // Skip first line
+	std::getline(stream, line); // Read name
+	std::string name = line.substr(line.find(":") + 1);
+	while (std::getline(stream, line))
+	{
+		if (line.empty() || line[0] == '#') continue; // Skip comments and empty lines
+		std::istringstream line_stream(line);
+		int r, g, b;
+		if (line_stream >> r >> g >> b)
+		{
+			colours.emplace_back(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b));
+		}
+	}
+	return Palette(name, colours, type);
+}
+
+std::shared_ptr<Palette> Palette::Remap(const std::vector<uint8_t> &indicies) const
+{
+	auto remapped_palette = std::make_shared<Palette>(m_name + "_remapped", m_type);
+	remapped_palette->Clear();
+	remapped_palette->m_pal.resize(m_pal.size());
+	remapped_palette->m_locked.resize(m_pal.size());
+	remapped_palette->m_owner.resize(m_pal.size());
+	for (std::size_t i = 0; i < m_pal.size(); ++i)
+	{
+		if (indicies[i] < m_pal.size())
+		{
+			remapped_palette->m_pal[i] = m_pal[indicies[i]];
+			remapped_palette->m_locked[i] = m_locked[indicies[i]];
+			remapped_palette->m_owner[i] = m_owner[indicies[i]];
+		}
+		else
+		{
+			remapped_palette->m_pal[i] = m_pal[i];
+			remapped_palette->m_locked[i] = m_locked[i];
+			remapped_palette->m_owner[i] = m_owner[i];
+		}
+	}
+	return remapped_palette;
+}
+
 uint8_t Palette::getR(uint8_t index) const
 {
     return m_pal[index]->GetR();

@@ -27,6 +27,9 @@ public:
     uint8_t GetAnimationFrames() const;
     uint8_t GetBaseTileset() const;
 
+    std::string ExtractMetadataYaml() const;
+    bool InsertMetadataYaml(const std::string& yaml_data);
+
     void SetBaseBytes(uint16_t base);
     void SetStartTile(Tile tile);
     void SetFrameSizeBytes(uint16_t bytes);

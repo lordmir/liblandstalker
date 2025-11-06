@@ -92,6 +92,33 @@ void LSString::AddFrequencyCounts(FrequencyCounts& frequencies) const
 	}
 }
 
+LSString::StringType LSString::RemoveControlCodes() const
+{
+	return RemoveControlCodes(m_str);
+}
+
+LSString::StringType LSString::RemoveControlCodes(const LSString::StringType& str)
+{
+	LSString::StringType str_out;
+ 	int bracket_level = 0;
+	for (const auto& ch : str)
+	{
+		if (ch == L'{')
+		{
+			bracket_level++;
+		}
+		else if (ch == L'}' && bracket_level > 0)
+		{
+			bracket_level--;
+		}
+		else if (bracket_level == 0)
+		{
+			str_out += ch;
+		}
+	}
+	return str_out;
+}
+
 size_t LSString::DecodeString(const uint8_t* string, size_t len)
 {
 	m_str.clear();

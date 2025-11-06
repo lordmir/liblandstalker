@@ -94,6 +94,7 @@ private:
 	void FixRomChecksum();
 
 	std::string m_filename;
+	std::string m_build_date;
 	bool m_initialised;
 	std::vector<uint8_t> m_rom;
 	RomOffsets::Region m_region;

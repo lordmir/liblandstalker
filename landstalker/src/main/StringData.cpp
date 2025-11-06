@@ -314,7 +314,7 @@ std::wstring StringData::GetItemDisplayName(int item) const
 	}
 	else if (item < static_cast<int>(m_item_names.size()))
 	{
-		return m_item_names.at(item);
+		return LSString::RemoveControlCodes(m_item_names.at(item));
 	}
 	return StrWPrintf(L"Item%02d", item);
 }
@@ -327,7 +327,7 @@ std::wstring StringData::GetCharacterDisplayName(int character) const
 	}
 	else if (character < static_cast<int>(m_character_names.size()))
 	{
-		return m_character_names.at(character);
+		return LSString::RemoveControlCodes(m_character_names.at(character));
 	}
 	return m_default_character_name;
 }
@@ -340,7 +340,7 @@ std::wstring StringData::GetGlobalCharacterDisplayName(int character) const
 	}
 	else if (character < static_cast<int>(m_special_character_names.size()))
 	{
-		return m_special_character_names.at(character);
+		return LSString::RemoveControlCodes(m_special_character_names.at(character));
 	}
 	return StrWPrintf(L"%ls (%d)", m_default_character_name.c_str(), character);
 }

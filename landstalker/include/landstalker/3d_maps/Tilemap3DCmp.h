@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
+#include <string>
 
 namespace Landstalker {
 
@@ -104,6 +105,12 @@ public:
 
     uint16_t Decode(const uint8_t* src);
     uint16_t Encode(uint8_t* dst, size_t size);
+    bool FromCsv(const std::string& foreground_csv,
+                 const std::string& background_csv,
+                 const std::string& heightmap_csv);
+    bool ToCsv(std::string& foreground_csv,
+               std::string& background_csv,
+               std::string& heightmap_csv) const;
 
     uint8_t GetLeft() const;
     uint8_t GetTop() const;

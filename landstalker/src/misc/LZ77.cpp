@@ -35,7 +35,7 @@ size_t LZ77::Decode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf, size_
             uint16_t offset = (*inbufptr & 0xF0) << 4 | *(inbufptr + 1);
             uint8_t length = 18 - (*inbufptr & 0x0F);
             inbufptr += 2;
-#ifndef NDEBUG
+#ifdef DEBUG_LZ77
             if (a)
             {
                 std::cout << "C[" << a << "]; ";
@@ -53,7 +53,7 @@ size_t LZ77::Decode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf, size_
                     *outbuf = *(outbuf - offset);
                     outbuf++;
                 }
-#ifndef NDEBUG
+#ifdef DEBUG_LZ77
                 int l = length;
                 std::cout << "O[" << offset << "," << (int)l << "]; ";
                 for (int z = l; z > 0; --z)
@@ -63,7 +63,7 @@ size_t LZ77::Decode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf, size_
             }
             else
             {
-#ifndef NDEBUG
+#ifdef DEBUG_LZ77
                 std::cout << "END;" << std::endl;
 #endif
                 break;
@@ -185,7 +185,7 @@ size_t LZ77::Encode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf)
                         a++;
                         break;
                     case Entry::T_RUN:
-#ifndef NDEBUG
+#ifdef DEBUG_LZ77
                         if (a)
                         {
                             std::cout << "C[" << a << "];" << std::endl;
@@ -199,7 +199,7 @@ size_t LZ77::Encode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf)
                         esize+=2;
                         break;
                     default:
-#ifndef NDEBUG
+#ifdef DEBUG_LZ77
                         if (a)
                         {
                             std::cout << "C[" << a << "];" << std::endl;

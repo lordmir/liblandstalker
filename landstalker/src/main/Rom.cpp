@@ -147,7 +147,8 @@ void Rom::resize(std::size_t amt)
 
 std::string Rom::get_description() const
 {
-	return "[" + m_filename + "] - " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " Release ROM";
+	return "[" + m_filename + "] - " + RomOffsets::GetRegionName(m_region).value_or("Unknown") + " Release ROM (Build Date: " +
+		m_build_date + ")";
 }
 
 RomOffsets::Region Rom::get_region() const
@@ -198,8 +199,8 @@ void Rom::ValidateRomChecksum()
 	}
 
 	auto build_date_vec = read_array<char>(RomOffsets::BUILD_DATE_BEGIN, RomOffsets::BUILD_DATE_LENGTH);
-	std::string build_date(build_date_vec.begin(), build_date_vec.end());
-	auto region = RomOffsets::GetRegionFromReleaseDate(build_date);
+	m_build_date = std::string(build_date_vec.begin(), build_date_vec.end());
+	auto region = RomOffsets::GetRegionFromReleaseDate(m_build_date);
 	if (region != std::nullopt)
 	{
 		m_region = *region;
@@ -207,7 +208,7 @@ void Rom::ValidateRomChecksum()
 	else
 	{
 		std::ostringstream ss;
-		ss << "Unable to determine ROM region from build date '" << build_date << "'. Assuming ROM is US version.";
+		ss << "Unable to determine ROM region from build date '" << m_build_date << "'. Assuming ROM is US version.";
 		Debug(ss.str());
 		m_region = RomOffsets::Region::US;
 	}

@@ -6,8 +6,21 @@
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
 #include <landstalker/misc/Literals.h>
+#include <yaml-cpp/yaml.h>
 
 namespace Landstalker {
+
+const std::unordered_map<SpriteData::EnemyStats::DropProbability, std::string> SpriteData::EnemyStats::DropProbabilityNames =
+{
+	{ DropProbability::ONE_IN_64, "ONE_IN_64" },
+	{ DropProbability::ONE_IN_128, "ONE_IN_128" },
+	{ DropProbability::ONE_IN_256, "ONE_IN_256" },
+	{ DropProbability::ONE_IN_512, "ONE_IN_512" },
+	{ DropProbability::ONE_IN_1024, "ONE_IN_1024" },
+	{ DropProbability::ONE_IN_2048, "ONE_IN_2048" },
+	{ DropProbability::NO_DROP, "NO_DROP" },
+	{ DropProbability::GUARANTEED_DROP, "GUARANTEED_DROP" }
+};
 
 template <std::size_t N>
 std::vector<std::array<uint8_t, N>> DeserialiseFixedWidth(const std::vector<uint8_t>& bytes)
@@ -491,6 +504,183 @@ std::wstring SpriteData::GetBehaviourDisplayName(int behav_id)
 	return Labels::Get(Labels::C_BEHAVIOURS, behav_id).value_or(StrWPrintf(L"Behaviour%d", behav_id));
 }
 
+SpriteData::SpriteMetadata SpriteData::GetSpriteMetadata(uint8_t id) const
+{
+	SpriteMetadata metadata;
+	if(!IsSprite(id))
+	{
+		throw std::runtime_error("Sprite ID does not exist");
+	}
+	std::set<std::string> included_frames;
+	std::vector<std::string> frame_names;
+	for (const auto& anim_name : m_animations.at(id))
+	{
+		for (const auto& frame_name : m_animation_frames.at(anim_name))
+		{
+			if(included_frames.count(frame_name) > 0)
+			{
+				continue;
+			}
+			included_frames.insert(frame_name);
+			frame_names.push_back(frame_name);
+		}
+	}
+	if(!frame_names.empty())
+	{
+		Rect bounding_box;
+		for(const auto& frame_name : frame_names)
+		{
+			const auto& frame = m_frames.at(frame_name);
+			bounding_box = bounding_box.GetUnion(frame->GetData()->GetBoundingBox());
+		}
+		metadata.frame_height = bounding_box.GetHeight();
+		metadata.frame_width = bounding_box.GetWidth();
+		metadata.origin = Point(-bounding_box.GetLeft(), -bounding_box.GetTop());
+		metadata.frame_count = static_cast<unsigned int>(frame_names.size());
+		metadata.hitbox = GetSpriteHitbox(id);
+		metadata.animation_flags = GetSpriteAnimationFlags(id);
+		for(unsigned int i = 0; i < frame_names.size(); ++i)
+		{
+			if(m_frames.at(frame_names.at(i))->GetData()->GetCompressed())
+			{
+				metadata.compressed_frames.push_back(i);
+			}
+		}
+		for(const auto& anim_name : m_animations.at(id))
+		{
+			metadata.animations[anim_name] = {};
+			for(const auto& frame_name : m_animation_frames.at(anim_name))
+			{
+				int frame_index = std::distance(frame_names.cbegin(), std::find(frame_names.cbegin(), frame_names.cend(), frame_name));
+				metadata.animations[anim_name].push_back(frame_index);
+			}
+		}
+		metadata.volume = m_sprite_volume.at(id);
+	}
+
+	return metadata;
+}
+
+std::string SpriteData::GetSpriteMetadataYaml(uint8_t id) const
+{
+	auto metadata = GetSpriteMetadata(id);
+	YAML::Emitter out;
+	out << YAML::BeginMap << YAML::Key << GetSpriteName(id) << YAML::Value << YAML::BeginMap;
+	out << YAML::Key << "sprite_id" << YAML::Value << static_cast<int>(id);
+	out << YAML::Key << "frame_width" << YAML::Value << metadata.frame_width;
+	out << YAML::Key << "frame_height" << YAML::Value << metadata.frame_height;
+	out << YAML::Key << "frame_count" << YAML::Value << metadata.frame_count;
+	out << YAML::Key << "origin" << YAML::Value << YAML::Flow << YAML::BeginSeq << metadata.origin.x << YAML::Value << metadata.origin.y << YAML::EndSeq;
+	out << YAML::Key << "hitbox" << YAML::Value << YAML::Flow << YAML::BeginMap
+	                 << YAML::Key << "base" << YAML::Value << (static_cast<double>(metadata.hitbox.base) / 8.0)
+					 << YAML::Key << "height" << YAML::Value << (static_cast<double>(metadata.hitbox.height) / 16.0) << YAML::EndMap;
+	out << YAML::Key << "volume" << YAML::Value << (static_cast<double>(metadata.volume) / 16.0);
+	out << YAML::Key << "compressed_frames" << YAML::Value << YAML::Flow << YAML::BeginSeq;
+	for (const auto& frame_index : metadata.compressed_frames)
+	{
+		out << frame_index;
+	}
+	out << YAML::EndSeq;
+	out << YAML::Key << "animation_flags" << YAML::Value << YAML::BeginMap;
+	out << YAML::Key << "idle_frame_count" << YAML::Value << (metadata.animation_flags.idle_animation_frames == AnimationFlags::IdleAnimationFrameCount::ONE_FRAME ? 1 : 2);
+	out << YAML::Key << "dedicated_idle_frames" << YAML::Value << (metadata.animation_flags.idle_animation_source == AnimationFlags::IdleAnimationSource::DEDICATED);
+	out << YAML::Key << "dedicated_jump_frames" << YAML::Value << (metadata.animation_flags.jump_animation_source == AnimationFlags::JumpAnimationSource::DEDICATED);
+	out << YAML::Key << "walk_frame_count" << YAML::Value << (metadata.animation_flags.walk_animation_frame_count == AnimationFlags::WalkAnimationFrameCount::TWO_FRAMES ? 2 : 4);
+	out << YAML::Key << "dedicated_damage_frames" << YAML::Value << (metadata.animation_flags.take_damage_animation_source == AnimationFlags::TakeDamageAnimationSource::DEDICATED);
+	out << YAML::Key << "no_rotate" << YAML::Value << metadata.animation_flags.do_not_rotate;
+	out << YAML::Key << "full_animations" << YAML::Value << metadata.animation_flags.has_full_animations;
+	out << YAML::EndMap;
+	out << YAML::Key << "animations" << YAML::Value << YAML::BeginMap;
+	for (const auto& [anim_name, frame_indices] : metadata.animations)
+	{
+		out << YAML::Key << anim_name << YAML::Value << YAML::Flow << YAML::BeginSeq;
+		for (const auto& frame_index : frame_indices)
+		{
+			out << frame_index;
+		}
+		out << YAML::EndSeq;
+	}
+	out << YAML::EndMap << YAML::EndMap;
+	return std::string(out.c_str());
+}
+
+SpriteData::EntityMetadata SpriteData::GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const
+{
+	EntityMetadata metadata;
+	if(!IsEntity(id))
+	{
+		throw std::runtime_error("Entity ID does not exist");
+	}
+	auto palettes = GetEntityPaletteIdxs(id);
+	if(palettes.first >= 0)
+	{
+		metadata.low_palette = GetLoPalette(palettes.first)->GetName();
+	}
+	if(palettes.second >= 0)
+	{
+		metadata.high_palette = GetHiPalette(palettes.second)->GetName();
+	}
+	auto sfx = sd->GetEntityTalkSound(id);
+	if(sfx > 0)
+	{
+		metadata.talk_sfx = sfx;
+	}
+	if(IsEntityItem(id))
+	{
+		metadata.item_properties = GetItemProperties(id);
+	}
+	if(IsEntityEnemy(id))
+	{
+		metadata.enemy_stats = GetEnemyStats(id);
+	}
+	return metadata;
+}
+
+std::string SpriteData::GetEntityMetadataYaml(uint8_t id, std::shared_ptr<StringData> sd) const
+{
+	auto metadata = GetEntityMetadata(id, sd);
+	YAML::Emitter out;
+	out << YAML::BeginMap << YAML::Key << wstr_to_utf8(GetEntityDisplayName(id)) << YAML::Value << YAML::BeginMap;
+	out << YAML::Key << "entity_id" << YAML::Value << static_cast<int>(id) << YAML::Comment(wstr_to_utf8(Labels::Get(Labels::C_ENTITIES, id).value_or(L"")));
+	if(metadata.low_palette.has_value())
+	{
+		out << YAML::Key << "low_palette" << YAML::Value << metadata.low_palette.value();
+	}
+	if(metadata.high_palette.has_value())
+	{
+		out << YAML::Key << "high_palette" << YAML::Value << metadata.high_palette.value();
+	}
+	if(metadata.talk_sfx.has_value())
+	{
+		out << YAML::Key << "talk_sfx" << YAML::Value << static_cast<int>(metadata.talk_sfx.value())
+		    << YAML::Comment(wstr_to_utf8(Landstalker::Labels::Get(Landstalker::Labels::C_SOUNDS, metadata.talk_sfx.value()).value_or(L"")));
+	}
+	if(metadata.item_properties.has_value())
+	{
+		out << YAML::Key << "item_properties" << YAML::Value << YAML::BeginMap;
+		const auto& item_props = metadata.item_properties.value();
+		out << YAML::Key << "use_verb" << YAML::Value << static_cast<int>(item_props.verb) << YAML::Comment(wstr_to_utf8(sd->GetMainString(item_props.verb)));
+		out << YAML::Key << "equipment_index" << YAML::Value << static_cast<int>(item_props.equipment_index);
+		out << YAML::Key << "max_quantity" << YAML::Value << static_cast<int>(item_props.max_quantity);
+		out << YAML::Key << "price" << YAML::Value << static_cast<int>(item_props.price);
+		out << YAML::EndMap;
+	}
+	if(metadata.enemy_stats.has_value())
+	{
+		out << YAML::Key << "enemy_stats" << YAML::Value << YAML::BeginMap;
+		const auto& enemy_stats = metadata.enemy_stats.value();
+		out << YAML::Key << "health" << YAML::Value << static_cast<int>(enemy_stats.health);
+		out << YAML::Key << "attack" << YAML::Value << static_cast<int>(enemy_stats.attack);
+		out << YAML::Key << "defence" << YAML::Value << static_cast<int>(enemy_stats.defence);
+		out << YAML::Key << "gold_drop" << YAML::Value << static_cast<int>(enemy_stats.gold_drop);
+		out << YAML::Key << "item_drop" << YAML::Value << static_cast<int>(enemy_stats.item_drop) << YAML::Comment(wstr_to_utf8(sd->GetItemDisplayName(enemy_stats.item_drop)));
+		out << YAML::Key << "item_drop_probability" << YAML::Value << static_cast<int>(enemy_stats.drop_probability) << YAML::Comment(EnemyStats::DropProbabilityNames.at(enemy_stats.drop_probability));
+		out <<YAML::EndMap;
+	}
+	out << YAML::EndMap << YAML::EndMap;
+	return std::string(out.c_str());
+}
+
 uint8_t SpriteData::GetSpriteFromEntity(uint8_t id) const
 {
 	assert(m_sprite_to_entity_lookup.find(id) != m_sprite_to_entity_lookup.cend());
@@ -521,14 +711,14 @@ std::vector<uint8_t> SpriteData::GetEntitiesFromSprite(uint8_t id) const
 	return results;
 }
 
-std::pair<uint8_t, uint8_t> SpriteData::GetSpriteHitbox(uint8_t id) const
+SpriteData::Hitbox SpriteData::GetSpriteHitbox(uint8_t id) const
 {
 	assert(m_sprite_dimensions.find(id) != m_sprite_dimensions.cend());
 	const auto& result = m_sprite_dimensions.find(id)->second;
 	return { result[0], result[1] };
 }
 
-std::pair<uint8_t, uint8_t> SpriteData::GetEntityHitbox(uint8_t id) const
+SpriteData::Hitbox SpriteData::GetEntityHitbox(uint8_t id) const
 {
 	if (!EntityHasSprite(id))
 	{
@@ -538,12 +728,12 @@ std::pair<uint8_t, uint8_t> SpriteData::GetEntityHitbox(uint8_t id) const
 	return GetSpriteHitbox(sprite_id);
 }
 
-void SpriteData::SetSpriteHitbox(uint8_t id, uint8_t base, uint8_t height)
+void SpriteData::SetSpriteHitbox(uint8_t id, const Hitbox& hitbox)
 {
 	assert(m_sprite_dimensions.find(id) != m_sprite_dimensions.cend());
 	auto& result = m_sprite_dimensions.find(id)->second;
-	result[0] = base;
-	result[1] = height;
+	result[0] = hitbox.base;
+	result[1] = hitbox.height;
 }
 
 bool SpriteData::SpriteFrameExists(const std::string& name) const

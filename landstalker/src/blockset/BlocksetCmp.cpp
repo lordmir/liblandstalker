@@ -314,4 +314,90 @@ uint16_t BlocksetCmp::Encode(const Blockset& blocks, uint8_t* dst, size_t bufsiz
     return static_cast<uint16_t>(cbs.GetByteCount());
 }
 
+std::string BlocksetCmp::ToCsv(const Blockset &blocks)
+{
+    std::ostringstream ss;
+    for (size_t b = 0; b < blocks.size(); ++b)
+    {
+        const auto& block = blocks[b];
+        for (size_t t = 0; t < MapBlock::GetBlockSize(); ++t)
+        {
+            const auto& tile = block.GetTile(t);
+            std::ostringstream tile_ss;
+            tile_ss << std::hex << std::setw(4) << std::setfill('0') << tile.GetIndex();
+            if (tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_HFLIP))
+            {
+                tile_ss << "H";
+            }
+            if (tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_VFLIP))
+            {
+                tile_ss << "V";
+            }
+            if (tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_PRIORITY))
+            {
+                tile_ss << "P";
+            }
+            ss << std::setw(7) << std::setfill(' ') << std::right << tile_ss.str();
+            if (t < 3)
+            {
+                ss << ",";
+            }
+        }
+        if (b < blocks.size() - 1)
+        {
+            ss << "\n";
+        }
+    }
+    return ss.str();
+}
+
+Blockset BlocksetCmp::FromCsv(const std::string &csv_data)
+{
+    std::istringstream ss(csv_data);
+    std::string line;
+    Blockset blocks;
+    while (std::getline(ss, line))
+    {
+        std::istringstream line_ss(line);
+        std::string tile_str;
+        std::vector<Tile> tiles;
+        while (std::getline(line_ss, tile_str, ','))
+        {
+            size_t pos = 0;
+            TileAttributes attrs;
+            bool parse_attrs = true;
+            while (pos < tile_str.size() && parse_attrs)
+            {
+                char attr_char = tile_str[pos];
+                switch (attr_char)
+                {
+                    case 'H':
+                        attrs.setAttribute(TileAttributes::Attribute::ATTR_HFLIP);
+                        break;
+                    case 'V':
+                        attrs.setAttribute(TileAttributes::Attribute::ATTR_VFLIP);
+                        break;
+                    case 'P':
+                        attrs.setAttribute(TileAttributes::Attribute::ATTR_PRIORITY);
+                        break;
+                    case ' ':
+                        break;
+                    default:
+                        parse_attrs = false;
+                        continue;
+                }
+                ++pos;
+            }
+            uint16_t index = static_cast<uint16_t>(std::stoul(tile_str.substr(pos), nullptr, 16));
+            tiles.push_back(Tile(attrs, index));
+        }
+        if (tiles.size() != MapBlock::GetBlockSize())
+        {
+            throw std::runtime_error("Incorrect number of tiles in block from CSV data");
+        }
+        blocks.push_back(MapBlock(tiles.begin(), tiles.end()));
+    }
+    return blocks;
+}
+
 } // namespace Landstalker

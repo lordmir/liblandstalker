@@ -41,6 +41,9 @@ public:
 	std::string GetFileExtension() const;
 	static Compression FromFileExtension(const std::string& filename);
 
+	std::string ToCsv() const;
+	static Tilemap2D FromCsv(const std::string& csv_data);
+
 	void Clear();
 	void Fill(const Tile& tile);
 	void FillIncrementing(const Tile& tile);

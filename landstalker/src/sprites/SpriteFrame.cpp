@@ -398,6 +398,16 @@ int SpriteFrame::GetHeight() const
 	return GetBottom() - GetTop();
 }
 
+Rect SpriteFrame::GetBoundingBox() const
+{
+    return  {GetLeft(), GetTop(), GetWidth(), GetHeight()};
+}
+
+Point SpriteFrame::GetOrigin() const
+{
+	return Point(-GetLeft(), -GetTop());
+}
+
 std::vector<uint8_t> SpriteFrame::GetTile(const Tile& tile) const
 {
 	return m_sprite_gfx->GetTile(tile);

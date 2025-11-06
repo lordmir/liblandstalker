@@ -158,6 +158,37 @@ Iter Insert(Iter it, T data)
 	return it;
 }
 
+template<typename T>
+std::vector<T> SplitStr(const std::string& str, char delimiter = ',')
+{
+	std::vector<T> elems;
+	std::stringstream ss(str);
+	std::string item;
+	while (std::getline(ss, item, delimiter))
+	{
+		std::istringstream item_stream(item);
+		long long int value;
+		item_stream >> value;
+		elems.push_back(static_cast<T>(value));
+	}
+	return elems;
+}
+
+template<typename T>
+std::string JoinStr(const std::vector<T>& elements, char delimiter = ',')
+{
+	std::ostringstream ss;
+	for (std::size_t i = 0; i < elements.size(); ++i)
+	{
+		ss << static_cast<long long int>(elements[i]);
+		if (i < elements.size() - 1)
+		{
+			ss << delimiter;
+		}
+	}
+	return ss.str();
+}
+
 } // namespace Landstalker
 
 #endif // UTILS_H

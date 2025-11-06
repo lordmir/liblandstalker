@@ -1,6 +1,10 @@
 #include <landstalker/rooms/Room.h>
+#include <landstalker/misc/Utils.h>
+#include <landstalker/main/GameData.h>
 
 #include <cassert>
+
+#include <yaml-cpp/yaml.h>
 
 namespace Landstalker {
 
@@ -19,6 +23,37 @@ Room::Room(const std::string& name_, const std::string& map_name, uint16_t index
       index(index_)
 {
     SetParams(params[0], params[1], params[2], params[3]);
+}
+
+std::string Room::ToYaml(std::shared_ptr<GameData> gd) const
+{
+    YAML::Emitter out;
+    out << YAML::BeginMap << YAML::Key << name << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "map" << YAML::Value << map;
+    out << YAML::Key << "name" << YAML::Value << name << YAML::Comment(Landstalker::wstr_to_utf8(GetDisplayName()));
+    out << YAML::Key << "index" << YAML::Value << index;
+    out << YAML::Key << "tileset" << YAML::Value << gd->GetRoomData()->GetTileset(tileset)->GetName() << YAML::Comment(std::to_string(tileset));
+    out << YAML::Key << "pri_blockset" << YAML::Value << gd->GetRoomData()->GetBlockset(tileset, pri_blockset, 0)->GetName() << YAML::Comment(std::to_string(pri_blockset));
+    out << YAML::Key << "sec_blockset" << YAML::Value << gd->GetRoomData()->GetBlockset(tileset, pri_blockset, sec_blockset + 1)->GetName() << YAML::Comment(std::to_string(sec_blockset + 1));
+    out << YAML::Key << "room_palette" << YAML::Value << gd->GetRoomData()->GetRoomPalette(room_palette)->GetName() << YAML::Comment(std::to_string(room_palette));
+    out << YAML::Key << "bgm" << YAML::Value << static_cast<int>(bgm) << YAML::Comment(wstr_to_utf8(Labels::Get(Labels::C_BGMS, bgm).value_or(L"(none)")));
+    out << YAML::Key << "room_z_begin" << YAML::Value << static_cast<int>(room_z_begin);
+    out << YAML::Key << "room_z_end" << YAML::Value << static_cast<int>(room_z_end);
+    // Entities
+    // Warps
+    // Tileswaps
+    // Doors
+    // Chests
+    // Characters
+    // Flags
+    // Properties
+    out << YAML::EndMap << YAML::EndMap;
+    return out.c_str();
+}
+
+Room Room::FromYaml(const std::string& yaml_data, std::shared_ptr<GameData> gd)
+{
+    return Room("", "", 0, std::vector<uint8_t>{0,0,0,0});
 }
 
 bool Room::operator==(const Room& rhs) const
@@ -68,7 +103,7 @@ uint8_t Room::GetBlocksetId() const
     return pri_blockset << 5 | tileset;
 }
 
-std::wstring Room::GetDisplayName()
+std::wstring Room::GetDisplayName() const
 {
     return Labels::Get(Labels::C_ROOMS, index).value_or(std::wstring(name.cbegin(), name.cend()));
 }

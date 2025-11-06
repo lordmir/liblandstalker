@@ -5,6 +5,7 @@
 #include <vector>
 #include <optional>
 #include <landstalker/tileset/Tileset.h>
+#include <landstalker/misc/Point.h>
 
 namespace Landstalker {
 
@@ -65,6 +66,8 @@ public:
 	int GetTop() const;
 	int GetBottom() const;
 	int GetHeight() const;
+	Rect GetBoundingBox() const;
+	Point GetOrigin() const;
 
 	std::vector<uint8_t>  GetTile(const Tile& tile) const;
 	std::pair<int, int>   GetTilePosition(const Tile& tile) const;

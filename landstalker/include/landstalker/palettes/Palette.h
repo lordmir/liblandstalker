@@ -214,6 +214,9 @@ public:
 	bool operator!=(const Palette& rhs) const;
 
 	std::vector<uint8_t> GetBytes() const;
+	std::string ToGpl() const;
+	static Palette FromGpl(const std::string& gpl_data, const Type& type = Type::FULL);
+	std::shared_ptr<Palette> Remap(const std::vector<uint8_t>& indicies) const;
 
 	void Clear();
 	void LoadDebugPal();

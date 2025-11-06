@@ -8,6 +8,8 @@
 #include <landstalker/rooms/Entity.h>
 #include <landstalker/rooms/Flags.h>
 #include <landstalker/behaviours/Behaviours.h>
+#include <landstalker/misc/Point.h>
+#include <landstalker/main/StringData.h>
 
 namespace Landstalker {
 
@@ -86,9 +88,40 @@ public:
 			NO_DROP,
 			GUARANTEED_DROP
 		} drop_probability;
+		static const std::unordered_map<DropProbability, std::string> DropProbabilityNames;
 		EnemyStats() : health(0), defence(0), attack(0), gold_drop(0), item_drop(0), drop_probability(DropProbability::NO_DROP) {}
 		EnemyStats(const std::array<uint8_t, 5>& elems);
 		std::array<uint8_t, 5> Pack() const;
+	};
+
+	struct Hitbox
+	{
+		uint8_t base;
+		uint8_t height;
+		Hitbox() : base(0), height(0) {}
+		Hitbox(uint8_t b, uint8_t h) : base(b), height(h) {}
+	};
+
+	struct SpriteMetadata
+	{
+		unsigned int frame_width;
+		unsigned int frame_height;
+		unsigned int frame_count;
+		Point origin;
+		AnimationFlags animation_flags;
+		Hitbox hitbox;
+		unsigned int volume;
+		std::vector<int> compressed_frames;
+		std::map<std::string, std::vector<int>> animations;
+	};
+
+	struct EntityMetadata
+	{
+		std::optional<std::string> low_palette = std::nullopt;
+		std::optional<std::string> high_palette = std::nullopt;
+		std::optional<uint8_t> talk_sfx = std::nullopt;
+		std::optional<ItemProperties> item_properties = std::nullopt;
+		std::optional<EnemyStats> enemy_stats = std::nullopt;
 	};
 
 	SpriteData(const std::filesystem::path& asm_file);
@@ -109,6 +142,10 @@ public:
 	static std::wstring GetSpriteLowPaletteDisplayName(uint8_t id);
 	static std::wstring GetSpriteHighPaletteDisplayName(uint8_t id);
 	static std::wstring GetBehaviourDisplayName(int behav_id);
+	SpriteMetadata GetSpriteMetadata(uint8_t id) const;
+	std::string GetSpriteMetadataYaml(uint8_t id) const;
+	EntityMetadata GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const;
+	std::string GetEntityMetadataYaml(uint8_t id, std::shared_ptr<StringData> sd) const;
 
 	bool IsEntity(uint8_t id) const;
 	bool IsSprite(uint8_t id) const;
@@ -124,9 +161,9 @@ public:
 	bool EntityHasSprite(uint8_t id) const;
 	std::vector<uint8_t> GetEntitiesFromSprite(uint8_t id) const;
 
-	std::pair<uint8_t, uint8_t> GetSpriteHitbox(uint8_t id) const;
-	std::pair<uint8_t, uint8_t> GetEntityHitbox(uint8_t id) const;
-	void SetSpriteHitbox(uint8_t id, uint8_t base, uint8_t height);
+	Hitbox GetSpriteHitbox(uint8_t id) const;
+	Hitbox GetEntityHitbox(uint8_t id) const;
+	void SetSpriteHitbox(uint8_t id, const Hitbox& hitbox);
 
 	bool SpriteFrameExists(const std::string& name) const;
 	void DeleteSpriteFrame(const std::string& name);

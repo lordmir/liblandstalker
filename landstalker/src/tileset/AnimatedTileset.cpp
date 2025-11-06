@@ -1,4 +1,5 @@
 #include <landstalker/tileset/AnimatedTileset.h>
+#include <yaml-cpp/yaml.h>
 
 namespace Landstalker {
 
@@ -103,6 +104,52 @@ uint8_t AnimatedTileset::GetAnimationFrames() const
 uint8_t AnimatedTileset::GetBaseTileset() const
 {
 	return m_base_tileset;
+}
+
+std::string AnimatedTileset::ExtractMetadataYaml() const
+{
+	YAML::Emitter out;
+	out << YAML::BeginMap;
+	out << YAML::Key << "AnimatedTileset" << YAML::Value << YAML::BeginMap;
+	out << YAML::Key << "base_tile_index" << YAML::Value << (m_base / Tileset::GetTileSizeBytes());
+	out << YAML::Key << "animation_tiles" << YAML::Value << ((m_length * 2) / Tileset::GetTileSizeBytes());
+	out << YAML::Key << "animation_frame_count" << YAML::Value << static_cast<int>(m_frames);
+	out << YAML::Key << "animation_speed_hz" << YAML::Value << static_cast<double>(60.0 / m_speed);
+	out << YAML::Key << "base_tileset" << YAML::Value << static_cast<int>(m_base_tileset);
+	out << YAML::EndMap;
+	return std::string(out.c_str());
+}
+
+bool AnimatedTileset::InsertMetadataYaml(const std::string& yaml_data)
+{
+	YAML::Node doc = YAML::Load(yaml_data);
+	if (!doc["AnimatedTileset"])
+	{
+		return false;
+	}
+	doc = doc["AnimatedTileset"];
+	if (doc["base_tile_index"])
+	{
+		m_base = static_cast<uint16_t>(doc["base_tile_index"].as<uint16_t>() * Tileset::GetTileSizeBytes());
+	}
+	if (doc["animation_tiles"])
+	{
+		m_length = static_cast<uint16_t>(doc["animation_tiles"].as<uint16_t>() * Tileset::GetTileSizeBytes() / 2);
+	}
+	if (doc["animation_speed_hz"] && doc["animation_speed_hz"].as<double>() > 0.0)
+	{
+		double frameskip = 60.0 / doc["animation_speed_hz"].as<double>();
+		m_speed = static_cast<uint8_t>(std::clamp(frameskip, 1.0, 255.0));
+	}
+	if (doc["animation_frame_count"])
+	{
+		m_frames = doc["animation_frame_count"].as<uint8_t>();
+	}
+	if (doc["base_tileset"])
+	{
+		m_base_tileset = doc["base_tileset"].as<uint8_t>();
+	}
+	return true;
 }
 
 void AnimatedTileset::SetBaseBytes(uint16_t base)

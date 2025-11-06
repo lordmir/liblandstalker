@@ -8,10 +8,13 @@
 #include <cstdint>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 #include <landstalker/misc/BitBarrel.h>
 #include <landstalker/misc/BitBarrelWriter.h>
 #include <landstalker/misc/Literals.h>
+#include <landstalker/misc/Utils.h>
 
 namespace Landstalker {
 
@@ -703,6 +706,141 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
         throw std::runtime_error("Output buffer not large enough to hold result.");
     }
     return static_cast<uint16_t>(cmap.GetByteCount());
+}
+
+bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& background_csv, const std::string& heightmap_csv)
+{
+	std::ifstream bg(background_csv, std::ios::in);
+	std::ifstream fg(foreground_csv, std::ios::in);
+	std::ifstream hm(heightmap_csv, std::ios::in);
+
+	std::size_t w, h, t, l, hw, hh;
+	std::vector<std::vector<uint16_t>> foreground, background, heightmap;
+
+	auto read_csv = [](auto& iss, auto& data)
+	{
+		std::string row;
+		std::string cell;
+		while (std::getline(iss, row))
+		{
+			data.push_back(std::vector<uint16_t>());
+			std::istringstream rss(row);
+			while (std::getline(rss, cell, ','))
+			{
+				data.back().push_back(std::stoi(cell, nullptr, 16));
+			}
+		}
+	};
+	
+	read_csv(fg, foreground);
+	read_csv(bg, background);
+	read_csv(hm, heightmap);
+
+	if (heightmap.size() < 2 || heightmap.front().size() != 2)
+	{
+		return false;
+	}
+	if (foreground.size() == 0 || foreground.front().size() == 0)
+	{
+		return false;
+	}
+	if (background.size() == 0 || background.front().size() == 0)
+	{
+		return false;
+	}
+	w = foreground.front().size();
+	h = foreground.size();
+	hw = heightmap[1].size();
+	hh = heightmap.size() - 1;
+	l = heightmap[0][0];
+	t = heightmap[0][1];
+
+	if (background.size() != h)
+	{
+		return false;
+	}
+
+	for (std::size_t i = 0; i < h; ++i)
+	{
+		if (background[i].size() != w || foreground[i].size() != w)
+		{
+			return false;
+		}
+	}
+	for (std::size_t i = 1; i <= hh; ++i)
+	{
+		if (heightmap[i].size() != hw)
+		{
+			return false;
+		}
+	}
+
+	Resize(w, h);
+	ResizeHeightmap(hw, hh);
+	SetLeft(l);
+	SetTop(t);
+	
+	int i = 0;
+	for (std::size_t y = 0; y < h; ++y)
+	{
+		for (std::size_t x = 0; x < w; ++x)
+		{
+			SetBlock(background[y][x], i, Tilemap3D::Layer::BG);
+			SetBlock(foreground[y][x], i++, Tilemap3D::Layer::FG);
+		}
+	}
+	for (int y = 0; y < static_cast<int>(hh); ++y)
+	{
+		for (int x = 0; x < static_cast<int>(hw); ++x)
+		{
+			SetCellProps({ x, y }, (heightmap[y + 1][x] >> 12) & 0xF);
+			SetHeight({ x, y }, (heightmap[y + 1][x] >> 8) & 0xF);
+			SetCellType({ x, y }, heightmap[y + 1][x] & 0xFF);
+		}
+	}
+	return true;
+}
+bool Tilemap3D::ToCsv(std::string &foreground_csv, std::string &background_csv, std::string &heightmap_csv) const
+{
+	std::stringstream bg(background_csv, std::ios::out | std::ios::trunc);
+	std::stringstream fg(foreground_csv, std::ios::out | std::ios::trunc);
+	std::stringstream hm(heightmap_csv, std::ios::out | std::ios::trunc);
+
+	for (int i = 0; i < GetWidth() * GetHeight(); ++i)
+	{
+		fg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::FG).value);
+		bg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::BG).value);
+		if ((i + 1) % GetWidth() == 0)
+		{
+			fg << std::endl;
+			bg << std::endl;
+		}
+		else
+		{
+			fg << ",";
+			bg << ",";
+		}
+	}
+	hm << StrPrintf("%02X", GetLeft()) << "," << StrPrintf("%02X",GetTop()) << std::endl;
+	for (int i = 0; i < GetHeightmapHeight(); ++i)
+    {
+		for (int j = 0; j < GetHeightmapWidth(); ++j)
+		{
+			hm << StrPrintf("%X%X%02X", GetCellProps({ j, i }), GetHeight({ j, i }), GetCellType({j, i}));
+			if ((j + 1) % GetHeightmapWidth() == 0)
+			{
+				hm << std::endl;
+			}
+			else
+			{
+				hm << ",";
+			}
+		}
+    }
+    foreground_csv = fg.str();
+    background_csv = bg.str();
+    heightmap_csv = hm.str();
+	return true;
 }
 
 uint8_t Tilemap3D::GetLeft() const

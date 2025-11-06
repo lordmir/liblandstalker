@@ -20,6 +20,12 @@ namespace Landstalker {
 class ImageBuffer
 {
 public:
+	enum class BlockMode
+	{
+		NORMAL,
+		PRIORITY_ONLY,
+		NO_PRIORITY_ONLY
+	};
 	ImageBuffer();
 	ImageBuffer(std::size_t width, std::size_t height);
 	virtual ~ImageBuffer() = default;
@@ -27,7 +33,7 @@ public:
 	void Clear(uint8_t colour);
 	void Resize(std::size_t width, std::size_t height);
 	void PutPixel(std::size_t x, std::size_t y, uint8_t colour);
-	void InsertTile(int x, int y, uint8_t palette_index, const Tile& tile, const Tileset& tileset, bool use_alpha = true);
+	void InsertTile(int x, int y, uint8_t palette_index, const Tile& tile, const Tileset& tileset, bool use_alpha = true, BlockMode mode = BlockMode::NORMAL);
 	void ClearTile(int x, int y, const Tileset& ts);
 	void ClearBlock(int x, int y, const Blockset& bs, const Tileset& ts);
 	void InsertSprite(int x, int y, uint8_t palette_index, const SpriteFrame& frame, bool hflip = false);
@@ -35,9 +41,9 @@ public:
 	void Insert3DMapLayer(int x, int y, uint8_t palette_index, Tilemap3D::Layer layer,
 		const std::shared_ptr<const Tilemap3D> map, const std::shared_ptr<const Tileset> tileset,
 		const std::shared_ptr<const std::vector<MapBlock>> blockset, bool offset = true,
-		std::optional<std::vector<TileSwap>> swaps = std::nullopt, std::optional<std::vector<Door>> doors = std::nullopt);
+		std::optional<std::vector<TileSwap>> swaps = std::nullopt, std::optional<std::vector<Door>> doors = std::nullopt, BlockMode mode = BlockMode::NORMAL);
 	bool WritePNG(const std::string& filename, const std::vector<std::shared_ptr<Palette>>& pals, bool use_alpha = true);
-	void InsertBlock(std::size_t x, std::size_t y, uint8_t palette_index, const MapBlock& block, const Tileset& tileset);
+	void InsertBlock(std::size_t x, std::size_t y, uint8_t palette_index, const MapBlock& block, const Tileset& tileset, BlockMode mode = BlockMode::NORMAL);
 	const std::vector<uint8_t>& GetRGB(const std::vector<std::shared_ptr<Palette>>& pals) const;
 	const std::vector<uint8_t>& GetAlpha(const std::vector<std::shared_ptr<Palette>>& pals, uint8_t low_pri_max_opacity = 0xFF, uint8_t high_pri_max_opacity = 0xFF) const;
 	std::size_t GetHeight() const;

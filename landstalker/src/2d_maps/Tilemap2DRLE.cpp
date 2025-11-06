@@ -269,6 +269,81 @@ Tilemap2D::Compression Tilemap2D::FromFileExtension(const std::string& filename)
 	return Compression::NONE;
 }
 
+std::string Tilemap2D::ToCsv() const
+{
+	std::ostringstream ss(std::ios::out | std::ios::trunc);
+
+	ss << static_cast<int>(GetCompression()) << "," << GetBase() << "," << GetLeft()
+	   << "," << GetTop() << std::endl;
+
+	for (std::size_t y = 0; y < GetHeight(); ++y)
+	{
+		for (std::size_t x = 0; x < GetWidth(); ++x)
+		{
+			ss << StrPrintf("0x%04X", GetTile(x, y).GetTileValue());
+			if ((x + 1) == GetWidth())
+			{
+				ss << std::endl;
+			}
+			else
+			{
+				ss << ",";
+			}
+		}
+	}
+	return ss.str();
+}
+
+Tilemap2D Tilemap2D::FromCsv(const std::string &csv_data)
+{
+	std::istringstream ss(csv_data, std::ios::in);
+
+	uint32_t c, b, l, t;
+	std::vector<std::vector<uint16_t>> tiles;
+	std::string row;
+	std::string cell;
+	std::getline(ss, row);
+	std::istringstream rss(row);
+	std::getline(rss, cell, ',');
+	StrToInt(cell, c);
+	std::getline(rss, cell, ',');
+	StrToInt(cell, b);
+	std::getline(rss, cell, ',');
+	StrToInt(cell, l);
+	std::getline(rss, cell, ',');
+	StrToInt(cell, t);
+
+	while (std::getline(ss, row))
+	{
+		tiles.push_back(std::vector<uint16_t>());
+		std::istringstream rss(row);
+		while (std::getline(rss, cell, ','))
+		{
+			tiles.back().push_back(std::stoi(cell, nullptr, 16));
+		}
+	}
+
+	if (tiles.size() == 0 || tiles.front().size() == 0)
+	{
+		throw std::runtime_error("No tile data in CSV");
+	}
+	int w = tiles.front().size();
+	int h = tiles.size();
+	Tilemap2D::Compression compression = static_cast<Tilemap2D::Compression>(c);
+	Tilemap2D m_map(w, h, b);
+	for (int y = 0; y < h; ++y)
+	{
+		for (int x = 0; x < w; ++x)
+		{
+			m_map.SetTile(Tile(tiles[y][x]), x, y);
+		}
+	}
+	m_map.SetLeft(l);
+	m_map.SetTop(t);
+	m_map.SetCompression(compression);
+	return m_map;
+}
+
 void Tilemap2D::Clear()
 {
 	m_tiles.clear();
