@@ -214,8 +214,7 @@ std::string Room::ToYaml(std::shared_ptr<GameData> gd) const
     out << YAML::Key << "doors" << YAML::Value << YAML::BeginSeq;
     for(const auto& door : doors)
     {
-        out << YAML::BeginMap;
-        out << YAML::Key << "position" << YAML::Value << YAML::Flow << YAML::BeginMap;
+        out << YAML::Flow << YAML::BeginMap;
         out << YAML::Key << "x" << YAML::Value << static_cast<int>(door.x);
         out << YAML::Key << "y" << YAML::Value << static_cast<int>(door.y);
         out << YAML::Key << "size" << YAML::Value << static_cast<int>(door.size);
