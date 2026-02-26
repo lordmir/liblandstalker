@@ -43,6 +43,7 @@ public:
 private:
     static bool IsExistingValid(const std::wstring& what);
     static std::map<std::pair<std::wstring, int>, std::wstring> m_data;
+    static const std::map<std::wstring, std::wstring>& GetFormatStrings();
 
 };
 

@@ -10,12 +10,16 @@ namespace Landstalker {
 
 std::map<std::pair<std::wstring, int>, std::wstring> Labels::m_data;
 
-static const std::map<std::wstring, std::wstring> FORMAT_STRINGS
+const std::map<std::wstring, std::wstring>& Labels::GetFormatStrings()
 {
-    {Labels::C_SPRITE_ANIMATIONS, L"0x%04X"},
-    {Labels::C_SPRITE_FRAMES, L"0x%04X"},
-    {Labels::C_BLOCKSETS, L"0x%06X"}
-};
+    static const std::map<std::wstring, std::wstring> FORMAT_STRINGS
+    {
+        {Labels::C_SPRITE_ANIMATIONS, L"0x%04X"},
+        {Labels::C_SPRITE_FRAMES, L"0x%04X"},
+        {Labels::C_BLOCKSETS, L"0x%06X"}
+    };
+    return FORMAT_STRINGS;
+}
 
 const std::wstring Labels::C_ROOMS(L"rooms");
 const std::wstring Labels::C_BGMS(L"bgms");
@@ -43,19 +47,20 @@ void Labels::InitDefaults()
     m_data = DefaultLabels::DEFAULT_LABELS;
 }
 
-void Labels::LoadData(const std::string& filename) {
+void Labels::LoadData(const std::string& filename)
+{
     try {
         InitDefaults();
         YAML::Node config = YAML::LoadFile(filename);
         std::wstring_convert<std::codecvt_utf8<wchar_t>> cvt;
-        
+
         // Iterate through all top-level keys in the YAML
         for (const auto& category : config) {
-            const std::wstring& category_name = cvt.from_bytes(category.first.as<std::string>());
+            const std::wstring category_name = cvt.from_bytes(category.first.as<std::string>());
             try {
-                // For each entry in this category
                 for (const auto& entry : category.second) {
-                    m_data[{category_name, entry.first.as<int>()}] = cvt.from_bytes(entry.second.as<std::string>());
+                    m_data[{category_name, entry.first.as<int>()}] =
+                        cvt.from_bytes(entry.second.as<std::string>());
                 }
             } catch (const YAML::Exception& e) {
                 Debug("Error parsing " + cvt.to_bytes(category_name) + " in YAML: " + e.what());
@@ -89,7 +94,7 @@ void Labels::SaveData(const std::string& filename)
             }
             ofs << category << L":" << std::endl;
         }
-        const std::wstring fmt = (FORMAT_STRINGS.count(label.first.first) > 0) ? FORMAT_STRINGS.at(label.first.first) : L"%d";
+        const std::wstring fmt = GetFormatStrings().count(label.first.first) > 0 ? GetFormatStrings().at(label.first.first) : L"%d";
         ofs << L"    " << StrWPrintf(fmt, label.first.second) << L": \"" << label.second << "\"" << std::endl;
     }
 }
