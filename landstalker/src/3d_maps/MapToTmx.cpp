@@ -23,23 +23,27 @@ static std::string GetData(const Tilemap3D& map, Tilemap3D::Layer layer)
 	}
 	return ss.str();
 }
+
 static std::string GetHMData(const Tilemap3D& map)
 {
-	std::ostringstream ss;
-	int i = 0;
-	for (int y = 0; y < map.GetHeightmapHeight(); ++y)
-	{
-		for (int x = 0; x < map.GetHeightmapWidth(); ++x, ++i)
-		{
-			ss << Landstalker::Hex(map.GetHeightmapCell({ x, y }));
-			if (i < map.GetWidth() * map.GetHeight() - 1)
-			{
-				ss << ",";
-			}
-		}
-		ss << std::endl;
-	}
-	return ss.str();
+    std::ostringstream ss;
+    int total_cells = map.GetHeightmapWidth() * map.GetHeightmapHeight();
+
+    int i = 0;
+    for (int y = 0; y < map.GetHeightmapHeight(); ++y)
+    {
+        for (int x = 0; x < map.GetHeightmapWidth(); ++x, ++i)
+        {
+            ss << Landstalker::Hex(map.GetHeightmapCell({ x, y }));
+            if (i < total_cells - 1)
+            {
+                ss << ",";
+            }
+        }
+        ss << std::endl;
+    }
+
+    return ss.str();
 }
 
 static std::vector<uint16_t> ReadData(int width, int height, const std::string& csv)
