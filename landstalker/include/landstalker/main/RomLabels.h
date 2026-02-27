@@ -175,6 +175,7 @@ namespace RomLabels
 		extern const std::string STRING_PTR_FILE;
 		extern const std::string STRING_BANK_PTR_FILE;
 		extern const std::string STRING_BANK_FILE;
+		extern const std::string STRING_BANK_FILE_PATTERN;
 		extern const std::string REGION_CHECK_FILE;
 		extern const std::string REGION_CHECK_STRINGS_FILE;
 		extern const std::string REGION_CHECK_ROUTINE_FILE;

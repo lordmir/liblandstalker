@@ -1219,17 +1219,26 @@ bool StringData::LoadAsmFilenames()
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Strings::CHARACTER_TALK_SFX, m_char_talk_sfx_path);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Strings::SPRITE_TALK_SFX, m_sprite_talk_sfx_path);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Strings::ROOM_CHARACTER_TABLE, m_room_dialogue_table_path);
-		
-		AsmFile s(GetBasePath() / m_string_table_path);
-		retval = retval && GetFilenameFromAsm(s, RomLabels::Strings::CHAR_NAME_TABLE, m_char_table_path);
-		retval = retval && GetFilenameFromAsm(s, RomLabels::Strings::SPECIAL_CHAR_NAME_TABLE, m_schar_table_path);
-		retval = retval && GetFilenameFromAsm(s, RomLabels::Strings::DEFAULT_NAME, m_dchar_table_path);
-		retval = retval && GetFilenameFromAsm(s, RomLabels::Strings::ITEM_NAME_TABLE, m_item_table_path);
-		retval = retval && GetFilenameFromAsm(s, RomLabels::Strings::MENU_STRING_TABLE, m_menu_table_path);
+
+		AsmFile s(GetBasePath() / m_strings_filename);
+		if (retval && GetFilenameFromAsm(s, StrPrintf(RomLabels::Strings::STRING_BANK, 0), m_string_filename_path))
+		{
+			m_string_filename_path = m_string_filename_path.parent_path();
+		}
+		else
+		{
+			retval = false;
+		}
+		AsmFile t(GetBasePath() / m_string_table_path);
+		retval = retval && GetFilenameFromAsm(t, RomLabels::Strings::CHAR_NAME_TABLE, m_char_table_path);
+		retval = retval && GetFilenameFromAsm(t, RomLabels::Strings::SPECIAL_CHAR_NAME_TABLE, m_schar_table_path);
+		retval = retval && GetFilenameFromAsm(t, RomLabels::Strings::DEFAULT_NAME, m_dchar_table_path);
+		retval = retval && GetFilenameFromAsm(t, RomLabels::Strings::ITEM_NAME_TABLE, m_item_table_path);
+		retval = retval && GetFilenameFromAsm(t, RomLabels::Strings::MENU_STRING_TABLE, m_menu_table_path);
 		AsmFile i(GetBasePath() / m_intro_string_data_path);
 		retval = retval && GetFilenameFromAsm(i, RomLabels::Strings::INTRO_STRING_PTRS, m_intro_string_ptrtable_path);
 		int idx = 1;
-		while (i.IsGood())
+		while (retval && i.IsGood())
 		{
 			auto label = StrPrintf(RomLabels::Strings::INTRO_STRING, idx++);
 			std::filesystem::path path;
@@ -1976,11 +1985,11 @@ bool StringData::AsmSaveCompressedStringData(const std::filesystem::path& dir)
 				const auto& s = m_compressed_strings[i + j];
 				bytes.insert(bytes.end(), s.cbegin(), s.cend());
 			}
-			std::filesystem::path fname = StrPrintf(RomLabels::Strings::STRING_BANK_FILE, f + 1);
+			std::filesystem::path fname = StrPrintf(RomLabels::Strings::STRING_BANK_FILE_PATTERN, f + 1);
 			std::string pname = StrPrintf(RomLabels::Strings::STRING_BANK, f);
 			WriteBytes(bytes, dir / m_string_filename_path / fname.filename());
 			pfile << pname;
-			sfile << AsmFile::Label(pname) << AsmFile::IncludeFile(fname, AsmFile::FileType::BINARY);
+			sfile << AsmFile::Label(pname) << AsmFile::IncludeFile(m_string_filename_path / fname, AsmFile::FileType::BINARY);
 			f++;
 		}
 		sfile.WriteFile(dir / m_strings_filename);
