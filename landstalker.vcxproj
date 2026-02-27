@@ -605,6 +605,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tile.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\TileAttributes.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tileset.cpp" />
+    <ClCompile Include="landstalker\src\text\Charset.cpp" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Blockmap2D.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Tilemap.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Tilemap2DRLE.h" />

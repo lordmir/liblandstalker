@@ -172,6 +172,9 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tile.cpp">
       <Filter>Source Files\Tileset</Filter>
     </ClCompile>
+    <ClCompile Include="landstalker\src\text\Charset.cpp">
+      <Filter>Source Files\Text</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\AnimatedTileset.h">

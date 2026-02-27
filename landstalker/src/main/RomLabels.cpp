@@ -173,6 +173,7 @@ namespace RomLabels
 		const std::string STRING_PTR_FILE("code/pointertables/stringbankptr.asm");
 		const std::string STRING_BANK_PTR_FILE("code/pointertables/strings/stringptrs.asm");
 		const std::string STRING_BANK_FILE("assets_packed/strings/main/strings%02d.huf");
+		const std::string STRING_BANK_FILE_PATTERN("strings%02d.huf");
 		const std::string REGION_CHECK_FILE("code/system/regioncheck.asm");
 		const std::string REGION_CHECK_STRINGS_FILE("code/system/regioncheck_strings.asm");
 		const std::string REGION_CHECK_ROUTINE_FILE("code/system/regioncheck_routine.asm");
