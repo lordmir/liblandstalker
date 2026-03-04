@@ -54,7 +54,13 @@ else()
 endif()
 
 if (MSVC)
-    target_compile_options(${MODULE_NAME} PRIVATE -D_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING)
+    target_compile_options(
+		${MODULE_NAME} PRIVATE
+		-D_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+		-D "_UNICODE"
+		-D "UNICODE"
+		-Zc:wchar_t
+	)
 endif()
 
 set_target_properties(${MODULE_NAME} PROPERTIES LINKER_LANGUAGE CXX)
