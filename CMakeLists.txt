@@ -57,8 +57,8 @@ if (MSVC)
     target_compile_options(
 		${MODULE_NAME} PRIVATE
 		-D_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
-		-D "_UNICODE"
-		-D "UNICODE"
+		-D_UNICODE
+		-DUNICODE
 		-Zc:wchar_t
 	)
 endif()
