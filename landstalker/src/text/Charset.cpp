@@ -1,4 +1,4 @@
-#include <landstalker/text/Charset.h>
+﻿#include <landstalker/text/Charset.h>
 
 namespace Landstalker {
 namespace Charset {
