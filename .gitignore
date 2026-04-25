@@ -4,3 +4,6 @@ install/
 landstalker.dir
 .vs/
 *.ifc
+lib/
+bin/
+Testing/

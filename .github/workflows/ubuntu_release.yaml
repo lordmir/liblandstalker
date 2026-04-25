@@ -33,12 +33,22 @@ jobs:
           cmake --build build -j32
           cmake --install build --prefix ./lib
 
+      - name: 'Test Static Release'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
+
       - name: 'Build Static Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build_debug -DLANDSTALKER_BUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Debug
           cmake --build build_debug -j32
           cmake --install build_debug --prefix ./lib_debug
+
+      - name: 'Test Static Debug'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
 
       - name: 'Build Shared Release'
         working-directory: ${{github.workspace}}/liblandstalker
@@ -47,12 +57,22 @@ jobs:
           cmake --build build_shared -j32
           cmake --install build_shared --prefix ./lib
 
+      - name: 'Test Shared Release'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
+
       - name: 'Build Shared Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake -S . -B build_shared_debug -DLANDSTALKER_BUILD_SHARED=ON -DCMAKE_BUILD_TYPE=Debug
           cmake --build build_shared_debug -j32
           cmake --install build_shared_debug --prefix ./lib_debug
+
+      - name: 'Test Shared Debug'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4

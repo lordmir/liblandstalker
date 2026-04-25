@@ -33,12 +33,22 @@ jobs:
           cmake --build build --config Release -j32
           cmake --install build --prefix ./lib --config Release
 
+      - name: 'Test Static Release'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
+
       - name: 'Build Static Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake --build build --target clean -j32
           cmake --build build --config Debug -j32
           cmake --install build --prefix ./lib_debug --config Debug
+
+      - name: 'Test Static Debug'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
 
       - name: 'Build DLL Release'
         working-directory: ${{github.workspace}}/liblandstalker
@@ -47,12 +57,22 @@ jobs:
           cmake --build build_dll --config Release -j32
           cmake --install build_dll --prefix ./dll --config Release
 
+      - name: 'Test DLL Release'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
+
       - name: 'Build DLL Debug'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
           cmake --build build_dll --target clean -j32
           cmake --build build_dll --config Debug -j32
           cmake --install build_dll --prefix ./dll_debug --config Debug
+
+      - name: 'Test DLL Debug'
+        working-directory: ${{github.workspace}}/liblandstalker/build
+        run: |
+          ctest
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4

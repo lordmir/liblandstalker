@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 option(LANDSTALKER_BUILD_SHARED "Build liblandstalker as a shared library" OFF)
 option(INSTALL_DEPS "Automatically download and build dependencies" ON)
+option(LANDSTALKER_BUILD_TESTING "Build the test suite" OFF)
 
 include(dependencies.cmake)
 
@@ -72,6 +73,11 @@ target_include_directories(${MODULE_NAME}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+
+if(LANDSTALKER_BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 
 install(
     TARGETS ${MODULE_NAME} ${${MODULE_NAME}_RUNTIME_DEPENDENCIES}
