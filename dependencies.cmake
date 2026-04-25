@@ -112,13 +112,25 @@ function(InstallBoost)
     message("Fetching Boost sources...")
     FetchContent_Declare(
         boost
-        GIT_REPOSITORY https://github.com/boostorg/boost.git
+        GIT_REPOSITORY https://github.com/boostorg/boost.gitBUILD_TESTING
         GIT_TAG "ef7fea34711a189472893b88205b1dd3c275677b" # "boost-1.89.0"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     message("Configuring Boost...")
     FetchContent_MakeAvailable(boost)
+endfunction()
+
+function(InstallGTest)
+    message("Fetching GoogleTest sources...")
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.14.0
+    )
+    message("Configuring GoogleTest...")
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
 endfunction()
 
 function(InstallDependencies)
@@ -131,14 +143,19 @@ function(InstallDependencies)
         InstallPugixml()
         InstallYamlcpp()
         # InstallBoost()
+        if(${LANDSTALKER_BUILD_TESTING})
+            InstallGTest()
+        endif()
     else()
         message(STATUS "Skipping dependency installation as per user request")
         if(NOT(EMSCRIPTEN))
             find_package(ZLIB CONFIG REQUIRED)
-            find_package(PNG CONFIG REQUIRED)
         endif()
         find_package(yaml-cpp CONFIG REQUIRED)
         find_package(PUGI CONFIG REQUIRED)
-        find_package(Boost CONFIG REQUIRED)
+        # find_package(Boost CONFIG REQUIRED)
+        if(${LANDSTALKER_BUILD_TESTING})
+            find_package(googletest CONFIG REQUIRED)
+        endif()
     endif()
 endfunction()
