@@ -29,7 +29,7 @@ jobs:
       - name: 'Build Static Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake -S . -B build -DLANDSTALKER_BUILD_SHARED=OFF
+          cmake -S . -B build -DLANDSTALKER_BUILD_SHARED=OFF -DLANDSTALKER_BUILD_TESTING=ON
           cmake --build build --config Release -j32
           cmake --install build --prefix ./lib --config Release
 
@@ -53,7 +53,7 @@ jobs:
       - name: 'Build DLL Release'
         working-directory: ${{github.workspace}}/liblandstalker
         run: |
-          cmake -S . -B build_dll -DLANDSTALKER_BUILD_SHARED=ON
+          cmake -S . -B build_dll -DLANDSTALKER_BUILD_SHARED=ON -DLANDSTALKER_BUILD_TESTING=ON
           cmake --build build_dll --config Release -j32
           cmake --install build_dll --prefix ./dll --config Release
 
