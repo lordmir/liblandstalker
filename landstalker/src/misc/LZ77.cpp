@@ -136,29 +136,57 @@ size_t LZ77::Encode(const uint8_t* inbuf, size_t bufsize, uint8_t* outbuf)
     size_t esize = 0;
     std::vector<Entry> entries;
     BitBarrel bb;
-    size_t i = 0;
-    while(i < bufsize)
+    
+    if (bufsize > 0)
     {
-        uint16_t match_offset = 0;
-        uint8_t match_len = find_best_match(inbuf, bufsize, i, match_offset);
-        
-        if(match_len >= 3)
+        std::vector<uint32_t> min_cost(bufsize + 1, 0xFFFFFFFF);
+        std::vector<uint8_t> best_len(bufsize + 1, 0);
+        std::vector<uint16_t> best_offset(bufsize + 1, 0);
+
+        min_cost[0] = 0;
+
+        for (size_t i = 0; i < bufsize; ++i)
         {
-            uint16_t tmatch_offset = 0;
-            // Do the non-greedy optimisation - look at next offset and see if we find a longer run.
-            uint8_t tmatch_len = find_best_match(inbuf, bufsize, i + 1, tmatch_offset);
-            if (tmatch_len > match_len)
+            if (min_cost[i] + 9 < min_cost[i + 1])
             {
-                match_offset = tmatch_offset;
-                match_len = tmatch_len;
-                entries.push_back(Entry(Entry::T_BYTE, inbuf[i++], 0));
+                min_cost[i + 1] = min_cost[i] + 9;
+                best_len[i + 1] = 1;
             }
-            entries.push_back(Entry(Entry::T_RUN, match_len, match_offset));
-            i += match_len;
+
+            uint16_t match_offset = 0;
+            uint8_t match_len = find_best_match(inbuf, bufsize, i, match_offset);
+
+            for (uint8_t l = 3; l <= match_len; ++l)
+            {
+                if (i + l <= bufsize && min_cost[i] + 17 < min_cost[i + l])
+                {
+                    min_cost[i + l] = min_cost[i] + 17;
+                    best_len[i + l] = l;
+                    best_offset[i + l] = match_offset;
+                }
+            }
         }
-        else
+
+        std::vector<Entry> reverse_entries;
+        size_t i = bufsize;
+        while (i > 0)
         {
-            entries.push_back(Entry(Entry::T_BYTE, inbuf[i++], 0));
+            uint8_t l = best_len[i];
+            if (l == 1)
+            {
+                reverse_entries.push_back(Entry(Entry::T_BYTE, inbuf[i - 1], 0));
+                i -= 1;
+            }
+            else
+            {
+                reverse_entries.push_back(Entry(Entry::T_RUN, l, best_offset[i]));
+                i -= l;
+            }
+        }
+
+        for (auto it = reverse_entries.rbegin(); it != reverse_entries.rend(); ++it)
+        {
+            entries.push_back(*it);
         }
     }
     entries.push_back(Entry(Entry::T_END,0,0));
