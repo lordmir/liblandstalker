@@ -242,6 +242,7 @@ int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::u
     size_t lookback_size = std::min<size_t>(offset, 4095);
     size_t lookahead_size = input.size() - offset;
     int best = 0;
+    size_t best_b = 0;
     for (size_t b = 1; b <= lookback_size; ++b)
     {
         int match_run = 0;
@@ -256,24 +257,12 @@ int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::u
         if (match_run > best)
         {
             best = match_run;
+            best_b = b;
         }
     }
-    if (best < 2) return 0;
-    for (size_t b = 1; b <= lookback_size; ++b)
+    if (best >= 2)
     {
-        int match_run = 0;
-        for (size_t m = 0; m < lookahead_size; ++m)
-        {
-            if (input[offset - b + m] != input[offset + m])
-            {
-                break;
-            }
-            match_run++;
-        }
-        if (match_run == best)
-        {
-            fc[b] ++;
-        }
+        fc[best_b]++;
     }
     return best;
 }
@@ -575,7 +564,7 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
 #ifndef NDEBUG
                 std::cout << "PLACE TILE " << std::hex << tiles[i] << " @ " << std::dec << i << std::endl;
 #endif
-                tile_entries.emplace_back(0_u8, tiles[i], static_cast<uint8_t>(ilog2(tile_dict[1])));
+                tile_entries.emplace_back(0_u8, tiles[i], static_cast<uint8_t>(ilog2(tile_dict[1] + tile_increment[1])));
             }
         }
     }
