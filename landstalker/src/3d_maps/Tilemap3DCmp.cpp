@@ -498,32 +498,47 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
             }
         }
     }
-    std::multiset<std::pair<uint16_t, int>, Comparator> incrementing_tile_freqs(
-        incrementing_tile_counts.begin(), incrementing_tile_counts.end(), comparator);
-    uint16_t max_tile = incrementing_tile_counts.rbegin()->first;
-    uint16_t min_dict_entry = 1 << (ilog2(max_tile) - 1);
-    tile_dict[1] = 0;
-    for (auto& irt : incrementing_tile_counts)
-    {
-        if ((tile_dict[1] == 0) && (irt.first >= min_dict_entry))
-        {
-            tile_dict[1] = irt.first;
-            irt.second = 0;
-        }
-        else
-        {
-            irt.second *= 4;
-            irt.second += ranged_tile_counts[irt.first];
-        }
-    }
-    if (tile_dict[1] == 0)
-    {
-        tile_dict[1] = min_dict_entry;
-    }
-    std::multiset<std::pair<uint16_t, int>, Comparator> scored_tile_freqs(
-        incrementing_tile_counts.begin(), incrementing_tile_counts.end(), comparator);
+    uint16_t max_tile = incrementing_tile_counts.empty() ? 0 : incrementing_tile_counts.rbegin()->first;
+    uint16_t min_dict_entry = max_tile == 0 ? 0 : 1 << (ilog2(max_tile) - 1);
+    
+    std::vector<uint16_t> unique_tiles;
+    for (const auto& irt : incrementing_tile_counts) unique_tiles.push_back(irt.first);
+    if(unique_tiles.empty()) unique_tiles.push_back(0);
+    
+    int best_bits = 99999999;
+    uint16_t best_td0 = unique_tiles.front();
+    uint16_t best_td1 = min_dict_entry;
 
-    tile_dict[0] = incrementing_tile_freqs.begin()->first;
+    for (uint16_t td0 : unique_tiles) {
+        for (uint16_t td1 : unique_tiles) {
+            if (td1 < min_dict_entry) continue;
+            
+            int bits = 0;
+            uint16_t ti[2] = {0, 0};
+            for (size_t i = 0; i < tiles.size(); ++i) {
+                if (!compressed[i]) {
+                    bits += 2;
+                    if (tiles[i] == td0 + ti[0]) {
+                        ti[0]++;
+                    } else if (tiles[i] == td1 + ti[1]) {
+                        ti[1]++;
+                    } else if (tiles[i] >= td0 && tiles[i] < td0 + ti[0]) {
+                        bits += ilog2(ti[0]);
+                    } else {
+                        bits += ilog2(td1 + ti[1]);
+                    }
+                }
+            }
+            if (bits < best_bits) {
+                best_bits = bits;
+                best_td0 = td0;
+                best_td1 = td1;
+            }
+        }
+    }
+    
+    tile_dict[0] = best_td0;
+    tile_dict[1] = best_td1;
 #ifndef NDEBUG
     std::cout << "TILE DICT 1: " << std::hex << tile_dict[1] << std::endl;
     std::cout << "TILE DICT 0: " << std::hex << tile_dict[0] << std::endl;
