@@ -918,7 +918,7 @@ void Tilemap3D::ResizeHeightmap(uint8_t w, uint8_t h)
     {
         for (int j = 0; j < w; j++)
         {
-            if ((i < height) && (j < width))
+            if ((i < hmheight) && (j < hmwidth))
             {
                 *nhit++ = *ohit++;
             }
@@ -927,7 +927,7 @@ void Tilemap3D::ResizeHeightmap(uint8_t w, uint8_t h)
                 *nhit++ = 0x4000;
             }
         }
-        if (w < width)
+        if (w < hmwidth)
         {
             ohit += width - w;
         }
