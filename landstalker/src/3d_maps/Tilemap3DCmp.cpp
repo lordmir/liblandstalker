@@ -242,6 +242,7 @@ int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::u
     size_t lookback_size = std::min<size_t>(offset, 4095);
     size_t lookahead_size = input.size() - offset;
     int best = 0;
+    size_t best_b = 0;
     for (size_t b = 1; b <= lookback_size; ++b)
     {
         int match_run = 0;
@@ -256,24 +257,12 @@ int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::u
         if (match_run > best)
         {
             best = match_run;
+            best_b = b;
         }
     }
-    if (best < 2) return 0;
-    for (size_t b = 1; b <= lookback_size; ++b)
+    if (best >= 2)
     {
-        int match_run = 0;
-        for (size_t m = 0; m < lookahead_size; ++m)
-        {
-            if (input[offset - b + m] != input[offset + m])
-            {
-                break;
-            }
-            match_run++;
-        }
-        if (match_run == best)
-        {
-            fc[b] ++;
-        }
+        fc[best_b]++;
     }
     return best;
 }
@@ -509,32 +498,47 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
             }
         }
     }
-    std::multiset<std::pair<uint16_t, int>, Comparator> incrementing_tile_freqs(
-        incrementing_tile_counts.begin(), incrementing_tile_counts.end(), comparator);
-    uint16_t max_tile = incrementing_tile_counts.rbegin()->first;
-    uint16_t min_dict_entry = 1 << (ilog2(max_tile) - 1);
-    tile_dict[1] = 0;
-    for (auto& irt : incrementing_tile_counts)
-    {
-        if ((tile_dict[1] == 0) && (irt.first >= min_dict_entry))
-        {
-            tile_dict[1] = irt.first;
-            irt.second = 0;
-        }
-        else
-        {
-            irt.second *= 4;
-            irt.second += ranged_tile_counts[irt.first];
-        }
-    }
-    if (tile_dict[1] == 0)
-    {
-        tile_dict[1] = min_dict_entry;
-    }
-    std::multiset<std::pair<uint16_t, int>, Comparator> scored_tile_freqs(
-        incrementing_tile_counts.begin(), incrementing_tile_counts.end(), comparator);
+    uint16_t max_tile = incrementing_tile_counts.empty() ? 0 : incrementing_tile_counts.rbegin()->first;
+    uint16_t min_dict_entry = max_tile == 0 ? 0 : 1 << (ilog2(max_tile) - 1);
+    
+    std::vector<uint16_t> unique_tiles;
+    for (const auto& irt : incrementing_tile_counts) unique_tiles.push_back(irt.first);
+    if(unique_tiles.empty()) unique_tiles.push_back(0);
+    
+    int best_bits = 99999999;
+    uint16_t best_td0 = unique_tiles.front();
+    uint16_t best_td1 = min_dict_entry;
 
-    tile_dict[0] = incrementing_tile_freqs.begin()->first;
+    for (uint16_t td0 : unique_tiles) {
+        for (uint16_t td1 : unique_tiles) {
+            if (td1 < min_dict_entry) continue;
+            
+            int bits = 0;
+            uint16_t ti[2] = {0, 0};
+            for (size_t i = 0; i < tiles.size(); ++i) {
+                if (!compressed[i]) {
+                    bits += 2;
+                    if (tiles[i] == td0 + ti[0]) {
+                        ti[0]++;
+                    } else if (tiles[i] == td1 + ti[1]) {
+                        ti[1]++;
+                    } else if (tiles[i] >= td0 && tiles[i] < td0 + ti[0]) {
+                        bits += ilog2(ti[0]);
+                    } else {
+                        bits += ilog2(td1 + ti[1]);
+                    }
+                }
+            }
+            if (bits < best_bits) {
+                best_bits = bits;
+                best_td0 = td0;
+                best_td1 = td1;
+            }
+        }
+    }
+    
+    tile_dict[0] = best_td0;
+    tile_dict[1] = best_td1;
 #ifndef NDEBUG
     std::cout << "TILE DICT 1: " << std::hex << tile_dict[1] << std::endl;
     std::cout << "TILE DICT 0: " << std::hex << tile_dict[0] << std::endl;
@@ -575,7 +579,7 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
 #ifndef NDEBUG
                 std::cout << "PLACE TILE " << std::hex << tiles[i] << " @ " << std::dec << i << std::endl;
 #endif
-                tile_entries.emplace_back(0_u8, tiles[i], static_cast<uint8_t>(ilog2(tile_dict[1])));
+                tile_entries.emplace_back(0_u8, tiles[i], static_cast<uint8_t>(ilog2(tile_dict[1] + tile_increment[1])));
             }
         }
     }
@@ -918,7 +922,7 @@ void Tilemap3D::ResizeHeightmap(uint8_t w, uint8_t h)
     {
         for (int j = 0; j < w; j++)
         {
-            if ((i < height) && (j < width))
+            if ((i < hmheight) && (j < hmwidth))
             {
                 *nhit++ = *ohit++;
             }
@@ -927,7 +931,7 @@ void Tilemap3D::ResizeHeightmap(uint8_t w, uint8_t h)
                 *nhit++ = 0x4000;
             }
         }
-        if (w < width)
+        if (w < hmwidth)
         {
             ohit += width - w;
         }
