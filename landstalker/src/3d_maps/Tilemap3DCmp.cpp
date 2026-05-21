@@ -237,14 +237,28 @@ void makeCodedNumber(uint16_t value, BitBarrelWriter& bb)
     }
 }
 
-int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::unordered_map<int, int>& fc)
+int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::unordered_map<int, int>& fc, const std::vector<uint16_t>& fixed_offsets)
 {
     size_t lookback_size = std::min<size_t>(offset, 4095);
     size_t lookahead_size = input.size() - offset;
-    int best = 0;
+    
+    int best_fixed = 0;
+    for (uint16_t b : fixed_offsets) {
+        if (b == 0 || b > lookback_size) continue;
+        int match_run = 0;
+        for (size_t m = 0; m < lookahead_size; ++m) {
+            if (input[offset - b + m] != input[offset + m]) break;
+            match_run++;
+        }
+        if (match_run > best_fixed) best_fixed = match_run;
+    }
+
+    int best_dyn = 0;
     size_t best_b = 0;
     for (size_t b = 1; b <= lookback_size; ++b)
     {
+        if (std::find(fixed_offsets.begin(), fixed_offsets.end(), b) != fixed_offsets.end()) continue;
+
         int match_run = 0;
         for (size_t m = 0; m < lookahead_size; ++m)
         {
@@ -254,17 +268,19 @@ int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::u
             }
             match_run++;
         }
-        if (match_run > best)
+        if (match_run > best_dyn)
         {
-            best = match_run;
+            best_dyn = match_run;
             best_b = b;
         }
     }
-    if (best >= 2)
+    
+    int best_overall = std::max(best_fixed, best_dyn);
+    if (best_dyn > best_fixed && best_dyn >= 2)
     {
         fc[best_b]++;
     }
-    return best;
+    return best_overall >= 2 ? best_overall : 0;
 }
 
 std::pair<int, int> findMatch(const std::vector<uint16_t>& input, size_t offset, const std::vector<uint16_t>& back_offsets)
@@ -341,7 +357,7 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
     size_t idx = 1;
     do
     {
-        int run = findMatchFrequency(tiles, idx, offset_freq_count);
+        int run = findMatchFrequency(tiles, idx, offset_freq_count, offsets);
         if (run == 0)
         {
             idx++;
@@ -363,7 +379,7 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
         }
         else
         {
-            return p1.first < p2.first;
+            return p1.first > p2.first;
         }
     };
 

@@ -67,6 +67,7 @@ endif()
 set_target_properties(${MODULE_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
 add_subdirectory("landstalker")
+add_subdirectory(utils)
 
 target_include_directories(${MODULE_NAME}
   PUBLIC
