@@ -1,2 +1,6 @@
 add_executable(map_recompress map_recompress.cpp)
 target_link_libraries(map_recompress PRIVATE landstalker)
+add_executable(maps_to_csv maps_to_csv.cpp)
+target_link_libraries(maps_to_csv PRIVATE landstalker)
+add_executable(dump_tokens dump_tokens.cpp)
+target_link_libraries(dump_tokens PRIVATE landstalker)

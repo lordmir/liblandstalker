@@ -378,9 +378,6 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
     std::mutex mtx;
     std::vector<std::future<void>> futures;
 
-    double best_r = -1.0;
-    double best_v = -1.0;
-
     auto evaluate_ratio = [&](double freq_weight, double len_weight, double vert_weight) {
         std::vector<uint8_t> recompressed(size, 0);
         
@@ -395,13 +392,11 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
         if (recompressed_size < best_recompressed_size) {
             best_recompressed_size = recompressed_size;
             best_recompressed_data.assign(recompressed.begin(), recompressed.begin() + recompressed_size);
-            best_r = freq_weight;
-            best_v = vert_weight;
         }
     };
 
-    std::vector<double> base_ratios = {1.0, 0.95, 0.92, 0.90, 0.85, 0.80, 0.50, 0.0};
-    std::vector<double> vert_ratios = {0.0, 0.25, 0.5, 1.0, 2.0, 5.0};
+    std::vector<double> base_ratios = {1.0, 0.95, 0.90, 0.85, 0.50};
+    std::vector<double> vert_ratios = {0.0, 0.25, 0.5, 1.0, 2.0};
     
     for (double r : base_ratios) {
         for (double v : vert_ratios) {
@@ -415,7 +410,6 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
 
     if (best_recompressed_data.size() <= size && best_recompressed_size != 0xFFFF) {
         std::copy(best_recompressed_data.begin(), best_recompressed_data.end(), dst);
-        std::cout << "BEST RATIO FOUND: Freq=" << best_r << ", Len=" << (1.0-best_r) << ", Vert=" << best_v << std::endl;
         return best_recompressed_size;
     } else {
         throw std::runtime_error("Output buffer not large enough to hold result.");
