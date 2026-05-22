@@ -170,6 +170,7 @@ public:
     uint16_t GetHeightmapCell(const HMPoint2D& iso) const;
     bool SetHeightmapCell(const HMPoint2D& iso, uint16_t value);
 private:
+    uint16_t EncodeSinglePass(uint8_t* dst, size_t size, double freq_weight, double len_weight);
     std::vector<uint16_t> foreground;
     std::vector<uint16_t> background;
     std::vector<uint16_t> heightmap;
