@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <landstalker/3d_maps/Tilemap3DCmp.h>
+#include <landstalker/3d_maps/Tilemap3D.h>
 #include <vector>
 #include <iostream>
 #include <iomanip>

@@ -1,0 +1,2 @@
+add_executable(map_recompress map_recompress.cpp)
+target_link_libraries(map_recompress PRIVATE landstalker)

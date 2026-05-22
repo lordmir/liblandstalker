@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
-#include <landstalker/3d_maps/Tilemap3DCmp.h>
+#include <landstalker/3d_maps/Tilemap3D.h>
 
 namespace Landstalker {
 

@@ -33,8 +33,11 @@ struct BlockLoc
     IsoPoint2D position;
 };
 
+class Tilemap3DCompressor;
+
 class Tilemap3D
 {
+    friend class Tilemap3DCompressor;
 public:
     enum class Layer
     {
