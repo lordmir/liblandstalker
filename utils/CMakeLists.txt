@@ -1,5 +1,2 @@
 add_executable(map_recompress map_recompress.cpp)
 target_link_libraries(map_recompress PRIVATE landstalker)
-
-add_executable(dict_compare dict_compare.cpp)
-target_link_libraries(dict_compare PRIVATE landstalker)
