@@ -88,6 +88,7 @@ private:
     static void CalculateOffsetDictionary(const std::vector<uint16_t>& tiles, double freq_weight, double len_weight, std::array<uint16_t, 14>& offsets);
     /// Parses the map layers to generate the optimal LZ77 sequence and vertical runs based on the offset dictionary.
     static void EncodeOffsets(const Tilemap3D& map, const std::vector<uint16_t>& tiles, const std::array<uint16_t, 14>& offsets, std::vector<LZ77Entry>& lz77, std::vector<bool>& compressed);
+    static void OptimizeVerticalRun(const Tilemap3D& map, std::vector<LZ77Entry>& lz77, LZ77Entry& entry, size_t tiles_size);
     /// Performs an exhaustive search to find the optimal TD0 and TD1 base tiles to minimize literal bit-cost.
     static void CalculateTileDictionary(const std::vector<uint16_t>& tiles, const std::vector<bool>& compressed, std::array<uint16_t, 2>& tile_dict);
     /// Evaluates the uncompressed tiles against the tile dictionary and records the necessary bitwise operations.

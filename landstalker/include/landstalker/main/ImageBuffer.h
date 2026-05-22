@@ -11,7 +11,7 @@
 #include <landstalker/blockset/Block.h>
 #include <landstalker/sprites/SpriteFrame.h>
 #include <landstalker/2d_maps/Tilemap2DRLE.h>
-#include <landstalker/3d_maps/Tilemap3DCmp.h>
+#include <landstalker/3d_maps/Tilemap3D.h>
 #include <landstalker/3d_maps/TileSwaps.h>
 #include <landstalker/3d_maps/Doors.h>
 

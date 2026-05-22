@@ -470,6 +470,53 @@ void Tilemap3DCompressor::CalculateOffsetDictionary(const std::vector<uint16_t>&
     }
 }
 
+void Tilemap3DCompressor::OptimizeVerticalRun(const Tilemap3D& map, std::vector<LZ77Entry>& lz77, LZ77Entry& entry, size_t tiles_size)
+{
+    size_t count = 0;
+    bool right = false;
+    bool begin = true;
+    if (entry.back_offset_idx != -1)
+    {
+        size_t next = entry.index;
+        size_t prev = next;
+        
+        auto it = lz77.begin() + (&entry - lz77.data());
+        
+        while (next < tiles_size)
+        {
+            next += map.GetWidth() + (right ? 1 : 0);
+            auto nit = std::find_if(it, lz77.end(), [&](const LZ77Entry& comp)
+                {
+                    return (comp.index == static_cast<int>(next)) && (comp.back_offset_idx == entry.back_offset_idx);
+                });
+            if (nit != lz77.end())
+            {
+                count++;
+                nit->back_offset_idx = -1;
+                prev = next;
+            }
+            else
+            {
+                if (count > 0)
+                {
+                    entry.vertical_info.emplace_back(right, static_cast<int>(count));
+                    count = 0;
+                }
+                else
+                {
+                    if (begin == false)
+                    {
+                        break;
+                    }
+                }
+                begin = false;
+                right = !right;
+                next = prev;
+            }
+        }
+    }
+}
+
 void Tilemap3DCompressor::EncodeOffsets(const Tilemap3D& map, const std::vector<uint16_t>& tiles, const std::array<uint16_t, 14>& offsets, std::vector<LZ77Entry>& lz77, std::vector<bool>& compressed)
 {
     lz77.emplace_back(1, 0, 0);
@@ -503,48 +550,9 @@ void Tilemap3DCompressor::EncodeOffsets(const Tilemap3D& map, const std::vector<
     // To save space on large blocks of terrain (like floors or walls), the LZ77 parser 
     // attempts to combine horizontal matches that repeat directly below one another.
     // It scans downwards (and down-right) to build vertical_info runs.
-    for (auto it = lz77.begin(); it != lz77.end(); ++it)
+    for (auto& entry : lz77)
     {
-        size_t count = 0;
-        bool right = false;
-        bool begin = true;
-        if (it->back_offset_idx != -1)
-        {
-            size_t next = it->index;
-            size_t prev = next;
-            while (next < tiles.size())
-            {
-                next += map.GetWidth() + (right ? 1 : 0);
-                auto nit = std::find_if(it, lz77.end(), [&](const LZ77Entry& comp)
-                    {
-                        return (comp.index == static_cast<int>(next)) && (comp.back_offset_idx == it->back_offset_idx);
-                    });
-                if (nit != lz77.end())
-                {
-                    count++;
-                    nit->back_offset_idx = -1;
-                    prev = next;
-                }
-                else
-                {
-                    if (count > 0)
-                    {
-                        it->vertical_info.emplace_back(right, static_cast<int>(count));
-                        count = 0;
-                    }
-                    else
-                    {
-                        if (begin == false)
-                        {
-                            break;
-                        }
-                    }
-                    begin = false;
-                    right = !right;
-                    next = prev;
-                }
-            }
-        }
+        OptimizeVerticalRun(map, lz77, entry, tiles.size());
     }
 
     auto it_remove = std::remove_if(lz77.begin(), lz77.end(), [](const LZ77Entry& comp)
