@@ -64,7 +64,7 @@ static void makeCodedNumber(uint16_t value, Landstalker::BitBarrelWriter& bb)
     }
 }
 
-static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::unordered_map<int, int>& fc, std::unordered_map<int, int>& lc, const std::vector<uint16_t>& fixed_offsets)
+static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset, std::unordered_map<int, int>& fc, std::unordered_map<int, int>& lc, std::unordered_map<int, int>& vc, const std::vector<uint16_t>& fixed_offsets, int map_width)
 {
     size_t lookback_size = std::min<size_t>(offset, 4095);
     size_t lookahead_size = input.size() - offset;
@@ -82,6 +82,8 @@ static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset,
 
     int best_dyn = 0;
     size_t best_b = 0;
+    int best_dyn_vert = 0;
+
     for (size_t b = 1; b <= lookback_size; ++b)
     {
         if (std::find(fixed_offsets.begin(), fixed_offsets.end(), b) != fixed_offsets.end()) continue;
@@ -89,16 +91,44 @@ static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset,
         int match_run = 0;
         for (size_t m = 0; m < lookahead_size; ++m)
         {
-            if (input[offset - b + m] != input[offset + m])
-            {
-                break;
-            }
+            if (input[offset - b + m] != input[offset + m]) break;
             match_run++;
         }
-        if (match_run > best_dyn)
+        
+        if (match_run > 0)
         {
-            best_dyn = match_run;
-            best_b = b;
+            int vertical_run = 0;
+            size_t next_offset = offset;
+            bool right = false;
+            while (true)
+            {
+                next_offset += map_width + (right ? 1 : 0);
+                if (next_offset + match_run <= input.size() && next_offset >= b)
+                {
+                    bool matches = true;
+                    for (int m = 0; m < match_run; ++m) {
+                        if (input[next_offset - b + m] != input[next_offset + m]) {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    if (matches) {
+                        vertical_run++;
+                        right = !right;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if (match_run > best_dyn || (match_run == best_dyn && vertical_run > best_dyn_vert))
+            {
+                best_dyn = match_run;
+                best_b = b;
+                best_dyn_vert = vertical_run;
+            }
         }
     }
     
@@ -107,8 +137,10 @@ static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset,
     {
         fc[best_b]++;
         lc[best_b] += best_dyn;
+        vc[best_b] += best_dyn * best_dyn_vert;
     }
-    return best_overall >= 2 ? best_overall : 0;
+    
+    return best_overall;
 }
 
 static std::pair<int, int> findMatch(const std::vector<uint16_t>& input, size_t offset, const std::vector<uint16_t>& back_offsets)
@@ -341,19 +373,20 @@ uint16_t Tilemap3DCompressor::DecodeHeightmap(Tilemap3D& map, const uint8_t* src
 
 uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_t* dst, size_t size)
 {
-    std::vector<double> test_ratios = {1.0, 0.95, 0.92, 0.90, 0.85, 0.80, 0.50, 0.0};
     uint16_t best_recompressed_size = 0xFFFF;
     std::vector<uint8_t> best_recompressed_data;
     std::mutex mtx;
     std::vector<std::future<void>> futures;
 
-    auto evaluate_ratio = [&](double freq_weight) {
-        double len_weight = 1.0 - freq_weight;
+    double best_r = -1.0;
+    double best_v = -1.0;
+
+    auto evaluate_ratio = [&](double freq_weight, double len_weight, double vert_weight) {
         std::vector<uint8_t> recompressed(size, 0);
         
         uint16_t recompressed_size = 0xFFFF;
         try {
-            recompressed_size = EncodeLayersSinglePass(map, recompressed.data(), size, freq_weight, len_weight);
+            recompressed_size = EncodeLayersSinglePass(map, recompressed.data(), size, freq_weight, len_weight, vert_weight);
         } catch (...) {
             return;
         }
@@ -362,25 +395,34 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
         if (recompressed_size < best_recompressed_size) {
             best_recompressed_size = recompressed_size;
             best_recompressed_data.assign(recompressed.begin(), recompressed.begin() + recompressed_size);
+            best_r = freq_weight;
+            best_v = vert_weight;
         }
     };
 
-    for (double r : test_ratios) {
-        futures.push_back(std::async(std::launch::async, evaluate_ratio, r));
+    std::vector<double> base_ratios = {1.0, 0.95, 0.92, 0.90, 0.85, 0.80, 0.50, 0.0};
+    std::vector<double> vert_ratios = {0.0, 0.25, 0.5, 1.0, 2.0, 5.0};
+    
+    for (double r : base_ratios) {
+        for (double v : vert_ratios) {
+            futures.push_back(std::async(std::launch::async, evaluate_ratio, r, 1.0 - r, v));
+        }
     }
+    
     for (auto& f : futures) {
         f.get();
     }
 
     if (best_recompressed_data.size() <= size && best_recompressed_size != 0xFFFF) {
         std::copy(best_recompressed_data.begin(), best_recompressed_data.end(), dst);
+        std::cout << "BEST RATIO FOUND: Freq=" << best_r << ", Len=" << (1.0-best_r) << ", Vert=" << best_v << std::endl;
         return best_recompressed_size;
     } else {
         throw std::runtime_error("Output buffer not large enough to hold result.");
     }
 }
 
-uint16_t Tilemap3DCompressor::EncodeLayersSinglePass(const Tilemap3D& map, uint8_t* dst, size_t size, double freq_weight, double len_weight)
+uint16_t Tilemap3DCompressor::EncodeLayersSinglePass(const Tilemap3D& map, uint8_t* dst, size_t size, double freq_weight, double len_weight, double vert_weight)
 {
     std::array<uint16_t, 14> offsets = {0};
     offsets[0] = 0;
@@ -399,7 +441,7 @@ uint16_t Tilemap3DCompressor::EncodeLayersSinglePass(const Tilemap3D& map, uint8
     std::array<uint16_t, 2> tile_dict = { 0 };
     std::vector<TileEntry> tile_entries;
 
-    CalculateOffsetDictionary(tiles, freq_weight, len_weight, offsets);
+    CalculateOffsetDictionary(map, tiles, freq_weight, len_weight, vert_weight, offsets);
     EncodeOffsets(map, tiles, offsets, lz77, compressed);
     CalculateTileDictionary(tiles, compressed, tile_dict);
     EncodeTiles(tiles, compressed, tile_dict, tile_entries);
@@ -407,18 +449,18 @@ uint16_t Tilemap3DCompressor::EncodeLayersSinglePass(const Tilemap3D& map, uint8
     return WriteLayerData(map, offsets, tile_dict, lz77, tile_entries, tiles.size(), dst, size);
 }
 
-void Tilemap3DCompressor::CalculateOffsetDictionary(const std::vector<uint16_t>& tiles, double freq_weight, double len_weight, std::array<uint16_t, 14>& offsets)
+void Tilemap3DCompressor::CalculateOffsetDictionary(const Tilemap3D& map, const std::vector<uint16_t>& tiles, double freq_weight, double len_weight, double vert_weight, std::array<uint16_t, 14>& offsets)
 {
     std::unordered_map<int, int> offset_freq_count;
     std::unordered_map<int, int> offset_length_count;
+    std::unordered_map<int, int> offset_vertical_count;
     size_t idx = 1;
     
-    // We only need the fixed offsets for the first pass search
     std::vector<uint16_t> fixed_offsets(offsets.begin(), offsets.begin() + 6);
     
     do
     {
-        int run = findMatchFrequency(tiles, idx, offset_freq_count, offset_length_count, fixed_offsets);
+        int run = findMatchFrequency(tiles, idx, offset_freq_count, offset_length_count, offset_vertical_count, fixed_offsets, map.GetWidth());
         if (run == 0)
         {
             idx++;
@@ -429,20 +471,22 @@ void Tilemap3DCompressor::CalculateOffsetDictionary(const std::vector<uint16_t>&
         }
     } while (idx < tiles.size());
 
-    // STEP 2: Score offsets based on a weighted sum of normalized frequency and length.
-    // The multi-pass system varies these weights to find the best 8 dynamic offsets.
     std::unordered_map<int, double> offset_score;
     double max_freq = 1.0;
     double max_len = 1.0;
+    double max_vert = 1.0;
+    
     for (auto const& [key, val] : offset_freq_count) {
         if (val > max_freq) max_freq = val;
         if (offset_length_count[key] > max_len) max_len = offset_length_count[key];
+        if (offset_vertical_count[key] > max_vert) max_vert = offset_vertical_count[key];
     }
     
     for (auto const& [key, val] : offset_freq_count) {
         double norm_freq = (double)val / max_freq;
         double norm_len = (double)offset_length_count[key] / max_len;
-        offset_score[key] = (norm_freq * freq_weight) + (norm_len * len_weight);
+        double norm_vert = (double)offset_vertical_count[key] / max_vert;
+        offset_score[key] = (norm_freq * freq_weight) + (norm_len * len_weight) + (norm_vert * vert_weight);
     }
 
     typedef std::function<bool(const std::pair<int, int>&, const std::pair<int, int>&)> Comparator;

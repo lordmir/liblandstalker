@@ -82,10 +82,10 @@ private:
     /// Evaluates multiple frequency vs. length weighting ratios to find the best LZ77 compression size.
     static uint16_t EncodeLayersMultiPass(const Tilemap3D& map, uint8_t* dst, size_t size);
     /// Performs a single LZ77 compression pass using specific heuristic weights.
-    static uint16_t EncodeLayersSinglePass(const Tilemap3D& map, uint8_t* dst, size_t size, double freq_weight = 1.0, double len_weight = 0.0);
+    static uint16_t EncodeLayersSinglePass(const Tilemap3D& map, uint8_t* dst, size_t size, double freq_weight = 1.0, double len_weight = 0.0, double vert_weight = 0.0);
     
     /// Scans the map to find the 8 most frequent spatial offsets to populate the dynamic offset dictionary.
-    static void CalculateOffsetDictionary(const std::vector<uint16_t>& tiles, double freq_weight, double len_weight, std::array<uint16_t, 14>& offsets);
+    static void CalculateOffsetDictionary(const Tilemap3D& map, const std::vector<uint16_t>& tiles, double freq_weight, double len_weight, double vert_weight, std::array<uint16_t, 14>& offsets);
     /// Parses the map layers to generate the optimal LZ77 sequence and vertical runs based on the offset dictionary.
     static void EncodeOffsets(const Tilemap3D& map, const std::vector<uint16_t>& tiles, const std::array<uint16_t, 14>& offsets, std::vector<LZ77Entry>& lz77, std::vector<bool>& compressed);
     static void OptimizeVerticalRun(const Tilemap3D& map, std::vector<LZ77Entry>& lz77, LZ77Entry& entry, size_t tiles_size);
