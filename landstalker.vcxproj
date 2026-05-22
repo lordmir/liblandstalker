@@ -555,7 +555,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Doors.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\MapToTmx.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\RoomToTmx.cpp" />
-    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3DCmp.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3D.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\TileSwaps.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\behaviours\Behaviours.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\behaviours\BehaviourYamlConverter.cpp" />
@@ -613,7 +613,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Doors.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\MapToTmx.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\RoomToTmx.h" />
-    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3DCmp.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3D.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\TileSwaps.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\behaviours\Behaviours.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\behaviours\BehaviourYamlConverter.h" />

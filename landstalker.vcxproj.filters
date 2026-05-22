@@ -100,7 +100,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\RoomToTmx.cpp">
       <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
-    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3DCmp.cpp">
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3D.cpp">
       <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\TileSwaps.cpp">
@@ -285,7 +285,7 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\RoomToTmx.h">
       <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
-    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3DCmp.h">
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3D.h">
       <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\TileSwaps.h">

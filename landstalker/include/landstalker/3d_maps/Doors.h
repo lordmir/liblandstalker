@@ -7,7 +7,7 @@
 #include <string>
 #include <memory>
 #include <landstalker/misc/Literals.h>
-#include <landstalker/3d_maps/Tilemap3DCmp.h>
+#include <landstalker/3d_maps/Tilemap3D.h>
 
 namespace Landstalker {
 

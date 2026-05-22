@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <chrono>
-#include <landstalker/3d_maps/Tilemap3DCmp.h>
+#include <landstalker/3d_maps/Tilemap3D.h>
 
 namespace fs = std::filesystem;
 using namespace Landstalker;

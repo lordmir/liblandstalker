@@ -11,7 +11,7 @@ target_sources(${MODULE_NAME}
     "./landstalker/3d_maps/Doors.h"
     "./landstalker/3d_maps/MapToTmx.h"
     "./landstalker/3d_maps/RoomToTmx.h"
-    "./landstalker/3d_maps/Tilemap3DCmp.h"
+    "./landstalker/3d_maps/Tilemap3D.h"
     "./landstalker/3d_maps/TileSwaps.h"
     "./landstalker/behaviours/Behaviours.h"
     "./landstalker/behaviours/BehaviourYamlConverter.h"
