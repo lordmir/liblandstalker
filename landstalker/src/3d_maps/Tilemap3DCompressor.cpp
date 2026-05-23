@@ -377,13 +377,41 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
     std::vector<uint8_t> best_recompressed_data;
     std::mutex mtx;
     std::vector<std::future<void>> futures;
+    
+    std::vector<uint16_t> tiles(map.GetSize() * 2);
+    std::copy(map.foreground.begin(), map.foreground.end(), tiles.begin());
+    std::copy(map.background.begin(), map.background.end(), tiles.begin() + map.GetSize());
+    
+    std::array<uint16_t, 14> fixed_offsets = {0};
+    fixed_offsets[0] = 0;
+    fixed_offsets[1] = 1;
+    fixed_offsets[2] = 2;
+    fixed_offsets[3] = static_cast<uint16_t>(map.GetWidth());
+    fixed_offsets[4] = static_cast<uint16_t>(map.GetWidth() * 2);
+    fixed_offsets[5] = static_cast<uint16_t>(map.GetWidth() + 1);
 
-    auto evaluate_ratio = [&](double freq_weight, double len_weight, double vert_weight) {
+    std::unordered_map<int, int> fc, lc, vc;
+    CalculateMatchFrequencies(map, tiles, fixed_offsets, fc, lc, vc);
+    
+    std::set<std::array<uint16_t, 14>> unique_dicts;
+    std::vector<double> base_ratios = {1.0, 0.95, 0.90, 0.85, 0.50};
+    std::vector<double> vert_ratios = {0.0, 0.25, 0.5, 1.0, 2.0};
+    
+    for (double r : base_ratios) {
+        for (double v : vert_ratios) {
+            std::array<uint16_t, 14> dict = fixed_offsets;
+            CalculateOffsetDictionaryFromFrequencies(fc, lc, vc, r, 1.0 - r, v, dict);
+            std::sort(dict.begin() + 6, dict.end());
+            unique_dicts.insert(dict);
+        }
+    }
+
+    auto evaluate_dict = [&](const std::array<uint16_t, 14>& dict) {
         std::vector<uint8_t> recompressed(size, 0);
         
         uint16_t recompressed_size = 0xFFFF;
         try {
-            recompressed_size = EncodeLayersSinglePass(map, recompressed.data(), size, freq_weight, len_weight, vert_weight);
+            recompressed_size = EncodeLayersSinglePass(map, tiles, dict, recompressed.data(), size);
         } catch (...) {
             return;
         }
@@ -395,13 +423,8 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
         }
     };
 
-    std::vector<double> base_ratios = {1.0, 0.95, 0.90, 0.85, 0.50};
-    std::vector<double> vert_ratios = {0.0, 0.25, 0.5, 1.0, 2.0};
-    
-    for (double r : base_ratios) {
-        for (double v : vert_ratios) {
-            futures.push_back(std::async(std::launch::async, evaluate_ratio, r, 1.0 - r, v));
-        }
+    for (const auto& dict : unique_dicts) {
+        futures.push_back(std::async(std::launch::async, evaluate_dict, dict));
     }
     
     for (auto& f : futures) {
@@ -416,26 +439,13 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
     }
 }
 
-uint16_t Tilemap3DCompressor::EncodeLayersSinglePass(const Tilemap3D& map, uint8_t* dst, size_t size, double freq_weight, double len_weight, double vert_weight)
+uint16_t Tilemap3DCompressor::EncodeLayersSinglePass(const Tilemap3D& map, const std::vector<uint16_t>& tiles, const std::array<uint16_t, 14>& offsets, uint8_t* dst, size_t size)
 {
-    std::array<uint16_t, 14> offsets = {0};
-    offsets[0] = 0;
-    offsets[1] = 1;
-    offsets[2] = 2;
-    offsets[3] = static_cast<uint16_t>(map.GetWidth());
-    offsets[4] = static_cast<uint16_t>(map.GetWidth() * 2);
-    offsets[5] = static_cast<uint16_t>(map.GetWidth() + 1);
-
-    std::vector<uint16_t> tiles(map.GetSize() * 2);
-    std::copy(map.foreground.begin(), map.foreground.end(), tiles.begin());
-    std::copy(map.background.begin(), map.background.end(), tiles.begin() + map.GetSize());
-    
     std::vector<bool> compressed(tiles.size(), false);
     std::vector<LZ77Entry> lz77;
     std::array<uint16_t, 2> tile_dict = { 0 };
     std::vector<TileEntry> tile_entries;
 
-    CalculateOffsetDictionary(map, tiles, freq_weight, len_weight, vert_weight, offsets);
     EncodeOffsets(map, tiles, offsets, lz77, compressed);
     CalculateTileDictionary(tiles, compressed, tile_dict);
     EncodeTiles(tiles, compressed, tile_dict, tile_entries);
@@ -443,18 +453,14 @@ uint16_t Tilemap3DCompressor::EncodeLayersSinglePass(const Tilemap3D& map, uint8
     return WriteLayerData(map, offsets, tile_dict, lz77, tile_entries, tiles.size(), dst, size);
 }
 
-void Tilemap3DCompressor::CalculateOffsetDictionary(const Tilemap3D& map, const std::vector<uint16_t>& tiles, double freq_weight, double len_weight, double vert_weight, std::array<uint16_t, 14>& offsets)
+void Tilemap3DCompressor::CalculateMatchFrequencies(const Tilemap3D& map, const std::vector<uint16_t>& tiles, const std::array<uint16_t, 14>& fixed_offsets, std::unordered_map<int, int>& fc, std::unordered_map<int, int>& lc, std::unordered_map<int, int>& vc)
 {
-    std::unordered_map<int, int> offset_freq_count;
-    std::unordered_map<int, int> offset_length_count;
-    std::unordered_map<int, int> offset_vertical_count;
     size_t idx = 1;
-    
-    std::vector<uint16_t> fixed_offsets(offsets.begin(), offsets.begin() + 6);
+    std::vector<uint16_t> fixed(fixed_offsets.begin(), fixed_offsets.begin() + 6);
     
     do
     {
-        int run = findMatchFrequency(tiles, idx, offset_freq_count, offset_length_count, offset_vertical_count, fixed_offsets, map.GetWidth());
+        int run = findMatchFrequency(tiles, idx, fc, lc, vc, fixed, map.GetWidth());
         if (run == 0)
         {
             idx++;
@@ -464,22 +470,25 @@ void Tilemap3DCompressor::CalculateOffsetDictionary(const Tilemap3D& map, const 
             idx += run;
         }
     } while (idx < tiles.size());
+}
 
+void Tilemap3DCompressor::CalculateOffsetDictionaryFromFrequencies(const std::unordered_map<int, int>& fc, const std::unordered_map<int, int>& lc, const std::unordered_map<int, int>& vc, double freq_weight, double len_weight, double vert_weight, std::array<uint16_t, 14>& offsets)
+{
     std::unordered_map<int, double> offset_score;
     double max_freq = 1.0;
     double max_len = 1.0;
     double max_vert = 1.0;
     
-    for (auto const& [key, val] : offset_freq_count) {
+    for (auto const& [key, val] : fc) {
         if (val > max_freq) max_freq = val;
-        if (offset_length_count[key] > max_len) max_len = offset_length_count[key];
-        if (offset_vertical_count[key] > max_vert) max_vert = offset_vertical_count[key];
+        if (lc.at(key) > max_len) max_len = lc.at(key);
+        if (vc.at(key) > max_vert) max_vert = vc.at(key);
     }
     
-    for (auto const& [key, val] : offset_freq_count) {
+    for (auto const& [key, val] : fc) {
         double norm_freq = (double)val / max_freq;
-        double norm_len = (double)offset_length_count[key] / max_len;
-        double norm_vert = (double)offset_vertical_count[key] / max_vert;
+        double norm_len = (double)lc.at(key) / max_len;
+        double norm_vert = (double)vc.at(key) / max_vert;
         offset_score[key] = (norm_freq * freq_weight) + (norm_len * len_weight) + (norm_vert * vert_weight);
     }
 
@@ -496,7 +505,7 @@ void Tilemap3DCompressor::CalculateOffsetDictionary(const Tilemap3D& map, const 
         }
     };
 
-    std::multiset<std::pair<int, int>, Comparator> frequency_counts(offset_freq_count.begin(), offset_freq_count.end(), comparator);
+    std::multiset<std::pair<int, int>, Comparator> frequency_counts(fc.begin(), fc.end(), comparator);
     size_t offset_idx = 6;
     for (auto it = frequency_counts.cbegin(); it != frequency_counts.cend(); ++it)
     {

@@ -67,11 +67,7 @@ TEST_F(Tilemap3DTest, RepeatedStandardPattern) {
     EXPECT_EQ(tm, tm2);
 }
 
-#if defined(_WIN32) && !defined(NDEBUG)
-TEST_F(Tilemap3DTest, DISABLED_IncrementingBlocks) {
-#else
 TEST_F(Tilemap3DTest, IncrementingBlocks) {
-#endif
     Tilemap3D tm;
     tm.Resize(16, 16);
     tm.ResizeHeightmap(8, 8);
