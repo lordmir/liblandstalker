@@ -66,23 +66,45 @@ static std::vector<uint16_t> ReadData(int width, int height, const std::string& 
 	return retval;
 }
 
+static std::vector<uint16_t> ReadHMData(const std::string& csv)
+{
+    std::vector<uint16_t> retval;
+    std::stringstream ss(csv);
+    std::string line;
+    while (std::getline(ss, line))
+    {
+        std::stringstream line_ss(line);
+        std::string cell;
+        while (std::getline(line_ss, cell, ','))
+        {
+            if (cell.empty()) continue;
+            try {
+                retval.push_back(static_cast<uint16_t>(std::stoul(cell, nullptr, 16)));
+            } catch (...) {}
+        }
+    }
+    return retval;
+}
+
 bool MapToTmx::ImportFromTmx(const std::string& fname, Tilemap3D& map)
 {
 	pugi::xml_document tmx;
-	tmx.load_file(fname.c_str());
-	int width = tmx.child("map").attribute("width").as_int() - 1;
-	int height = tmx.child("map").attribute("height").as_int();
+	if (!tmx.load_file(fname.c_str())) return false;
+
+    auto map_node = tmx.child("map");
+	int width = map_node.attribute("width").as_int() - 1;
+	int height = map_node.attribute("height").as_int();
 	std::vector<uint16_t> fg, bg;
-	for (pugi::xml_node_iterator it = tmx.child("layer").begin(); it != tmx.child("layer").end(); ++it)
+	for (auto layer : map_node.children("layer"))
 	{
-		auto data = it->child("data");
+		auto data = layer.child("data");
 		if (data && data.attribute("encoding").as_string() == std::string("csv"))
 		{
-			if(it->attribute("id").as_int() == 1)
+			if(layer.attribute("id").as_int() == 1)
 			{
 				bg = ReadData(width, height, data.child_value());
 			}
-			else if (it->attribute("id").as_int() == 2)
+			else if (layer.attribute("id").as_int() == 2)
 			{
 				fg = ReadData(width, height, data.child_value());
 			}
@@ -104,6 +126,42 @@ bool MapToTmx::ImportFromTmx(const std::string& fname, Tilemap3D& map)
 				map.SetBlock({ bg[i], {x, y} }, Tilemap3D::Layer::BG);
 			}
 		}
+
+        // Import Heightmap
+        auto properties = map_node.child("properties");
+        if (properties)
+        {
+            int hmwidth = 0, hmheight = 0, hmleft = 0, hmtop = 0;
+            std::string hmdata_str;
+            for (auto prop : properties.children("property"))
+            {
+                std::string name = prop.attribute("name").as_string();
+                if (name == "hmwidth") hmwidth = prop.attribute("value").as_int();
+                else if (name == "hmheight") hmheight = prop.attribute("value").as_int();
+                else if (name == "hmleft") hmleft = prop.attribute("value").as_int();
+                else if (name == "hmtop") hmtop = prop.attribute("value").as_int();
+                else if (name == "heightmap") hmdata_str = prop.attribute("value").as_string();
+            }
+
+            if (hmwidth > 0 && hmheight > 0 && !hmdata_str.empty())
+            {
+                auto hmdata = ReadHMData(hmdata_str);
+                if (hmdata.size() == static_cast<size_t>(hmwidth * hmheight))
+                {
+                    map.ResizeHeightmap(hmwidth, hmheight);
+                    map.SetLeft(hmleft);
+                    map.SetTop(hmtop);
+                    for (int y = 0; y < hmheight; ++y)
+                    {
+                        for (int x = 0; x < hmwidth; ++x)
+                        {
+                            map.SetHeightmapCell({ x, y }, hmdata[x + y * hmwidth]);
+                        }
+                    }
+                }
+            }
+        }
+
 		return true;
 	}
 

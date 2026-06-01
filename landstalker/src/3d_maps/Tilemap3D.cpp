@@ -854,4 +854,10 @@ bool Tilemap3D::operator!=(const Tilemap3D& rhs) const
 {
     return !(*this == rhs);
 }
+
+const std::vector<uint16_t>& Tilemap3D::GetLayerData(Layer layer) const
+{
+    return (layer == Layer::FG) ? foreground : background;
+}
+
 } // namespace Landstalker

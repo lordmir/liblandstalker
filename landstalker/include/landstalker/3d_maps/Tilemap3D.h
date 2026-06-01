@@ -172,6 +172,7 @@ public:
     bool SetCellType(const HMPoint2D& iso, uint8_t type);
     uint16_t GetHeightmapCell(const HMPoint2D& iso) const;
     bool SetHeightmapCell(const HMPoint2D& iso, uint16_t value);
+    const std::vector<uint16_t>& GetLayerData(Layer layer) const;
 private:
     std::vector<uint16_t> foreground;
     std::vector<uint16_t> background;

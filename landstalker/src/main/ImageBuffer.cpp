@@ -371,6 +371,11 @@ const std::vector<uint8_t>& ImageBuffer::GetAlpha(const std::vector<std::shared_
     return m_alpha;
 }
 
+const std::vector<uint8_t>& ImageBuffer::GetPixels() const
+{
+	return m_pixels;
+}
+
 std::size_t ImageBuffer::GetHeight() const
 {
 	return m_height;

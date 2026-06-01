@@ -11,6 +11,7 @@ class RoomToTmx
 {
 public:
 	static bool ExportToTmx(const std::string& fname, int roomnum, std::shared_ptr<GameData> gameData, const std::string& blockset_filename);
+	static bool ImportFromTmx(const std::string& fname, int roomnum, std::shared_ptr<GameData> gameData, bool import_blocksets = false);
 };
 
 } // namespace Landstalker

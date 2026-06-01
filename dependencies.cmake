@@ -112,7 +112,7 @@ function(InstallBoost)
     message("Fetching Boost sources...")
     FetchContent_Declare(
         boost
-        GIT_REPOSITORY https://github.com/boostorg/boost.gitBUILD_TESTING
+        GIT_REPOSITORY https://github.com/boostorg/boost.git
         GIT_TAG "ef7fea34711a189472893b88205b1dd3c275677b" # "boost-1.89.0"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
