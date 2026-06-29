@@ -368,7 +368,12 @@ const std::vector<uint8_t>& ImageBuffer::GetAlpha(const std::vector<std::shared_
         uint8_t max_opacity = *pri++ ? high_pri_max_opacity : low_pri_max_opacity;
         *it++ = std::min<uint8_t>(max_opacity, alpha);
     }
-    return m_alpha;
+	return m_alpha;
+}
+
+const std::vector<uint8_t>& ImageBuffer::GetPixels() const
+{
+	return m_pixels;
 }
 
 std::size_t ImageBuffer::GetHeight() const
