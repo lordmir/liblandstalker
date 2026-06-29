@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\AnimatedTileset.cpp">
@@ -101,6 +101,9 @@
       <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3D.cpp">
+      <Filter>Source Files\3D Maps</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3DCompressor.cpp">
       <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\TileSwaps.cpp">
@@ -288,6 +291,9 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3D.h">
       <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3DCompressor.h">
+      <Filter>Header Files\3D Maps</Filter>
+    </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\TileSwaps.h">
       <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
@@ -360,9 +366,6 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\Tileset.h">
       <Filter>Header Files\Tileset</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="$(ProjectDir)\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">

@@ -39,7 +39,7 @@ static std::string GetBlocksetData(const std::shared_ptr<BlocksetEntry>& blockse
 bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_ptr<GameData> gameData, const std::string& blockset_filename)
 {
 	std::shared_ptr<RoomData> roomData = gameData->GetRoomData();
-	pugi::xml_document tmx = MapToTmx::GenerateXmlDocument(fname, *(roomData->GetMapForRoom(roomnum)->GetData()), blockset_filename);
+	pugi::xml_document tmx = MapToTmx::GenerateXmlDocument(fname, *(roomData->GetMapForRoom(static_cast<uint16_t>(roomnum))->GetData()), blockset_filename);
 
 	auto add_property = [&](pugi::xml_node& parent, const std::string& name, auto value)
 	{
@@ -87,17 +87,17 @@ bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_p
 	};
 
 	// Properties
-	auto room = roomData->GetRoom(roomnum);
+	auto room = roomData->GetRoom(static_cast<uint16_t>(roomnum));
 	auto properties = tmx.child("map").append_child("properties");
 
 	auto tileset_properties = tmx.child("map").child("tileset").append_child("properties");
 	add_property(tileset_properties, "Palette", roomData->GetRoomPaletteDisplayName(room->room_palette));
-	for(unsigned int i = 0; i < static_cast<unsigned int>(roomData->GetPaletteForRoom(roomnum)->GetData()->GetSize()); i++)
+	for(unsigned int i = 0; i < static_cast<unsigned int>(roomData->GetPaletteForRoom(static_cast<uint16_t>(roomnum))->GetData()->GetSize()); i++)
 	{
 		std::string palette_name = "PaletteColour" + std::to_string(i);
-		add_property(tileset_properties, palette_name, roomData->GetPaletteForRoom(roomnum)->GetData()->GetColour(i));
+		add_property(tileset_properties, palette_name, roomData->GetPaletteForRoom(static_cast<uint16_t>(roomnum))->GetData()->GetColour(static_cast<uint8_t>(i)));
 	}
-	auto blocksets = roomData->GetBlocksetsForRoom(roomnum);
+	auto blocksets = roomData->GetBlocksetsForRoom(static_cast<uint16_t>(roomnum));
 	if(blocksets.size() > 0)
 	{
 		add_property(tileset_properties, "PrimaryBlocksetName", blocksets.front()->GetName());
@@ -125,15 +125,15 @@ bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_p
 	add_property(properties, "RoomZBegin", room->room_z_begin);
 	add_property(properties, "RoomZEnd", room->room_z_end);
 	// Warps Properties
-	add_property(properties, "WarpFallDestination", roomData->GetFallDestination(roomnum));
-	add_property(properties, "WarpClimbDestination", roomData->GetClimbDestination(roomnum));
+	add_property(properties, "WarpFallDestination", roomData->GetFallDestination(static_cast<uint16_t>(roomnum)));
+	add_property(properties, "WarpClimbDestination", roomData->GetClimbDestination(static_cast<uint16_t>(roomnum)));
 	// Flags Properties
-	add_property(properties, "FlagHasLantern", roomData->HasLanternFlag(roomnum));
-	add_property(properties, "FlagLantern", roomData->GetLanternFlag(roomnum));
+	add_property(properties, "FlagHasLantern", roomData->HasLanternFlag(static_cast<uint16_t>(roomnum)));
+	add_property(properties, "FlagLantern", roomData->GetLanternFlag(static_cast<uint16_t>(roomnum)));
 	// Misc Properties
-	add_property(properties, "FlagIsShopChurchInn", roomData->IsShop(roomnum));
-	add_property(properties, "MiscLifestockForSale", roomData->HasLifestockSaleFlag(roomnum));
-	add_property(properties, "MiscLifestockSaleFlag", roomData->GetLifestockSaleFlag(roomnum));
+	add_property(properties, "FlagIsShopChurchInn", roomData->IsShop(static_cast<uint16_t>(roomnum)));
+	add_property(properties, "MiscLifestockForSale", roomData->HasLifestockSaleFlag(static_cast<uint16_t>(roomnum)));
+	add_property(properties, "MiscLifestockSaleFlag", roomData->GetLifestockSaleFlag(static_cast<uint16_t>(roomnum)));
 
 	// Warp objects
 	auto warps_objectgroup = tmx.child("map").append_child("objectgroup");
@@ -141,7 +141,7 @@ bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_p
 	warps_objectgroup.append_attribute("name") = "Warps";
 
 	int warp_id = 1;
-    std::vector<WarpList::Warp> warps = roomData->GetWarpsForRoom(roomnum);
+    std::vector<WarpList::Warp> warps = roomData->GetWarpsForRoom(static_cast<uint16_t>(roomnum));
 	for (const auto& warp : warps) {
 		auto warp_object = warps_objectgroup.append_child("object");
 		warp_object.append_attribute("id") = warp_id;
@@ -175,7 +175,7 @@ bool RoomToTmx::ExportToTmx(const std::string& fname, int roomnum, std::shared_p
 	entities_objectgroup.append_attribute("name") = "Entities";
 
 	int entity_id = 1;
-	std::vector<Entity> entities = gameData->GetSpriteData()->GetRoomEntities(roomnum);
+	std::vector<Entity> entities = gameData->GetSpriteData()->GetRoomEntities(static_cast<uint16_t>(roomnum));
 
 	for (const auto& entity : entities) {
 		auto entity_object = entities_objectgroup.append_child("object");
