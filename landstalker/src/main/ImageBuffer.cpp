@@ -169,13 +169,15 @@ void ImageBuffer::InsertSprite(int x, int y, uint8_t palette_index, const Sprite
                 {
                     xx = -subs.x - xi * 8 + x - 8;
                     yy = subs.y + yi * 8 + y;
-                    InsertTile(xx, yy, palette_index, !Tile(index++), *frame.GetTileset());
+                    InsertTile(xx, yy, palette_index, !Tile(static_cast<uint16_t>(index)), *frame.GetTileset());
+                    ++index;
                 }
                 else
                 {
                     xx = subs.x + xi * 8 + x;
                     yy = subs.y + yi * 8 + y;
-                    InsertTile(xx, yy, palette_index, Tile(index++), *frame.GetTileset());
+                    InsertTile(xx, yy, palette_index, Tile(static_cast<uint16_t>(index)), *frame.GetTileset());
+                    ++index;
                 }
             }
     }
@@ -266,10 +268,10 @@ bool ImageBuffer::WritePNG(const std::string& filename, const std::vector<std::s
     {
         for (std::size_t i = 0; i < 16; ++i)
         {
-            png_palette[entry + i].red = pal->getR(i);
-            png_palette[entry + i].green = pal->getG(i);
-            png_palette[entry + i].blue = pal->getB(i);
-            png_alpha[entry + i] = pal->getA(i);
+            png_palette[entry + i].red = pal->getR(static_cast<uint8_t>(i));
+            png_palette[entry + i].green = pal->getG(static_cast<uint8_t>(i));
+            png_palette[entry + i].blue = pal->getB(static_cast<uint8_t>(i));
+            png_alpha[entry + i] = pal->getA(static_cast<uint8_t>(i));
         }
         entry += 16;
     }
@@ -333,9 +335,9 @@ const std::vector<uint8_t>& ImageBuffer::GetRGB(const std::vector<std::shared_pt
     {
         for (int i = 0; i < 16; ++i)
         {
-            pal_lookup[idx++] = p->getR(i);
-            pal_lookup[idx++] = p->getG(i);
-            pal_lookup[idx++] = p->getB(i);
+            pal_lookup[idx++] = p->getR(static_cast<uint8_t>(i));
+            pal_lookup[idx++] = p->getG(static_cast<uint8_t>(i));
+            pal_lookup[idx++] = p->getB(static_cast<uint8_t>(i));
             pal_lookup[idx++] = 0;
         }
     }
@@ -359,7 +361,7 @@ const std::vector<uint8_t>& ImageBuffer::GetAlpha(const std::vector<std::shared_
     {
         for (int i = 0; i < 16; ++i)
         {
-            pal_lookup[pi++] = p->getA(i);
+            pal_lookup[pi++] = p->getA(static_cast<uint8_t>(i));
         }
     }
     for (const auto& pixel : m_pixels)

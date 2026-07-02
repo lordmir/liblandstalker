@@ -28,18 +28,18 @@ Room::Room(const std::string& name_, const std::string& map_name, uint16_t index
 std::string Room::ToYaml(std::shared_ptr<GameData> gd) const
 {
     auto get_room_name = [&](int idx) {
-        if (idx >= 0 && idx < gd->GetRoomData()->GetRoomCount())
+        if (idx >= 0 && idx < static_cast<int>(gd->GetRoomData()->GetRoomCount()))
         {
-            auto room_entry = gd->GetRoomData()->GetRoom(idx);
+            auto room_entry = gd->GetRoomData()->GetRoom(static_cast<uint16_t>(idx));
             return room_entry->name;
         }
         return std::string("none");
     };
 
     auto get_room_display_name = [&](int idx) {
-        if (idx >= 0 && idx < gd->GetRoomData()->GetRoomCount())
+        if (idx >= 0 && idx < static_cast<int>(gd->GetRoomData()->GetRoomCount()))
         {
-            auto room_entry = gd->GetRoomData()->GetRoom(idx);
+            auto room_entry = gd->GetRoomData()->GetRoom(static_cast<uint16_t>(idx));
             return std::to_string(idx) + ": " + Landstalker::wstr_to_utf8(room_entry->GetDisplayName());
         }
         return std::string("<NONE>");
@@ -77,9 +77,9 @@ std::string Room::ToYaml(std::shared_ptr<GameData> gd) const
     out << YAML::Key << "unknown_param1" << YAML::Value << static_cast<int>(unknown_param1);
     out << YAML::Key << "unknown_param2" << YAML::Value << static_cast<int>(unknown_param2);
     int fall_dest = gd->GetRoomData()->GetFallDestination(index);
-    fall_dest = fall_dest >= gd->GetRoomData()->GetRoomCount() ? -1 : fall_dest;
+    fall_dest = fall_dest >= static_cast<int>(gd->GetRoomData()->GetRoomCount()) ? -1 : fall_dest;
     int climb_dest = gd->GetRoomData()->GetClimbDestination(index);
-    climb_dest = climb_dest >= gd->GetRoomData()->GetRoomCount() ? -1 : climb_dest;
+    climb_dest = climb_dest >= static_cast<int>(gd->GetRoomData()->GetRoomCount()) ? -1 : climb_dest;
     out << YAML::Key << "fall_destination" << YAML::Value << get_room_name(fall_dest) << YAML::Comment(get_room_display_name(fall_dest));
     out << YAML::Key << "climb_destination" << YAML::Value << get_room_name(climb_dest) << YAML::Comment(get_room_display_name(climb_dest));
     int room_visit_flag = gd->GetStringData()->GetRoomVisitFlag(index);
@@ -89,8 +89,8 @@ std::string Room::ToYaml(std::shared_ptr<GameData> gd) const
     save_loc = save_loc >= 0xFF ? -1 : save_loc;
     int map_loc = gd->GetStringData()->GetMapLocation(index);
     map_loc = map_loc >= 0xFF ? -1 : map_loc;
-    std::string save_loc_name = get_system_string(save_loc);
-    std::string map_loc_name = get_system_string(map_loc);
+    std::string save_loc_name = get_system_string(static_cast<uint8_t>(save_loc));
+    std::string map_loc_name = get_system_string(static_cast<uint8_t>(map_loc));
     out << YAML::Key << "save_location_string_index" << YAML::Value << save_loc << YAML::Comment(save_loc_name);
     out << YAML::Key << "map_location_string_index" << YAML::Value << map_loc << YAML::Comment(map_loc_name);
     out << YAML::Key << "is_shop" << YAML::Value << gd->GetRoomData()->IsShop(index);
@@ -108,7 +108,7 @@ std::string Room::ToYaml(std::shared_ptr<GameData> gd) const
     auto doors = gd->GetRoomData()->GetDoors(index);
     auto chests = gd->GetRoomData()->GetChestsForRoom(index);
     // Entities
-    int chest_counter = 0;
+    std::size_t chest_counter = 0;
     out << YAML::Key << "entities" << YAML::Value << YAML::BeginSeq;
     for(const auto& entity : entities)
     {

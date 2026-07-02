@@ -614,11 +614,11 @@ SpriteData::EntityMetadata SpriteData::GetEntityMetadata(uint8_t id, std::shared
 	auto palettes = GetEntityPaletteIdxs(id);
 	if(palettes.first >= 0)
 	{
-		metadata.low_palette = GetLoPalette(palettes.first)->GetName();
+		metadata.low_palette = GetLoPalette(static_cast<uint8_t>(palettes.first))->GetName();
 	}
 	if(palettes.second >= 0)
 	{
-		metadata.high_palette = GetHiPalette(palettes.second)->GetName();
+		metadata.high_palette = GetHiPalette(static_cast<uint8_t>(palettes.second))->GetName();
 	}
 	auto sfx = sd->GetEntityTalkSound(id);
 	if(sfx > 0)
