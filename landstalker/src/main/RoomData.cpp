@@ -866,6 +866,16 @@ std::vector<uint8_t> RoomData::GetChestsForRoom(uint16_t roomnum) const
     return m_chests.GetChestsForRoom(roomnum);
 }
 
+int RoomData::GetChestFlagBaseForRoom(uint16_t roomnum) const
+{
+    return m_chests.GetChestFlagBaseForRoom(roomnum);
+}
+
+uint8_t RoomData::GetChestContentsFromFlag(int flag)
+{
+    return m_chests.GetChestItemFromFlagID(flag);
+}
+
 void RoomData::SetChestsForRoom(uint16_t roomnum, const std::vector<uint8_t>& chests)
 {
     m_chests.SetRoomChests(roomnum, chests);

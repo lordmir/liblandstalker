@@ -28,8 +28,11 @@ public:
 	void SetRoomChests(uint16_t room, const std::vector<ChestItem>& chests);
 	void ClearRoomChests(uint16_t room);
 	void SetRoomNoChestsFlag(uint16_t room);
+	bool GetRoomNoChestsFlag(uint16_t room) const;
 	void ClearRoomNoChestsFlag(uint16_t room);
 	bool CleanupRoomChests(const GameData& gd);
+	int GetChestFlagBaseForRoom(uint16_t room) const;
+	ChestItem GetChestItemFromFlagID(int chest_flag_id) const;
 
 private:
 	std::set<uint16_t> m_enabled;

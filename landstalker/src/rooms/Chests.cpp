@@ -132,6 +132,11 @@ void Chests::ClearRoomNoChestsFlag(uint16_t room)
 	m_enabled.erase(room);
 }
 
+bool Chests::GetRoomNoChestsFlag(uint16_t room) const
+{
+	return m_enabled.count(room) != 0;
+}
+
 bool Chests::CleanupRoomChests(const GameData& gd)
 {
 	int chest_count = 0;
@@ -164,6 +169,38 @@ bool Chests::CleanupRoomChests(const GameData& gd)
 		}
 	}
 	return chest_count < 0x100;
+}
+
+int Chests::GetChestFlagBaseForRoom(uint16_t room) const
+{
+	int chest_flag_base = 0;
+	for (uint16_t r = 0; r < room; ++r)
+	{
+		if (m_enabled.count(r) == 0 && m_chests.count(r) > 0)
+		{
+			chest_flag_base += m_chests.at(r).size();
+		}
+	}
+	return chest_flag_base;
+}
+
+ChestItem Chests::GetChestItemFromFlagID(int chest_flag_id) const
+{
+	int cur_flag = chest_flag_id;
+	for (const auto& room : m_chests)
+	{
+		if (room.second.size() == 0)
+		{
+			continue;
+		}
+		if (cur_flag >= static_cast<int>(room.second.size()))
+		{
+			cur_flag -= room.second.size();
+			continue;
+		}
+		return room.second[cur_flag];
+	}
+	return 0;
 }
 
 } // namespace Landstalker

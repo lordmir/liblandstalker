@@ -93,6 +93,8 @@ public:
     std::shared_ptr<Tilemap3DEntry> GetMapForRoom(uint16_t roomnum) const;
     std::vector<uint8_t> GetChestsForRoom(uint16_t roomnum) const;
     void SetChestsForRoom(uint16_t roomnum, const std::vector<uint8_t>& chests);
+    uint8_t GetChestContentsFromFlag(int flag);
+    int GetChestFlagBaseForRoom(uint16_t roomnum) const;
     bool GetNoChestFlagForRoom(uint16_t roomnum) const;
     void SetNoChestFlagForRoom(uint16_t roomnum, bool flag);
     bool CleanupChests(const GameData& g);
