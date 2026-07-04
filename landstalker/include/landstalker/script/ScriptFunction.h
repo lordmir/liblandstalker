@@ -5,6 +5,7 @@
 #include <sstream>
 #include <map>
 #include <set>
+#include <vector>
 #include <variant>
 #include <yaml-cpp/yaml.h>
 
@@ -364,7 +365,7 @@ namespace Statements
 			uint8_t quest;
 			uint8_t progress;
 		};
-		std::map<QuestProgress, Action> progress;
+		std::vector<std::pair<QuestProgress, Action>> progress;
 	};
 
 	struct ProgressFlagMapping : public Statement

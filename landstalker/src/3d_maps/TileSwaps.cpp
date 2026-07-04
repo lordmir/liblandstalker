@@ -124,7 +124,7 @@ std::vector<uint8_t> TileSwap::GetBytes(uint16_t room, uint8_t idx) const
 	data[11] = heightmap.height - 1;
 	data[12] = room >> 8;
 	data[13] = room & 0xFF;
-	data[14] = idx << 3;
+	data[14] = trigger << 3;
 	data[15] = static_cast<uint8_t>(mode);
 	return data;
 }
@@ -369,3 +369,4 @@ bool TileSwap::operator!=(const TileSwap& rhs) const
 }
 
 } // namespace Landstalker
+

@@ -701,7 +701,7 @@ ProgressList::ProgressList(AsmFile& file)
             break;
         }
         file >> action;
-        progress.emplace(std::pair{QuestProgress(quest, progress_count), action });
+        progress.emplace_back(QuestProgress(quest, progress_count), action);
     }
 }
 
@@ -712,7 +712,7 @@ ProgressList::ProgressList(const YAML::Node::const_iterator& it)
         uint8_t quest = elem["Quest"].as<uint8_t>();
         uint8_t prog = elem["Progress"].as<uint8_t>();
         auto action = Action(elem["Action"].begin());
-        progress.insert({ QuestProgress(quest, prog), action});
+        progress.emplace_back(QuestProgress(quest, prog), action);
     }
 }
 
