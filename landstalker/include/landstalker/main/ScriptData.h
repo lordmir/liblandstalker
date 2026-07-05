@@ -4,8 +4,8 @@
 #include <landstalker/main/DataManager.h>
 #include <landstalker/main/DataTypes.h>
 #include <landstalker/script/Script.h>
+#include <landstalker/script/ScriptFunctionTable.h>
 #include <landstalker/script/ScriptTable.h>
-#include <landstalker/script/ScriptFunction.h>
 
 namespace Landstalker {
 

@@ -10,3 +10,9 @@ target_include_directories(tilemap3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/modules/l
 target_link_libraries(tilemap3d_tests PRIVATE landstalker GTest::gtest_main)
 
 gtest_discover_tests(tilemap3d_tests)
+
+add_executable(script_tests test_script.cpp)
+target_include_directories(script_tests PRIVATE ${CMAKE_SOURCE_DIR}/modules/liblandstalker/landstalker/include)
+target_link_libraries(script_tests PRIVATE landstalker yaml-cpp::yaml-cpp GTest::gtest_main)
+
+gtest_discover_tests(script_tests)

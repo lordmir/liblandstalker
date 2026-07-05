@@ -10,6 +10,7 @@
 #include <optional>
 #include <memory>
 #include <filesystem>
+#include <landstalker/script/ScriptFunction.h>
 
 namespace Landstalker {
 

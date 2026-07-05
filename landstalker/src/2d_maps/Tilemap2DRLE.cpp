@@ -316,10 +316,10 @@ Tilemap2D Tilemap2D::FromCsv(const std::string &csv_data)
 	while (std::getline(ss, row))
 	{
 		tiles.push_back(std::vector<uint16_t>());
-		std::istringstream rss(row);
-		while (std::getline(rss, cell, ','))
+		std::istringstream nrss(row);
+		while (std::getline(nrss, cell, ','))
 		{
-			tiles.back().push_back(std::stoi(cell, nullptr, 16));
+			tiles.back().push_back(static_cast<uint16_t>(std::stoi(cell, nullptr, 16)));
 		}
 	}
 
@@ -338,8 +338,8 @@ Tilemap2D Tilemap2D::FromCsv(const std::string &csv_data)
 			m_map.SetTile(Tile(tiles[y][x]), x, y);
 		}
 	}
-	m_map.SetLeft(l);
-	m_map.SetTop(t);
+	m_map.SetLeft(static_cast<uint8_t>(l));
+	m_map.SetTop(static_cast<uint8_t>(t));
 	m_map.SetCompression(compression);
 	return m_map;
 }
