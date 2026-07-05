@@ -41,7 +41,7 @@ bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& ba
 	std::ifstream hm(heightmap_csv, std::ios::in);
 
 	std::size_t w, h, t, l, hw, hh;
-	std::vector<std::vector<uint16_t>> foreground, background, heightmap;
+	std::vector<std::vector<uint16_t>> fgvec, bgvec, hmvec;
 
 	auto read_csv = [](auto& iss, auto& data)
 	{
@@ -53,33 +53,33 @@ bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& ba
 			std::istringstream rss(row);
 			while (std::getline(rss, cell, ','))
 			{
-				data.back().push_back(std::stoi(cell, nullptr, 16));
+				data.back().push_back(static_cast<uint16_t>(std::stoi(cell, nullptr, 16)));
 			}
 		}
 	};
 	
-	read_csv(fg, foreground);
-	read_csv(bg, background);
-	read_csv(hm, heightmap);
+	read_csv(fg, fgvec);
+	read_csv(bg, bgvec);
+	read_csv(hm, hmvec);
 
-	if (heightmap.size() < 2 || heightmap.front().size() != 2)
+	if (hmvec.size() < 2 || hmvec.front().size() != 2)
 	{
 		return false;
 	}
-	if (foreground.size() == 0 || foreground.front().size() == 0)
+	if (fgvec.size() == 0 || fgvec.front().size() == 0)
 	{
 		return false;
 	}
-	if (background.size() == 0 || background.front().size() == 0)
+	if (bgvec.size() == 0 || bgvec.front().size() == 0)
 	{
 		return false;
 	}
-	w = foreground.front().size();
-	h = foreground.size();
-	hw = heightmap[1].size();
-	hh = heightmap.size() - 1;
-	l = heightmap[0][0];
-	t = heightmap[0][1];
+	w = fgvec.front().size();
+	h = fgvec.size();
+	hw = hmvec[1].size();
+	hh = hmvec.size() - 1;
+	l = hmvec[0][0];
+	t = hmvec[0][1];
 
 	if (background.size() != h)
 	{
@@ -88,14 +88,14 @@ bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& ba
 
 	for (std::size_t i = 0; i < h; ++i)
 	{
-		if (background[i].size() != w || foreground[i].size() != w)
+		if (bgvec[i].size() != w || bgvec[i].size() != w)
 		{
 			return false;
 		}
 	}
 	for (std::size_t i = 1; i <= hh; ++i)
 	{
-		if (heightmap[i].size() != hw)
+		if (hmvec[i].size() != hw)
 		{
 			return false;
 		}
@@ -106,22 +106,22 @@ bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& ba
 	SetLeft(static_cast<uint8_t>(l));
 	SetTop(static_cast<uint8_t>(t));
 	
-	int i = 0;
+	uint16_t i = 0;
 	for (std::size_t y = 0; y < h; ++y)
 	{
 		for (std::size_t x = 0; x < w; ++x)
 		{
-			SetBlock(background[y][x], i, Tilemap3D::Layer::BG);
-			SetBlock(foreground[y][x], i++, Tilemap3D::Layer::FG);
+			SetBlock(bgvec[y][x], i, Tilemap3D::Layer::BG);
+			SetBlock(fgvec[y][x], i++, Tilemap3D::Layer::FG);
 		}
 	}
 	for (int y = 0; y < static_cast<int>(hh); ++y)
 	{
 		for (int x = 0; x < static_cast<int>(hw); ++x)
 		{
-			SetCellProps({ x, y }, (heightmap[y + 1][x] >> 12) & 0xF);
-			SetHeight({ x, y }, (heightmap[y + 1][x] >> 8) & 0xF);
-			SetCellType({ x, y }, heightmap[y + 1][x] & 0xFF);
+			SetCellProps({ x, y }, (hmvec[y + 1][x] >> 12) & 0xF);
+			SetHeight({ x, y }, (hmvec[y + 1][x] >> 8) & 0xF);
+			SetCellType({ x, y }, hmvec[y + 1][x] & 0xFF);
 		}
 	}
 	return true;
@@ -132,7 +132,7 @@ bool Tilemap3D::ToCsv(std::string &foreground_csv, std::string &background_csv, 
 	std::stringstream fg(foreground_csv, std::ios::out | std::ios::trunc);
 	std::stringstream hm(heightmap_csv, std::ios::out | std::ios::trunc);
 
-	for (int i = 0; i < GetWidth() * GetHeight(); ++i)
+	for (uint16_t i = 0; i < GetWidth() * GetHeight(); ++i)
 	{
 		fg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::FG).value);
 		bg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::BG).value);
@@ -603,7 +603,7 @@ Point2D Tilemap3D::PixelToCartesian(const PixelPoint2D& pix, Layer layer) const
     return Point2D{ -1, -1 };
 }
 
-IsoPoint2D Tilemap3D::ToIsometric(const Point2D& p, Layer layer) const
+IsoPoint2D Tilemap3D::ToIsometric(const Point2D& p, Layer /*layer*/) const
 {
     int xgrid = (p.x - GetLeft()) / 2;
     int ygrid = (2 * (p.y - GetTop())) / 2;

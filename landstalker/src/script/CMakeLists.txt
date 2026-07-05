@@ -4,6 +4,8 @@ target_sources(${MODULE_NAME} PRIVATE
     "ProgressFlags.cpp"
     "Script.cpp"
     "ScriptFunction.cpp"
+    "ScriptFunctionTable.cpp"
+    "ScriptStatements.cpp"
     "ScriptTable.cpp"
     "ScriptTableEntry.cpp"
 )

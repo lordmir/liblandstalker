@@ -347,8 +347,9 @@ std::string Room::ToYaml(std::shared_ptr<GameData> gd) const
     return out.c_str();
 }
 
-Room Room::FromYaml(const std::string& yaml_data, std::shared_ptr<GameData> gd)
+Room Room::FromYaml(const std::string& /*yaml_data*/, std::shared_ptr<GameData> /*gd*/)
 {
+    // TODO
     return Room("", "", 0, std::vector<uint8_t>{0,0,0,0});
 }
 

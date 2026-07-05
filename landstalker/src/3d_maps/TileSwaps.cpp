@@ -49,7 +49,7 @@ std::vector<uint8_t> TileSwaps::GetData() const
 		{
 			if (r.second[i].active)
 			{
-				auto bytes = r.second[i].GetBytes(r.first, i);
+				auto bytes = r.second[i].GetBytes(r.first);
 				out.insert(out.end(), bytes.cbegin(), bytes.cend());
 			}
 		}
@@ -107,7 +107,7 @@ TileSwap::TileSwap(const std::vector<uint8_t>& in)
 	mode = static_cast<Mode>(in[15]);
 }
 
-std::vector<uint8_t> TileSwap::GetBytes(uint16_t room, uint8_t idx) const
+std::vector<uint8_t> TileSwap::GetBytes(uint16_t room) const
 {
 	std::vector<uint8_t> data(16);
 	data[0] = map.src_x;
