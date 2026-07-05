@@ -157,6 +157,12 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunction.cpp">
       <Filter>Source Files\Script</Filter>
     </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunctionTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptStatements.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptTable.cpp">
       <Filter>Source Files\Script</Filter>
     </ClCompile>
@@ -346,6 +352,12 @@
       <Filter>Header Files\Script</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunction.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunctionTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptStatements.h">
       <Filter>Header Files\Script</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptTable.h">
