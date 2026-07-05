@@ -101,10 +101,10 @@ bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& ba
 		}
 	}
 
-	Resize(w, h);
-	ResizeHeightmap(hw, hh);
-	SetLeft(l);
-	SetTop(t);
+	Resize(static_cast<uint8_t>(w), static_cast<uint8_t>(h));
+	ResizeHeightmap(static_cast<uint8_t>(hw), static_cast<uint8_t>(hh));
+	SetLeft(static_cast<uint8_t>(l));
+	SetTop(static_cast<uint8_t>(t));
 	
 	int i = 0;
 	for (std::size_t y = 0; y < h; ++y)

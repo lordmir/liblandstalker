@@ -727,7 +727,7 @@ uint16_t Tilemap3DCompressor::WriteLayerData(const Tilemap3D& map, const std::ar
     WriteLayerTiles(tile_entries, cmap);
     
     cmap.AdvanceNextByte();
-    uint16_t current_pos = cmap.GetByteCount();
+    uint16_t current_pos = static_cast<uint16_t>(cmap.GetByteCount());
     if (current_pos > size) throw std::runtime_error("Output buffer not large enough to hold result.");
     std::copy(cmap.Begin(), cmap.End(), dst);
     return current_pos - 1;

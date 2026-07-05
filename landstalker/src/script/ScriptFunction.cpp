@@ -1422,7 +1422,7 @@ ScriptFunctionTable::ScriptFunctionTable(const std::string& yaml)
         function_mapping.insert({ func.name, func });
         funcnames.push_back(func.name);
     }
-    Consolidate();
+    Unconsolidate();
 }
 
 bool ScriptFunctionTable::operator==(const ScriptFunctionTable& rhs) const
@@ -1447,7 +1447,6 @@ bool ScriptFunctionTable::ReadAsm(AsmFile& file)
         function_mapping.insert({ func.name, func });
         funcnames.push_back(func.name);
     }
-    Consolidate();
     return true;
 }
 
@@ -1458,7 +1457,6 @@ bool ScriptFunctionTable::WriteAsm(AsmFile& file)
     {
         function_mapping.at(funcname).ToAsm(file);
     }
-    Consolidate();
     return true;
 }
 
@@ -1527,6 +1525,40 @@ bool ScriptFunctionTable::AddFunction(ScriptFunction&& func)
     return true;
 }
 
+
+bool ScriptFunctionTable::SetFunctionOrder(const std::vector<std::string>& order)
+{
+    std::vector<std::string> new_order;
+    std::set<std::string> seen;
+    for (const auto& name : order)
+    {
+        if (function_mapping.find(name) != function_mapping.end() && seen.insert(name).second)
+        {
+            new_order.push_back(name);
+        }
+    }
+    for (const auto& name : funcnames)
+    {
+        if (seen.insert(name).second)
+        {
+            new_order.push_back(name);
+        }
+    }
+    funcnames = new_order;
+    return true;
+}
+bool ScriptFunctionTable::RemoveFunction(const std::string& funcname)
+{
+    auto mapping_it = function_mapping.find(funcname);
+    if (mapping_it == function_mapping.end())
+    {
+        return false;
+    }
+
+    function_mapping.erase(mapping_it);
+    funcnames.erase(std::remove(funcnames.begin(), funcnames.end(), funcname), funcnames.end());
+    return true;
+}
 void ScriptFunctionTable::Consolidate()
 {
     std::map<std::string, int> func_call_counts;

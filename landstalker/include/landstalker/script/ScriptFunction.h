@@ -96,6 +96,8 @@ public:
 	ScriptFunction* GetMapping(std::size_t index);
 
 	bool AddFunction(ScriptFunction&& func);
+	bool RemoveFunction(const std::string& funcname);
+	bool SetFunctionOrder(const std::vector<std::string>& order);
 private:
 	void Consolidate();
 	void Unconsolidate();
