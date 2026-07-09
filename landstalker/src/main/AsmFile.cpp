@@ -2,6 +2,7 @@
 #include <landstalker/misc/Utils.h>
 
 #include <regex>
+#include <set>
 #include <unordered_map>
 #include <iostream>
 #include <iomanip>
@@ -168,12 +169,25 @@ const std::map<std::string, std::string>& AsmFile::GetDefines() const
 	return m_defines;
 }
 
-std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_file)
+namespace {
+
+void ParseDefinesInto(const std::string& inc_file, const std::filesystem::path& base_path,
+	std::map<std::string, std::string>& defines, std::set<std::filesystem::path>& visited)
 {
-	std::map<std::string, std::string> defines;
+	std::error_code ec;
+	auto canonical = std::filesystem::weakly_canonical(inc_file, ec);
+	if (ec)
+	{
+		canonical = inc_file;
+	}
+	if (!visited.insert(canonical).second)
+	{
+		return; // Already parsed - guard against include cycles.
+	}
 	std::ifstream ifs(inc_file);
 	std::string line;
-	std::regex def_re("^(\\w+):\\s+equ\\s+(\\S+)", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	static const std::regex def_re("^(\\w+):\\s+equ\\s+(\\S+)", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	static const std::regex inc_re("^\\s*include\\s+\"([^\"]+)\"", std::regex_constants::ECMAScript | std::regex_constants::icase);
 	std::smatch matches;
 	while (ifs.good() && std::getline(ifs, line))
 	{
@@ -181,6 +195,74 @@ std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_
 		{
 			defines[matches[1].str()] = matches[2].str();
 		}
+		else if (std::regex_search(line, matches, inc_re))
+		{
+			std::filesystem::path rel = ReformatPath(matches[1].str());
+			std::filesystem::path child = base_path.empty()
+				? std::filesystem::path(inc_file).parent_path() / rel
+				: base_path / rel;
+			ParseDefinesInto(child.string(), base_path, defines, visited);
+		}
+	}
+}
+
+} // namespace
+
+std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_file)
+{
+	return ParseDefines(inc_file, std::filesystem::path());
+}
+
+std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_file, const std::filesystem::path& base_path)
+{
+	std::map<std::string, std::string> defines;
+	std::set<std::filesystem::path> visited;
+	ParseDefinesInto(inc_file, base_path, defines, visited);
+	return defines;
+}
+
+std::vector<std::filesystem::path> AsmFile::CollectDefineIncludes(const std::filesystem::path& main_asm, const std::string& defines_label)
+{
+	std::vector<std::filesystem::path> result;
+	std::ifstream ifs(main_asm);
+	std::string line;
+	static const std::regex label_re("^(\\w+):");
+	static const std::regex inc_re("include\\s+\"([^\"]+)\"", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	std::smatch matches;
+	bool in_defines = false;
+	while (std::getline(ifs, line))
+	{
+		if (!in_defines)
+		{
+			if (std::regex_search(line, matches, label_re) && matches[1].str() == defines_label)
+			{
+				in_defines = true;
+				if (std::regex_search(line, matches, inc_re))
+				{
+					result.push_back(ReformatPath(matches[1].str()));
+				}
+			}
+		}
+		else if (std::regex_search(line, matches, inc_re))
+		{
+			result.push_back(ReformatPath(matches[1].str()));
+		}
+		else if (line.find_first_not_of(" \t\r\n") != std::string::npos)
+		{
+			// First non-blank, non-include line (e.g. "org") ends the Defines block.
+			break;
+		}
+	}
+	return result;
+}
+
+std::map<std::string, std::string> AsmFile::LoadDefines(const std::filesystem::path& main_asm, const std::filesystem::path& base_path, const std::string& defines_label)
+{
+	std::map<std::string, std::string> defines;
+	for (const auto& inc : CollectDefineIncludes(main_asm, defines_label))
+	{
+		auto parsed = ParseDefines((base_path / inc).string(), base_path);
+		defines.insert(parsed.cbegin(), parsed.cend());
 	}
 	return defines;
 }

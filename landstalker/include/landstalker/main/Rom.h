@@ -74,6 +74,7 @@ public:
 		return read<T>(read<uint32_t>(address) + offset * sizeof(T));
 	}
 
+	const std::string& get_filename() const { return m_filename; }
 	uint32_t get_address(const std::string& name) const;
 	RomOffsets::Section get_section(const std::string& name) const;
 	const uint8_t* data(uint32_t address = 0) const;

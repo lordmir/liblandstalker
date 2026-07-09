@@ -22,6 +22,11 @@ const LSString::CharacterSet ENDING_CHARSET = {
 	{131_u8, L"{SEGA_LOGO}" }, {132_u8, L"{CLIMAX_LOGO}"}, {133_u8, L"{DDS520_LOGO}"}, {134_u8, L"{MIRAGE_LOGO}"}
 };
 
+const LSString::CharacterSet& EndCreditString::GetDefaultCharset()
+{
+	return ENDING_CHARSET;
+}
+
 EndCreditString::EndCreditString()
 	: LSString(ENDING_CHARSET),
 	m_height(0),

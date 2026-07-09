@@ -326,14 +326,39 @@ bool Sleep::IsEndOfFunction() const
 
 DisplayPrice::DisplayPrice(AsmFile& file)
 {
-    AsmFile::ScriptAction s_display_price;
-    file >> s_display_price;
-    display_price = s_display_price;
+    // EN/JP have a single message; FR/DE follow the call with one ScriptID per grammatical
+    // article form. Read every consecutive action - the list ends at the next label or
+    // instruction, like ActionTable's.
+    AsmFile::ScriptAction action;
+    while (file.Read(action))
+    {
+        display_price.push_back(Action(action));
+        if (file.IsLabel())
+        {
+            break;
+        }
+    }
+    if (display_price.empty())
+    {
+        throw std::runtime_error("DisplayItemPriceMessage call is not followed by a script action");
+    }
 }
 
 DisplayPrice::DisplayPrice(const YAML::Node::const_iterator& it)
-    : display_price((*it)["DisplayPriceMessage"])
 {
+    const YAML::Node node = (*it)["DisplayPriceMessage"];
+    if (node.IsSequence())
+    {
+        for (const auto& elem : node)
+        {
+            display_price.push_back(Action(elem));
+        }
+    }
+    else
+    {
+        // A single mapping (the EN/JP form, and the only shape older YAML files contain).
+        display_price.push_back(Action(node));
+    }
 }
 
 bool DisplayPrice::operator==(const DisplayPrice& rhs) const
@@ -349,14 +374,31 @@ bool DisplayPrice::operator!=(const DisplayPrice& rhs) const
 void DisplayPrice::ToAsm(AsmFile& file) const
 {
     file << AsmFile::Instruction("bsr", AsmFile::Width::W, { "DisplayItemPriceMessage" });
-    display_price.ActionToAsm(file, 0);
+    std::size_t counter = 0;
+    for (const auto& action : display_price)
+    {
+        action.ActionToAsm(file, counter++);
+    }
 }
 
 void DisplayPrice::ToYaml(YAML::Emitter& out) const
 {
     out << YAML::BeginMap;
     out << YAML::Key << "DisplayPriceMessage" << YAML::Value;
-    display_price.ActionToYaml(out);
+    if (display_price.size() == 1)
+    {
+        // Keep the single-action shape older YAML files use.
+        display_price.front().ActionToYaml(out);
+    }
+    else
+    {
+        out << YAML::BeginSeq;
+        for (const auto& action : display_price)
+        {
+            action.ActionToYaml(out);
+        }
+        out << YAML::EndSeq;
+    }
     out << YAML::EndMap;
 }
 
@@ -364,8 +406,11 @@ std::string DisplayPrice::Print(int indent) const
 {
     std::ostringstream ss;
     ss << std::string(indent, ' ') << "Display Price:" << std::endl;
-    ss << std::string(indent + 2, ' ') << "Prompt:" << std::endl;
-    ss << display_price.Print(indent + 4);
+    for (const auto& action : display_price)
+    {
+        ss << std::string(indent + 2, ' ') << "Prompt:" << std::endl;
+        ss << action.Print(indent + 4);
+    }
     return ss.str();
 }
 

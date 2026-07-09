@@ -58,6 +58,10 @@ public:
     std::shared_ptr<const ScriptFunctionTable> GetProgressFlagsFuncs() const;
     std::shared_ptr<ScriptFunctionTable> GetProgressFlagsFuncs();
     void SetProgressFlagsFuncs(const ScriptFunctionTable& funcs);
+
+    bool HasItemArticles() const;
+    uint8_t GetItemArticle(uint8_t item) const;
+    void SetItemArticle(uint8_t item, uint8_t article);
 protected:
     virtual void CommitAllChanges();
 private:
@@ -69,14 +73,18 @@ private:
     bool AsmLoadScript();
     bool AsmLoadScriptTables();
     bool AsmLoadScriptFunctions();
+    bool AsmLoadItemArticles();
 
     bool RomLoadScript(const Rom& rom);
+    bool RomLoadItemArticles(const Rom& rom);
 
     bool AsmSaveScript(const std::filesystem::path& dir);
     bool AsmSaveScriptTables(const std::filesystem::path& dir);
     bool AsmSaveScriptFunctions(const std::filesystem::path& dir);
+    bool AsmSaveItemArticles(const std::filesystem::path& dir);
 
     bool RomPrepareInjectScript(const Rom& rom);
+    bool RomPrepareInjectItemArticles(const Rom& rom);
 
     std::filesystem::path m_defines_filename;
     std::filesystem::path m_script_filename;
@@ -90,6 +98,10 @@ private:
     std::filesystem::path m_shop_funcs_filename;
     std::filesystem::path m_item_funcs_filename;
     std::filesystem::path m_flag_progress_filename;
+
+    std::filesystem::path m_item_articles_filename;
+    std::filesystem::path m_item_found_article_table_filename;
+    std::filesystem::path m_item_use_article_table_filename;
 
     std::map<std::string, std::string> m_defines;
     std::shared_ptr<Script> m_script;
@@ -116,6 +128,13 @@ private:
     std::shared_ptr<ScriptFunctionTable> m_itemfuncs_orig;
     std::shared_ptr<ScriptFunctionTable> m_flagprogress;
     std::shared_ptr<ScriptFunctionTable> m_flagprogress_orig;
+
+    std::optional<std::vector<uint8_t>> m_itemarticles;
+    std::optional<std::vector<uint8_t>> m_itemarticles_orig;
+    std::optional<std::vector<uint16_t>> m_itemfoundarticles;
+    std::optional<std::vector<uint16_t>> m_itemfoundarticles_orig;
+    std::optional<std::vector<uint16_t>> m_itemusearticles;
+    std::optional<std::vector<uint16_t>> m_itemusearticles_orig;
 };
 
 } // namespace Landstalker

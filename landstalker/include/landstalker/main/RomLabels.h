@@ -26,6 +26,10 @@ namespace RomLabels
 		extern const std::string ITEM_FUNCS_SECTION;
 		extern const std::string FLAG_PROGRESS_SECTION;
 
+		extern const std::string ITEM_ARTICLES_SECTION;
+		extern const std::string ITEM_FOUND_ARTICLE_TABLE_SECTION;
+		extern const std::string ITEM_USE_ARTICLE_TABLE_SECTION;
+
 		extern const std::string SCRIPT_FILE;
 		extern const std::string CUTSCENE_TABLE_FILE;
 		extern const std::string CHAR_TABLE_FILE;
@@ -37,6 +41,10 @@ namespace RomLabels
 		extern const std::string SHOP_FUNCS_FILE;
 		extern const std::string ITEM_FUNCS_FILE;
 		extern const std::string FLAG_PROGRESS_FILE;
+
+		extern const std::string ITEM_ARTICLES_FILE;
+		extern const std::string ITEM_FOUND_ARTICLE_TABLE_FILE;
+		extern const std::string ITEM_USE_ARTICLE_TABLE_FILE;
 	}
 
 	namespace Sprites
@@ -193,6 +201,8 @@ namespace RomLabels
 		extern const std::string INTRO_STRING_PTRS_FILE;
 		extern const std::string INTRO_STRING_FILE;
 		extern const std::string END_CREDIT_STRINGS_FILE;
+		extern const std::string CHARSET_DATA_FILE;
+		extern const std::string CHARSET_CONSTANTS_FILE;
 		extern const std::string SPRITE_TALK_SFX_FILE;
 		extern const std::string CHARACTER_TALK_SFX_FILE;
 		extern const std::string CUTSCENE_SCRIPT_FILE;

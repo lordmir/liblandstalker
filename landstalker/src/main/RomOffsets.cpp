@@ -255,7 +255,7 @@ RomOffsets::RomOffsets()
 		{ Rooms::LANTERN_ROOM_FLAGS,               {{Region::JP, 0x008764}, {Region::US, 0x0087BE}, {Region::UK, 0x0087BE}, {Region::FR, 0x0087BE}, {Region::DE, 0x0087C8}, {Region::US_BETA, 0x008772}}},
 		{ Tilesets::INTRO_FONT_PTR,                {{Region::JP, 0x00C4C2}, {Region::US, 0x00C528}, {Region::UK, 0x00C528}, {Region::FR, 0x00C528}, {Region::DE, 0x00C532}, {Region::US_BETA, 0x00C4D0}}},
 		{ Script::SCRIPT_END,                      {{Region::JP, 0x0262CE}, {Region::US, 0x025408}, {Region::UK, 0x025408}, {Region::FR, 0x0254D0}, {Region::DE, 0x0251B0}, {Region::US_BETA, 0x025330}}},
-		{ Script::SCRIPT_STRINGS_BEGIN,            {{Region::JP, 0x029B4C}, {Region::US, 0x028DB4}, {Region::UK, 0x028DB4}, {Region::FR, 0x028988}, {Region::DE, 0x02866E}, {Region::US_BETA, 0x028CA6}}}
+		{ Script::SCRIPT_STRINGS_BEGIN,            {{Region::JP, 0x029B4C}, {Region::US, 0x028DB4}, {Region::UK, 0x028DB4}, {Region::FR, 0x028988}, {Region::DE, 0x02866E}, {Region::US_BETA, 0x028CA6}}},
 	}),
 	SECTION
 	({
@@ -318,7 +318,10 @@ RomOffsets::RomOffsets()
 		{ Graphics::EQUIP_PAL_SECTION,               {{Region::JP, {0x0078A6, 0x0078D2}}, {Region::US, {0x007900, 0x00792C}}, {Region::UK, {0x007900, 0x00792C}}, {Region::FR, {0x007900, 0x00792C}}, {Region::DE, {0x00790A, 0x007936}}, {Region::US_BETA, {0x0078B4, 0x0078E0}}}},
 		{ Graphics::MISC_PAL_SECTION,                {{Region::JP, {0x008FB6, 0x008FE0}}, {Region::US, {0x00901C, 0x009046}}, {Region::UK, {0x00901C, 0x009046}}, {Region::FR, {0x00901C, 0x009046}}, {Region::DE, {0x009026, 0x009050}}, {Region::US_BETA, {0x008FC4, 0x008FEE}}}},
 		{ Graphics::INV_ITEM_PAL_SECTION,            {{Region::JP, {0x00783C, 0x00785C}}, {Region::US, {0x007896, 0x0078B6}}, {Region::UK, {0x007896, 0x0078B6}}, {Region::FR, {0x007896, 0x0078B6}}, {Region::DE, {0x0078A0, 0x0078C0}}, {Region::US_BETA, {0x00784A, 0x00786A}}}},
-		{ Script::SCRIPT_SECTION,                    {{Region::JP, {0x0286BC, 0x029AFC}}, {Region::US, {0x0277F6, 0x028D64}}, {Region::UK, {0x0277F6, 0x028D64}}, {Region::FR, {0x02791A, 0x028938}}, {Region::DE, {0x0275FA, 0x02861E}}, {Region::US_BETA, {0x02771E, 0x028C56}}}}
+		{ Script::SCRIPT_SECTION,                    {{Region::JP, {0x0286BC, 0x029AFC}}, {Region::US, {0x0277F6, 0x028D64}}, {Region::UK, {0x0277F6, 0x028D64}}, {Region::FR, {0x02791A, 0x028938}}, {Region::DE, {0x0275FA, 0x02861E}}, {Region::US_BETA, {0x02771E, 0x028C56}}}},
+		{ Script::ITEM_ARTICLES_SECTION,             {{Region::JP, {0x000000, 0x000000}}, {Region::US, {0x000000, 0x000000}}, {Region::UK, {0x000000, 0x000000}}, {Region::FR, {0x029026, 0x029046}}, {Region::DE, {0x028D0C, 0x028D2C}}, {Region::US_BETA, {0x000000, 0x000000}}}},
+		{ Script::ITEM_FOUND_ARTICLE_TABLE_SECTION,  {{Region::JP, {0x000000, 0x000000}}, {Region::US, {0x000000, 0x000000}}, {Region::UK, {0x000000, 0x000000}}, {Region::FR, {0x029078, 0x029082}}, {Region::DE, {0x028D5E, 0x028D68}}, {Region::US_BETA, {0x000000, 0x000000}}}},
+		{ Script::ITEM_USE_ARTICLE_TABLE_SECTION,    {{Region::JP, {0x000000, 0x000000}}, {Region::US, {0x000000, 0x000000}}, {Region::UK, {0x000000, 0x000000}}, {Region::FR, {0x029064, 0x02906E}}, {Region::DE, {0x028D4A, 0x028D54}}, {Region::US_BETA, {0x000000, 0x000000}}}}
 	})
 	{}
 

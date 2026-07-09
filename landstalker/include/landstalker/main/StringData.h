@@ -131,6 +131,12 @@ public:
     uint8_t GetCharacterTalkSound(uint8_t character_id) const;
     void SetCharacterTalkSound(uint8_t character_id, uint8_t sound);
 
+    RomOffsets::Region GetRegion() const { return m_region; }
+    const Charset::Charsets& GetCharsets() const;
+    void SetCharsets(const Charset::Charsets& charsets);
+    bool SaveCharsets(const std::filesystem::path& yaml_file) const;
+    bool SaveCharsetConstants(const std::filesystem::path& inc_file) const;
+
 protected:
     virtual void CommitAllChanges();
 private:
@@ -138,12 +144,15 @@ private:
     void SetDefaultFilenames();
     bool CreateDirectoryStructure(const std::filesystem::path& dir);
     void InitCache();
+    void LoadCharsets(const std::filesystem::path& opened_file);
+    bool AsmSaveCharsets(const std::filesystem::path& dir);
+    bool AsmSaveCharsetConstants(const std::filesystem::path& dir);
     bool DecompressStrings();
     bool CompressStrings();
-    bool DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LSString::StringType>& strings);
-    bool DecodeString(const std::vector<uint8_t>& bytes, LSString::StringType& string);
-    bool EncodeStrings(const std::vector<LSString::StringType>& strings, std::vector<uint8_t>& bytes);
-    bool EncodeString(const LSString::StringType& string, std::vector<uint8_t>& bytes);
+    bool DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LSString::StringType>& strings, const LSString::CharacterSet& charset);
+    bool DecodeString(const std::vector<uint8_t>& bytes, LSString::StringType& string, const LSString::CharacterSet& charset);
+    bool EncodeStrings(const std::vector<LSString::StringType>& strings, std::vector<uint8_t>& bytes, const LSString::CharacterSet& charset);
+    bool EncodeString(const LSString::StringType& string, std::vector<uint8_t>& bytes, const LSString::CharacterSet& charset);
     std::map<uint16_t, std::pair<uint8_t, uint8_t>> DeserialiseLocationMap(const std::vector<uint8_t>& bytes);
 
     std::map<uint8_t, uint8_t> DeserialiseSfxMap(const ByteVector& bytes);
@@ -265,6 +274,11 @@ private:
 
     RomOffsets::Region m_region;
     bool m_has_region_check;
+
+    Charset::Charsets m_charsets;
+    Charset::Charsets m_charsets_orig;
+    bool m_charset_from_override = false;
+    std::filesystem::path m_charset_override_filename;
 };
 
 } // namespace Landstalker

@@ -1,6 +1,8 @@
 #include <landstalker/script/ScriptFunctionTable.h>
 #include <landstalker/misc/Literals.h>
 
+#include <algorithm>
+
 namespace Landstalker {
 
 namespace {
@@ -171,6 +173,26 @@ bool ScriptFunctionTable::AddFunction(ScriptFunction&& func)
     return true;
 }
 
+bool ScriptFunctionTable::InsertFunctionAfter(ScriptFunction&& func, const std::string& after)
+{
+    if (function_mapping.find(func.name) != function_mapping.cend())
+    {
+        return false;
+    }
+    auto pos = funcnames.end();
+    if (!after.empty())
+    {
+        const auto it = std::find(funcnames.begin(), funcnames.end(), after);
+        if (it != funcnames.end())
+        {
+            pos = std::next(it);
+        }
+    }
+    funcnames.insert(pos, func.name);
+    function_mapping.emplace(func.name, func);
+    return true;
+}
+
 
 bool ScriptFunctionTable::SetFunctionOrder(const std::vector<std::string>& order)
 {
@@ -295,7 +317,10 @@ void ScriptFunctionTable::RenameReferences(const std::string& old_name, const st
                     }
                     else if constexpr (std::is_same_v<T, Statements::DisplayPrice>)
                     {
-                        Update(arg.display_price);
+                        for (auto& action : arg.display_price)
+                        {
+                            Update(action);
+                        }
                     }
                     else if constexpr (std::is_same_v<T, Statements::ShopInteraction>)
                     {
@@ -398,7 +423,10 @@ void ScriptFunctionTable::Consolidate()
                     }
                     else if constexpr (std::is_same_v<T, Statements::DisplayPrice>)
                     {
-                        Increment(arg.display_price);
+                        for (const auto& action : arg.display_price)
+                        {
+                            Increment(action);
+                        }
                     }
                     else if constexpr (std::is_same_v<T, Statements::ShopInteraction>)
                     {
@@ -519,7 +547,10 @@ void ScriptFunctionTable::Consolidate()
                         }
                         else if constexpr (std::is_same_v<T, Statements::DisplayPrice>)
                         {
-                            Replace(arg.display_price);
+                            for (auto& action : arg.display_price)
+                            {
+                                Replace(action);
+                            }
                         }
                         else if constexpr (std::is_same_v<T, Statements::ShopInteraction>)
                         {
@@ -613,7 +644,10 @@ void ScriptFunctionTable::Unconsolidate()
                         }
                         else if constexpr (std::is_same_v<T, Statements::DisplayPrice>)
                         {
-                            Insert(arg.display_price);
+                            for (auto& action : arg.display_price)
+                            {
+                                Insert(action);
+                            }
                         }
                         else if constexpr (std::is_same_v<T, Statements::ShopInteraction>)
                         {

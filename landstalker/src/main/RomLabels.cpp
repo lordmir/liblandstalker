@@ -24,6 +24,10 @@ namespace RomLabels
 		const std::string ITEM_FUNCS_SECTION("ShopSpecialItemsFuncs");
 		const std::string FLAG_PROGRESS_SECTION("ScriptProgressFlags");
 
+		const std::string ITEM_ARTICLES_SECTION("ItemArticles");
+		const std::string ITEM_FOUND_ARTICLE_TABLE_SECTION("ItemFoundStringOffsets");
+		const std::string ITEM_USE_ARTICLE_TABLE_SECTION("ItemUseStringOffsets");
+
 		const std::string SCRIPT_FILE("assets_packed/script/script.bin");
 		const std::string CUTSCENE_TABLE_FILE("code/script/cutscenes/script_cutscenetable.asm");
 		const std::string CHAR_TABLE_FILE("code/script/characters/script_charactertable.asm");
@@ -35,6 +39,9 @@ namespace RomLabels
 		const std::string SHOP_FUNCS_FILE("code/script/shops/script_shops.asm");
 		const std::string ITEM_FUNCS_FILE("code/script/shops/script_shopspecialitems.asm");
 		const std::string FLAG_PROGRESS_FILE("code/script/scriptflagcheck.asm");
+		const std::string ITEM_ARTICLES_FILE("assets_packed/script/itemarticles/itemarticles.bin");
+		const std::string ITEM_FOUND_ARTICLE_TABLE_FILE("assets_packed/script/itemarticles/itemfound_offsets.bin");
+		const std::string ITEM_USE_ARTICLE_TABLE_FILE("assets_packed/script/itemarticles/itemuse_offsets.bin");
 	}
 
 	namespace Sprites
@@ -191,6 +198,8 @@ namespace RomLabels
 		const std::string INTRO_STRING_PTRS_FILE("code/pointertables/strings/introstringptrs.asm");
 		const std::string INTRO_STRING_FILE("assets_packed/strings/intro/string%02d.bin");
 		const std::string END_CREDIT_STRINGS_FILE("assets_packed/strings/ending/credits.bin");
+		const std::string CHARSET_DATA_FILE("metadata/charset_%s.yaml");
+		const std::string CHARSET_CONSTANTS_FILE("code/include/constants/charset/charset_%s.inc");
 		const std::string SPRITE_TALK_SFX_FILE("assets_packed/script/spritetalksfx.bin");
 		const std::string CHARACTER_TALK_SFX_FILE("assets_packed/script/charactertalksfx.bin");
 		const std::string CUTSCENE_SCRIPT_FILE("code/script/cutscenes/script_cutscenetable.asm");

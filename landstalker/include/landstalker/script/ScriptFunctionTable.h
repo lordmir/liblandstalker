@@ -31,6 +31,12 @@ public:
 	ScriptFunction* GetMapping(std::size_t index);
 
 	bool AddFunction(ScriptFunction&& func);
+	// Adds a function like AddFunction(), but positions it in the table order directly after
+	// the named function (appended at the end when `after` is empty or unknown). Table position
+	// is semantically significant: helper functions conventionally sit directly after the
+	// table-anchored function that uses them, and location decides which UI entry displays a
+	// function.
+	bool InsertFunctionAfter(ScriptFunction&& func, const std::string& after);
 	bool RemoveFunction(const std::string& funcname);
 	// Renames a function, updating every reference to it (jumps and branch targets) held by the
 	// other functions in this table. Fails if old_name doesn't exist or new_name already does.

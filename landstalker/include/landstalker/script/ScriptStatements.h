@@ -161,7 +161,8 @@ namespace Landstalker::Statements
 	{
 		DisplayPrice(AsmFile& file);
 		DisplayPrice(const YAML::Node::const_iterator& it);
-		explicit DisplayPrice(const Action& p_display_price) : display_price(p_display_price) {}
+		explicit DisplayPrice(const Action& p_display_price) : display_price{ p_display_price } {}
+		explicit DisplayPrice(std::vector<Action> p_display_price) : display_price(std::move(p_display_price)) {}
 
 		bool operator== (const DisplayPrice& rhs) const;
 		bool operator!= (const DisplayPrice& rhs) const;
@@ -170,7 +171,10 @@ namespace Landstalker::Statements
 		virtual void ToYaml(YAML::Emitter& out) const override;
 		virtual std::string Print(int indent = 0) const override;
 		virtual bool IsEndOfFunction() const override;
-		Action display_price;
+		// One message per grammatical form. EN/JP have a single entry; FR/DE follow the call
+		// with one ScriptID per article form (vowel/feminine/masculine/plural/none), indexed
+		// by the trap handler at runtime.
+		std::vector<Action> display_price;
 	};
 
 	struct Branch : public Statement

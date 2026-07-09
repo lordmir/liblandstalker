@@ -1,6 +1,9 @@
 #include <landstalker/main/StringData.h>
 
+#include <algorithm>
 #include <codecvt>
+#include <cstdio>
+#include <fstream>
 
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
@@ -27,6 +30,7 @@ StringData::StringData(const std::filesystem::path& asm_file)
 		throw std::runtime_error(std::string("Unable to load Huffman data from \'") + asm_file.string() + '\'');
 	}
 	m_region = Charset::DeduceRegion(GetCharsetSize());
+	LoadCharsets(asm_file);
 	if (m_has_region_check)
 	{
 		if (!AsmLoadSystemFont())
@@ -68,6 +72,7 @@ StringData::StringData(const Rom& rom)
 	  m_has_region_check(m_region != RomOffsets::Region::JP && m_region != RomOffsets::Region::US_BETA)
 {
 	SetDefaultFilenames();
+	LoadCharsets(rom.get_filename());
 	if (m_has_region_check)
 	{
 		if (!RomLoadSystemFont(rom))
@@ -162,6 +167,14 @@ bool StringData::Save(const std::filesystem::path& dir)
 	{
 		throw std::runtime_error(std::string("Unable to save script data to \'") + directory.string() + '\'');
 	}
+	if (!AsmSaveCharsets(directory))
+	{
+		throw std::runtime_error(std::string("Unable to save charset data to \'") + directory.string() + '\'');
+	}
+	if (!AsmSaveCharsetConstants(directory))
+	{
+		throw std::runtime_error(std::string("Unable to save charset constants to \'") + directory.string() + '\'');
+	}
 	CommitAllChanges();
 	return true;
 }
@@ -227,6 +240,10 @@ bool StringData::HasBeenModified() const
 		return true;
 	}
 	if (m_menu_strings_orig != m_menu_strings)
+	{
+		return true;
+	}
+	if (m_charsets_orig != m_charsets)
 	{
 		return true;
 	}
@@ -559,10 +576,12 @@ void StringData::InsertString(Type type, std::size_t index, const LSString::Stri
 	case Type::INTRO:
 		assert(index <= m_intro_strings.size());
 		m_intro_strings.insert(m_intro_strings.begin() + index, IntroString(0, 0, 0, 0, 0, value, L""));
+		m_intro_strings[index].SetCharset(m_charsets.intro);
 		break;
 	case Type::END_CREDITS:
 		assert(index <= m_ending_strings.size());
 		m_ending_strings.insert(m_ending_strings.begin() + index, EndCreditString(0, 0, value));
+		m_ending_strings[index].SetCharset(m_charsets.credits);
 		break;
 	case Type::SYSTEM:
 	case Type::DEFAULT_NAME:
@@ -959,6 +978,7 @@ void StringData::SetIntroString(std::size_t index, const IntroString& value)
 {
 	assert(index < m_intro_strings.size());
 	m_intro_strings[index] = value;
+	m_intro_strings[index].SetCharset(m_charsets.intro);
 }
 
 bool StringData::HasIntroStringChanged(std::size_t index) const
@@ -996,6 +1016,7 @@ void StringData::SetEndCreditString(std::size_t index, const EndCreditString& va
 {
 	assert(index < m_ending_strings.size());
 	m_ending_strings[index] = value;
+	m_ending_strings[index].SetCharset(m_charsets.credits);
 }
 
 bool StringData::HasEndCreditStringChanged(std::size_t index) const
@@ -1183,6 +1204,7 @@ void StringData::CommitAllChanges()
 	m_char_talk_sfx_orig = m_char_talk_sfx;
 	m_sprite_talk_sfx_orig = m_sprite_talk_sfx;
 	m_room_dialogue_table_orig = m_room_dialogue_table;
+	m_charsets_orig = m_charsets;
 	m_pending_writes.clear();
 }
 
@@ -1350,13 +1372,115 @@ void StringData::InitCache()
 	m_room_dialogue_table_orig = m_room_dialogue_table;
 }
 
+void StringData::LoadCharsets(const std::filesystem::path& opened_file)
+{
+	m_charsets = Charset::GetDefaultCharsets(m_region);
+	m_charset_from_override = false;
+	m_charset_override_filename.clear();
+	if (!opened_file.empty())
+	{
+		auto override_filename = std::filesystem::path(opened_file.stem().string() + "_charset.yaml");
+		auto override_path = opened_file.parent_path() / override_filename;
+		bool loaded = false;
+		if (std::filesystem::exists(override_path))
+		{
+			if (Charset::LoadCharsetsFromYaml(override_path, m_charsets))
+			{
+				m_charset_from_override = true;
+				m_charset_override_filename = override_filename;
+				loaded = true;
+			}
+			else
+			{
+				m_charsets = Charset::GetDefaultCharsets(m_region);
+			}
+		}
+		if (!loaded)
+		{
+			auto metadata_path = opened_file.parent_path() / StrPrintf(RomLabels::Strings::CHARSET_DATA_FILE, Charset::GetCharsetYamlName(m_region).c_str());
+			if (std::filesystem::exists(metadata_path) && !Charset::LoadCharsetsFromYaml(metadata_path, m_charsets))
+			{
+				m_charsets = Charset::GetDefaultCharsets(m_region);
+			}
+		}
+	}
+	m_charsets_orig = m_charsets;
+}
+
+bool StringData::AsmSaveCharsets(const std::filesystem::path& dir)
+{
+	std::filesystem::path target;
+	if (m_charset_from_override && !m_charset_override_filename.empty())
+	{
+		target = dir / m_charset_override_filename;
+	}
+	else
+	{
+		target = dir / StrPrintf(RomLabels::Strings::CHARSET_DATA_FILE, Charset::GetCharsetYamlName(m_region).c_str());
+	}
+	return SaveCharsets(target);
+}
+
+bool StringData::SaveCharsets(const std::filesystem::path& yaml_file) const
+{
+	std::error_code ec;
+	std::filesystem::create_directories(yaml_file.parent_path(), ec);
+	return Charset::SaveCharsetsToYaml(yaml_file, m_charsets);
+}
+
+bool StringData::AsmSaveCharsetConstants(const std::filesystem::path& dir)
+{
+	auto target = dir / StrPrintf(RomLabels::Strings::CHARSET_CONSTANTS_FILE, Charset::GetCharsetYamlName(m_region).c_str());
+	return SaveCharsetConstants(target);
+}
+
+bool StringData::SaveCharsetConstants(const std::filesystem::path& inc_file) const
+{
+	std::error_code ec;
+	std::filesystem::create_directories(inc_file.parent_path(), ec);
+	AsmFile inc(AsmFile::FileType::ASSEMBLER);
+	inc.WriteFileHeader(inc_file, "Character Set Code Points");
+	// Emit the CHR_* code-point constants in code-point order, matching the
+	// layout of the hand-written include files.
+	std::vector<Charset::CharsetConstant> sorted(m_charsets.constants.begin(), m_charsets.constants.end());
+	std::stable_sort(sorted.begin(), sorted.end(),
+		[](const Charset::CharsetConstant& a, const Charset::CharsetConstant& b) { return a.value < b.value; });
+	for (const auto& c : sorted)
+	{
+		if (c.value < 0 || c.value > 0xFF)
+		{
+			continue;
+		}
+		char value[8];
+		std::snprintf(value, sizeof(value), "$%02X", c.value);
+		inc << AsmFile::Label(c.name)
+		    << AsmFile::Instruction("equ", AsmFile::Width::NONE, { std::string(value) });
+	}
+	return inc.WriteFile(inc_file);
+}
+
+const Charset::Charsets& StringData::GetCharsets() const
+{
+	return m_charsets;
+}
+
+void StringData::SetCharsets(const Charset::Charsets& charsets)
+{
+	m_charsets = charsets;
+	for (auto& s : m_intro_strings)
+	{
+		s.SetCharset(m_charsets.intro);
+	}
+	for (auto& s : m_ending_strings)
+	{
+		s.SetCharset(m_charsets.credits);
+	}
+}
+
 bool StringData::DecompressStrings()
 {
 	auto huff_trees = std::make_shared<HuffmanTrees>(m_huffman_offsets.data(), m_huffman_offsets.size(), m_huffman_tables.data(), m_huffman_tables.size(), m_huffman_offsets.size() / 2);
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	auto eos_marker = Charset::GetEOSChar(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto decoder = HuffmanString(huff_trees, charset, eos_marker, diacritic_map);
+	auto decoder = HuffmanString(huff_trees, m_charsets.main, m_charsets.eos_marker, m_charsets.diacritics);
 	m_decompressed_strings.clear();
 	for (const auto& s : m_compressed_strings)
 	{
@@ -1371,14 +1495,11 @@ bool StringData::CompressStrings()
 	if (m_decompressed_strings_orig != m_decompressed_strings)
 	{
 		auto huff_trees = std::make_shared<HuffmanTrees>();
-		const auto& charset = Charset::GetDefaultCharset(m_region);
-		auto eos_marker = Charset::GetEOSChar(m_region);
-		const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
 		m_compressed_strings.clear();
 		std::vector<std::shared_ptr<LSString>> strs;
 		for (const auto& s : m_decompressed_strings)
 		{
-			strs.push_back(std::make_shared<HuffmanString>(s, huff_trees, charset, eos_marker, diacritic_map));
+			strs.push_back(std::make_shared<HuffmanString>(s, huff_trees, m_charsets.main, m_charsets.eos_marker, m_charsets.diacritics));
 		}
 		huff_trees->RecalculateTrees(strs);
 		huff_trees->EncodeTrees(m_huffman_offsets, m_huffman_tables);
@@ -1392,11 +1513,9 @@ bool StringData::CompressStrings()
 	return true;
 }
 
-bool StringData::DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LSString::StringType>& strings)
+bool StringData::DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LSString::StringType>& strings, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto decoder = LSString(charset, diacritic_map);
+	auto decoder = LSString(charset, m_charsets.diacritics);
 	uint8_t const* p = bytes.data();
 	uint8_t next = *p;
 	while ((p + next) < (bytes.data() + bytes.size()) && next != 0xFF)
@@ -1409,21 +1528,17 @@ bool StringData::DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LS
 	return true;
 }
 
-bool StringData::DecodeString(const std::vector<uint8_t>& bytes, LSString::StringType& string)
+bool StringData::DecodeString(const std::vector<uint8_t>& bytes, LSString::StringType& string, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto decoder = LSString(charset, diacritic_map);
+	auto decoder = LSString(charset, m_charsets.diacritics);
 	decoder.Decode(bytes.data(), bytes.size());
 	string = decoder.Str();
 	return true;
 }
 
-bool StringData::EncodeStrings(const std::vector<LSString::StringType>& strings, std::vector<uint8_t>& bytes)
+bool StringData::EncodeStrings(const std::vector<LSString::StringType>& strings, std::vector<uint8_t>& bytes, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto encoder = LSString(charset, diacritic_map);
+	auto encoder = LSString(charset, m_charsets.diacritics);
 	bytes.resize(65536);
 	std::size_t offset = 0;
 	for (const auto& s : strings)
@@ -1435,11 +1550,9 @@ bool StringData::EncodeStrings(const std::vector<LSString::StringType>& strings,
 	return true;
 }
 
-bool StringData::EncodeString(const LSString::StringType& string, std::vector<uint8_t>& bytes)
+bool StringData::EncodeString(const LSString::StringType& string, std::vector<uint8_t>& bytes, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto encoder = LSString(charset, diacritic_map);
+	auto encoder = LSString(charset, m_charsets.diacritics);
 	bytes.resize(256);
 	encoder.Deserialise(string);
 	bytes.resize(encoder.Encode(bytes.data(), bytes.size()));
@@ -1611,7 +1724,8 @@ bool StringData::AsmLoadCompressedStringData()
 			m_string_filename_path = inc.path.parent_path();
 			auto bytes = ReadBytes(GetBasePath() / inc.path);
 			auto it = bytes.cbegin();
-			while (it != bytes.cend() && *it != 0x00)
+			while (it != bytes.cend() && *it != 0x00 && *it != 0xFF
+			       && *it <= std::distance(it, bytes.cend()))
 			{
 				m_compressed_strings.push_back(ByteVector(it, it + *it));
 				it += *it;
@@ -1659,11 +1773,11 @@ bool StringData::AsmLoadStringTables()
 {
 	m_save_game_locations = DeserialiseLocationMap(ReadBytes(GetBasePath() / m_save_loc_path));
 	m_island_map_locations = DeserialiseLocationMap(ReadBytes(GetBasePath() / m_map_loc_path));
-	bool retval = DecodeStrings(ReadBytes(GetBasePath() / m_char_table_path), m_character_names);
-	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_schar_table_path), m_special_character_names);
-	retval = retval && DecodeString(ReadBytes(GetBasePath() / m_dchar_table_path), m_default_character_name);
-	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_item_table_path), m_item_names);
-	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_menu_table_path), m_menu_strings);
+	bool retval = DecodeStrings(ReadBytes(GetBasePath() / m_char_table_path), m_character_names, m_charsets.main);
+	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_schar_table_path), m_special_character_names, m_charsets.main);
+	retval = retval && DecodeString(ReadBytes(GetBasePath() / m_dchar_table_path), m_default_character_name, m_charsets.main);
+	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_item_table_path), m_item_names, m_charsets.main);
+	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_menu_table_path), m_menu_strings, m_charsets.menu);
 	return retval;
 }
 
@@ -1673,6 +1787,7 @@ bool StringData::AsmLoadIntroStrings()
 	{
 		auto bytes = ReadBytes(GetBasePath() / path);
 		IntroString s;
+		s.SetCharset(m_charsets.intro);
 		s.Decode(bytes.data(), bytes.size());
 		m_intro_strings.push_back(s);
 	}
@@ -1688,6 +1803,7 @@ bool StringData::AsmLoadEndCreditStrings()
 	while ((offset < (bytes.size() - 1)) && (bytes[offset] != 0xFF || bytes[offset + 1] != 0xFF))
 	{
 		m_ending_strings.emplace_back(EndCreditString());
+		m_ending_strings.back().SetCharset(m_charsets.credits);
 		offset += m_ending_strings.back().Decode(bytes.data() + offset, bytes.size() - offset);
 
 	}
@@ -1755,7 +1871,8 @@ bool StringData::RomLoadCompressedStringData(const Rom& rom)
 	auto font_bytes = rom.read_array<uint8_t>(font_ptr, banks_begin - font_ptr);
 	auto string_bytes = rom.read_array<uint8_t>(banks_begin, bank_ptr - banks_begin);
 	auto it = string_bytes.cbegin();
-	while (it != string_bytes.cend() && *it != 0x00 && *it != 0xFF)
+	while (it != string_bytes.cend() && *it != 0x00 && *it != 0xFF
+	       && *it <= std::distance(it, string_bytes.cend()))
 	{
 		m_compressed_strings.push_back(ByteVector(it, it + *it));
 		it += *it;
@@ -1827,11 +1944,11 @@ bool StringData::RomLoadStringTables(const Rom& rom)
 
 	m_save_game_locations = DeserialiseLocationMap(save_loc_bytes);
 	m_island_map_locations = DeserialiseLocationMap(map_loc_bytes);
-	bool retval = DecodeStrings(chars_bytes, m_character_names);
-	retval = retval && DecodeStrings(schars_bytes, m_special_character_names);
-	retval = retval && DecodeString(dchars_bytes, m_default_character_name);
-	retval = retval && DecodeStrings(items_bytes, m_item_names);
-	retval = retval && DecodeStrings(menu_bytes, m_menu_strings);
+	bool retval = DecodeStrings(chars_bytes, m_character_names, m_charsets.main);
+	retval = retval && DecodeStrings(schars_bytes, m_special_character_names, m_charsets.main);
+	retval = retval && DecodeString(dchars_bytes, m_default_character_name, m_charsets.main);
+	retval = retval && DecodeStrings(items_bytes, m_item_names, m_charsets.main);
+	retval = retval && DecodeStrings(menu_bytes, m_menu_strings, m_charsets.menu);
 
 	return retval;
 }
@@ -1858,6 +1975,7 @@ bool StringData::RomLoadIntroStrings(const Rom& rom)
 	{
 		auto bytes = rom.read_array<uint8_t>(ptrs[i], sizes[i]);
 		IntroString s;
+		s.SetCharset(m_charsets.intro);
 		s.Decode(bytes.data(), bytes.size());
 		m_intro_strings.push_back(s);
 		m_intro_strings_path.push_back(StrPrintf(RomLabels::Strings::INTRO_STRING_FILE, i + 1));
@@ -1875,6 +1993,7 @@ bool StringData::RomLoadEndCreditStrings(const Rom& rom)
 	while ((offset < (bytes.size() - 1)) && (bytes[offset] != 0xFF || bytes[offset + 1] != 0xFF))
 	{
 		m_ending_strings.emplace_back(EndCreditString());
+		m_ending_strings.back().SetCharset(m_charsets.credits);
 		offset += m_ending_strings.back().Decode(bytes.data() + offset, bytes.size() - offset);
 	}
 	return true;
@@ -2027,11 +2146,11 @@ bool StringData::AsmSaveStringTables(const std::filesystem::path& dir)
 		file << AsmFile::Align(2);
 		file.WriteFile(dir / m_string_table_path);
 		ByteVector cbytes, sbytes, dbytes, ibytes, mbytes;
-		EncodeStrings(m_character_names, cbytes);
-		EncodeStrings(m_special_character_names, sbytes);
-		EncodeString(m_default_character_name, dbytes);
-		EncodeStrings(m_item_names, ibytes);
-		EncodeStrings(m_menu_strings, mbytes);
+		EncodeStrings(m_character_names, cbytes, m_charsets.main);
+		EncodeStrings(m_special_character_names, sbytes, m_charsets.main);
+		EncodeString(m_default_character_name, dbytes, m_charsets.main);
+		EncodeStrings(m_item_names, ibytes, m_charsets.main);
+		EncodeStrings(m_menu_strings, mbytes, m_charsets.menu);
 		WriteBytes(cbytes, dir / m_char_table_path);
 		WriteBytes(sbytes, dir / m_schar_table_path);
 		WriteBytes(dbytes, dir / m_dchar_table_path);
@@ -2230,27 +2349,27 @@ bool StringData::RomPrepareInjectStringTables(const Rom& rom)
 
 	uint32_t chars_begin = begin + bytes->size();
 	ByteVector chars_bytes;
-	EncodeStrings(m_character_names, chars_bytes);
+	EncodeStrings(m_character_names, chars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), chars_bytes.cbegin(), chars_bytes.cend());
 
 	uint32_t schars_begin = begin + bytes->size();
 	ByteVector schars_bytes;
-	EncodeStrings(m_special_character_names, schars_bytes);
+	EncodeStrings(m_special_character_names, schars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), schars_bytes.cbegin(), schars_bytes.cend());
 
 	uint32_t dchars_begin = begin + bytes->size();
 	ByteVector dchars_bytes;
-	EncodeString(m_default_character_name, dchars_bytes);
+	EncodeString(m_default_character_name, dchars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), dchars_bytes.cbegin(), dchars_bytes.cend());
 
 	uint32_t items_begin = begin + bytes->size();
 	ByteVector items_bytes;
-	EncodeStrings(m_item_names, items_bytes);
+	EncodeStrings(m_item_names, items_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), items_bytes.cbegin(), items_bytes.cend());
 
 	uint32_t menu_begin = begin + bytes->size();
 	ByteVector menu_bytes;
-	EncodeStrings(m_menu_strings, menu_bytes);
+	EncodeStrings(m_menu_strings, menu_bytes, m_charsets.menu);
 	bytes->insert(bytes->end(), menu_bytes.cbegin(), menu_bytes.cend());
 	
 	m_pending_writes.push_back({ RomLabels::Strings::SAVE_GAME_LOCATIONS, save_bytes });

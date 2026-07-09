@@ -16,6 +16,11 @@ const LSString::CharacterSet INTRO_CHARSET = {
 	{24_u8, L"X"}, {25_u8, L"Y"}, {26_u8, L"Z"}, {27_u8, L"1"}, {28_u8, L"2"}, {29_u8, L"3"}
 };
 
+const LSString::CharacterSet& IntroString::GetDefaultCharset()
+{
+	return INTRO_CHARSET;
+}
+
 IntroString::IntroString()
 	: LSString(INTRO_CHARSET),
 	  m_line1Y(0),

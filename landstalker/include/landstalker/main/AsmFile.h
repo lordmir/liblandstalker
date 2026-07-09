@@ -156,6 +156,16 @@ public:
 	void SetDefines(const std::map<std::string, std::string>& definitions);
 	void SetDefines(const std::string& inc_file);
 	static std::map<std::string, std::string> ParseDefines(const std::string& inc_file);
+	// Parses defines from inc_file, following any `include "..."` directives it
+	// contains. Included files are resolved relative to base_path (the
+	// disassembly root); pass an empty base_path to resolve relative to inc_file.
+	static std::map<std::string, std::string> ParseDefines(const std::string& inc_file, const std::filesystem::path& base_path);
+	// Collects the `include "..."` paths listed directly under defines_label in
+	// main_asm, stopping at the first non-blank, non-include line (e.g. `org`).
+	static std::vector<std::filesystem::path> CollectDefineIncludes(const std::filesystem::path& main_asm, const std::string& defines_label);
+	// Parses and merges the defines from every include listed under defines_label
+	// in main_asm, following nested includes (resolved relative to base_path).
+	static std::map<std::string, std::string> LoadDefines(const std::filesystem::path& main_asm, const std::filesystem::path& base_path, const std::string& defines_label);
 	const std::map<std::string, std::string>& GetDefines() const;
 
 	template<typename T>

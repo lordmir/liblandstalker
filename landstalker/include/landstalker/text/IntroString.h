@@ -15,6 +15,8 @@ public:
 	bool operator==(const IntroString& rhs) const;
 	bool operator!=(const IntroString& rhs) const;
 
+	static const CharacterSet& GetDefaultCharset();
+
 	virtual size_t Decode(const uint8_t* buffer, size_t size);
 	virtual size_t Encode(uint8_t* buffer, size_t size) const;
 	virtual StringType Serialise() const;
