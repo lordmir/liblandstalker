@@ -291,7 +291,7 @@ TEST(ScriptFunctionTableTest, DisasmRoundTrip)
         const auto defines_file = std::filesystem::path(root) / candidate;
         if (std::filesystem::exists(defines_file))
         {
-            defines = AsmFile::ParseDefines(defines_file.string());
+            defines = AsmFile::ParseDefines(defines_file.string(), std::filesystem::path(root));
             break;
         }
     }

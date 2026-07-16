@@ -825,9 +825,43 @@ int64_t AsmFile::ParseValue(std::string val, const std::map<std::string, std::st
 	int64_t num = -1;
 	bool neg = false;
 
-	if (defines.count(val) > 0)
+	// Chase chained symbol definitions (e.g. "A: equ B", "B: equ C") to their final value,
+	// guarding against cycles.
+	std::set<std::string> visited;
+	while (defines.count(val) > 0 && visited.insert(val).second)
 	{
 		val = defines.at(val);
+	}
+
+	// A simple parenthesised binary expression, as produced by equ definitions that compute one
+	// symbol relative to another (e.g. "ITM_EKEEKE: equ (SPR_EKEEKE-ITEMS_BEGIN)"). Only a single
+	// top-level +/- is supported - enough for the offset-from-base pattern used in practice.
+	if (val.size() > 2 && val.front() == '(' && val.back() == ')')
+	{
+		const std::string inner = val.substr(1, val.size() - 2);
+		int depth = 0;
+		for (std::size_t i = 0; i < inner.size(); ++i)
+		{
+			const char c = inner[i];
+			if (c == '(')
+			{
+				++depth;
+			}
+			else if (c == ')')
+			{
+				--depth;
+			}
+			else if (depth == 0 && i > 0 && (c == '+' || c == '-'))
+			{
+				const int64_t lhs = ParseValue(inner.substr(0, i), defines);
+				const int64_t rhs = ParseValue(inner.substr(i + 1), defines);
+				if (lhs == -1 || rhs == -1)
+				{
+					return -1;
+				}
+				return (c == '+') ? (lhs + rhs) : (lhs - rhs);
+			}
+		}
 	}
 
 	if (val.length() == 0)
