@@ -227,15 +227,6 @@ std::size_t SpriteFrame::SetBits(const std::vector<uint8_t>& src)
 		tile_idx += w * h;
 	} while ((*it++ & 0x80) == 0);
 
-	for (const auto& subs : m_subsprites)
-	{
-		std::ostringstream ss;
-		ss << "Sprite T:" << subs.tile_idx << " X:" << subs.x << " Y:" << subs.y << " W:" << subs.w << " H:" << subs.h;
-		Debug(ss.str().c_str());
-	}
-	std::ostringstream ss;
-	ss << "Total tiles to load: " << tile_idx;
-	Debug(ss.str().c_str());
 	std::vector<uint8_t> sprite_gfx(tile_idx * 32, 0);
 	auto dest_it = sprite_gfx.begin();
 
@@ -251,12 +242,6 @@ std::size_t SpriteFrame::SetBits(const std::vector<uint8_t>& src)
 
 		if ((ctrl & 0x08) > 0)
 		{
-#ifndef NDEBUG
-			ss.str(std::string());
-			ss.clear();
-			ss << "Insert " << count << " zero words." << std::endl;
-			Debug(ss.str().c_str());
-#endif
 			dest_it += count * 2;
 		}
 		else if ((ctrl & 0x02) > 0)
@@ -264,23 +249,11 @@ std::size_t SpriteFrame::SetBits(const std::vector<uint8_t>& src)
 			std::size_t elen = 0;
 			std::size_t dlen = LZ77::Decode(&(*it), src.end() - it, &(*dest_it), elen);
 			dest_it += dlen;
-#ifndef NDEBUG
-			ss.str(std::string());
-			ss.clear();
-			ss << "Copy " << elen << " compressed bytes, " << dlen << " bytes decompressed.";
-			Debug(ss.str().c_str());
-#endif
 			it += elen;
 			m_compressed = true;
 		}
 		else
 		{
-#ifndef NDEBUG
-			ss.str(std::string());
-			ss.clear();
-			ss << "Copy " << count << " words directly.";
-			Debug(ss.str().c_str());
-#endif
 			std::copy(it, it + count * 2, dest_it);
 			dest_it += count * 2;
 			it += count * 2;
@@ -289,7 +262,6 @@ std::size_t SpriteFrame::SetBits(const std::vector<uint8_t>& src)
 
 	m_sprite_gfx = std::make_shared<Tileset>(sprite_gfx);
 
-	Debug("Done!");
 	return std::distance(src.begin(), it);
 }
 

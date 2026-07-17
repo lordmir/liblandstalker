@@ -62,8 +62,6 @@ ScriptFunction::ScriptFunction(const YAML::Node& node)
         {
             statement_type = statement_it->begin()->first.as<std::string>();
         }
-        Debug(statement_type);
-
         if (statement_type == "PlaySound")
         {
             statements->push_back(Statements::PlaySound(statement_it));
