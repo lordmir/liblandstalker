@@ -45,7 +45,7 @@ public:
         typename std::deque<T>::const_iterator it;
         it = std::find(d.begin(), d.end(), param);
         if(it == d.end()) return -1;
-        return it - d.begin();
+        return static_cast<int>(it - d.begin());
     }
     template <class T1, size_t N1>
     friend std::ostream& operator<< (std::ostream& str, const TileQueue<T1, N1>& rhs);

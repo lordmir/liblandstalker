@@ -10,8 +10,8 @@ BlockmapIsometric::BlockmapIsometric(std::size_t width, std::size_t height, std:
 TilePoint BlockmapIsometric::XYToTilePoint(const Point& point) const
 {
 	TilePoint ret{ 0, 0 };
-	int xgrid = (point.x - GetLeft()) / GetBlockWidth();
-	int ygrid = (2 * (point.y - GetTop())) / GetBlockHeight();
+	int xgrid = static_cast<int>((point.x - GetLeft()) / GetBlockWidth());
+	int ygrid = static_cast<int>((2 * (point.y - GetTop())) / GetBlockHeight());
 	ret.x = static_cast<std::size_t>((ygrid + xgrid - GetHeight() + 1) / 2);
 	ret.y = static_cast<std::size_t>((ygrid - xgrid + GetHeight() - 1) / 2);
 	return ret;
@@ -19,15 +19,15 @@ TilePoint BlockmapIsometric::XYToTilePoint(const Point& point) const
 
 Point BlockmapIsometric::ToXYPoint(const TilePoint& point) const
 {
-	int ix = (point.x - point.y + (GetHeight() - 1)) * GetBlockWidth() + GetLeft();
-	int iy = (point.x + point.y) * GetBlockHeight() / 2 + GetTop();
+	int ix = static_cast<int>((point.x - point.y + (GetHeight() - 1)) * GetBlockWidth() + GetLeft());
+	int iy = static_cast<int>((point.x + point.y) * GetBlockHeight() / 2 + GetTop());
 	return Point{ ix, iy };
 }
 
 Point BlockmapIsometric::ToXYPoint3D(const TilePoint3D& point) const
 {
-	int ix = (point.x - point.y + (GetHeight() - 1)) * GetBlockWidth() + GetLeft();
-	int iy = (point.x + point.y - point.z * 2) * GetBlockHeight() / 2 + GetTop();
+	int ix = static_cast<int>((point.x - point.y + (GetHeight() - 1)) * GetBlockWidth() + GetLeft());
+	int iy = static_cast<int>((point.x + point.y - point.z * 2) * GetBlockHeight() / 2 + GetTop());
 	return Point{ ix, iy };
 }
 

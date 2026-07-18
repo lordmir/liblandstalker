@@ -135,9 +135,9 @@ static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset,
     int best_overall = std::max(best_fixed, best_dyn);
     if (best_dyn > best_fixed && best_dyn >= 2)
     {
-        fc[best_b]++;
-        lc[best_b] += best_dyn;
-        vc[best_b] += best_dyn * best_dyn_vert;
+        fc[static_cast<int>(best_b)]++;
+        lc[static_cast<int>(best_b)] += best_dyn;
+        vc[static_cast<int>(best_b)] += best_dyn * best_dyn_vert;
     }
     
     return best_overall;
@@ -164,7 +164,7 @@ static std::pair<int, int> findMatch(const std::vector<uint16_t>& input, size_t 
         if (match_run > ret.second)
         {
             ret.second = match_run;
-            ret.first = i;
+            ret.first = static_cast<int>(i);
         }
     }
     if (ret.second == 0)

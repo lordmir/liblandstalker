@@ -9,6 +9,14 @@
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -26,6 +34,19 @@
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -57,21 +78,30 @@
     <IntDir>$(ProjectDir)build\msvc\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>landstalker</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)build\msvc\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>landstalkerd</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)build\msvc\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>landstalker</TargetName>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>YAML_CPP_STATIC_DEFINE;_DEBUG;_LIB;COMPILELIB;_CRT_SECURE_NO_WARNINGS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)landstalker\include;$(LIBPNG_PATH);$(ZLIB_PATH);$(PUGIXML_PATH)\debug\include;$(PUGIXML_PATH)\src;$(YAMLCPP_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)landstalker\include;$(LIBPNG_PATH)\include;$(ZLIB_PATH)\include;$(PUGIXML_PATH)\include;$(YAMLCPP_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <AdditionalOptions>/external:I"$(LIBPNG_PATH)"
-/external:I"$(ZLIB_PATH)"
-/external:I"$(PUGIXML_PATH)\debug\include"
-/external:I"$(PUGIXML_PATH)\src"
+      <AdditionalOptions>/external:I"$(LIBPNG_PATH)\include"
+/external:I"$(ZLIB_PATH)\include"
+/external:I"$(PUGIXML_PATH)\include"
 /external:I"$(YAMLCPP_PATH)\include" %(AdditionalOptions)</AdditionalOptions>
       <ExternalWarningLevel>Level1</ExternalWarningLevel>
     </ClCompile>
@@ -82,7 +112,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>YAML_CPP_STATIC_DEFINE;NDEBUG;_LIB;COMPILELIB;_CRT_SECURE_NO_WARNINGS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)landstalker\include;$(LIBPNG_PATH);$(ZLIB_PATH);$(PUGIXML_PATH)\release\include;$(PUGIXML_PATH)\src;$(YAMLCPP_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)landstalker\include;$(LIBPNG_PATH)\include;$(ZLIB_PATH)\include;$(PUGIXML_PATH)\include;$(YAMLCPP_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -90,10 +120,48 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalOptions>/external:I"$(LIBPNG_PATH)"
-/external:I"$(ZLIB_PATH)"
-/external:I"$(PUGIXML_PATH)\release\include"
-/external:I"$(PUGIXML_PATH)\src"
+      <AdditionalOptions>/external:I"$(LIBPNG_PATH)\include"
+/external:I"$(ZLIB_PATH)\include"
+/external:I"$(PUGIXML_PATH)\include"
+/external:I"$(YAMLCPP_PATH)\include" %(AdditionalOptions)</AdditionalOptions>
+      <ExternalWarningLevel>Level1</ExternalWarningLevel>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>YAML_CPP_STATIC_DEFINE;_DEBUG;_LIB;COMPILELIB;_CRT_SECURE_NO_WARNINGS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)landstalker\include;$(LIBPNG_PATH)\include;$(ZLIB_PATH)\include;$(PUGIXML_PATH)\include;$(YAMLCPP_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <AdditionalOptions>/external:I"$(LIBPNG_PATH)\include"
+/external:I"$(ZLIB_PATH)\include"
+/external:I"$(PUGIXML_PATH)\include"
+/external:I"$(YAMLCPP_PATH)\include" %(AdditionalOptions)</AdditionalOptions>
+      <ExternalWarningLevel>Level1</ExternalWarningLevel>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>YAML_CPP_STATIC_DEFINE;NDEBUG;_LIB;COMPILELIB;_CRT_SECURE_NO_WARNINGS;_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir)landstalker\include;$(LIBPNG_PATH)\include;$(ZLIB_PATH)\include;$(PUGIXML_PATH)\include;$(YAMLCPP_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalOptions>/external:I"$(LIBPNG_PATH)\include"
+/external:I"$(ZLIB_PATH)\include"
+/external:I"$(PUGIXML_PATH)\include"
 /external:I"$(YAMLCPP_PATH)\include" %(AdditionalOptions)</AdditionalOptions>
       <ExternalWarningLevel>Level1</ExternalWarningLevel>
     </ClCompile>
@@ -149,6 +217,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptTable.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptTableEntry.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\sprites\SpriteFrame.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\Charset.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\text\EndCreditString.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\text\HuffmanString.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\text\HuffmanTree.cpp" />
@@ -159,7 +228,6 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tile.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\TileAttributes.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tileset.cpp" />
-    <ClCompile Include="landstalker\src\text\Charset.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Blockmap2D.h" />

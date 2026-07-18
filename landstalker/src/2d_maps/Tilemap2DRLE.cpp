@@ -327,8 +327,8 @@ Tilemap2D Tilemap2D::FromCsv(const std::string &csv_data)
 	{
 		throw std::runtime_error("No tile data in CSV");
 	}
-	int w = tiles.front().size();
-	int h = tiles.size();
+	int w = static_cast<int>(tiles.front().size());
+	int h = static_cast<int>(tiles.size());
 	Tilemap2D::Compression compression = static_cast<Tilemap2D::Compression>(c);
 	Tilemap2D m_map(w, h, b);
 	for (int y = 0; y < h; ++y)
@@ -649,7 +649,7 @@ uint32_t Tilemap2D::Uncompress(const std::vector<uint8_t>& data)
 			break;
 		}
 	}
-	return std::distance(data.begin(), d);
+	return static_cast<uint32_t>(std::distance(data.begin(), d));
 }
 
 std::vector<uint8_t> Tilemap2D::CompressLZ77() const
@@ -680,14 +680,14 @@ uint32_t Tilemap2D::UncompressLZ77(const std::vector<uint8_t>& data)
 	result.erase(result.begin(), result.begin() + 4);
 	if (result.size() < (m_width * m_height * 2)) throw std::runtime_error("Bad LZ77 compressed map!");
 	UnpackBytes(result);
-	return elen;
+	return static_cast<uint32_t>(elen);
 }
 
 uint32_t Tilemap2D::UnpackBytes(const std::vector<uint8_t>& data)
 {
 	m_tiles.clear();
 	m_tiles.reserve(m_width * m_height);
-	uint32_t size = std::min<uint32_t>(data.size(), m_width * m_height * 2);
+	uint32_t size = static_cast<uint32_t>(std::min<std::size_t>(data.size(), m_width * m_height * 2));
 	for (std::size_t i = 0; i < size; i += 2)
 	{
 		uint16_t val = (data[i] << 8) | data[i + 1];
@@ -751,7 +751,7 @@ void Tilemap2D::SetBase(uint16_t base)
 Tile Tilemap2D::GetTile(size_t x, size_t y) const
 {
 	auto ret = Tile();
-	if (IsTileValid(x, y))
+	if (IsTileValid(static_cast<int>(x), static_cast<int>(y)))
 	{
 		ret = m_tiles[y * m_width + x];
 		ret.SetIndex(0x7FF & (ret.GetIndex() - m_base));
@@ -761,7 +761,7 @@ Tile Tilemap2D::GetTile(size_t x, size_t y) const
 
 void Tilemap2D::SetTile(const Tile& tile, size_t x, size_t y)
 {
-	if (IsTileValid(x, y))
+	if (IsTileValid(static_cast<int>(x), static_cast<int>(y)))
 	{
 		Tile t = tile;
 		t.SetIndex(0x7FF & (t.GetIndex() + m_base));
