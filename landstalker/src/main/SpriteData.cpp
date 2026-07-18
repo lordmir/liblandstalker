@@ -478,14 +478,14 @@ std::wstring SpriteData::GetSpriteDisplayName(uint8_t id)
 std::wstring SpriteData::GetSpriteAnimationDisplayName(uint8_t id, const std::string& name) const
 {
 	const auto& anims = m_animations.at(id);
-	int anim_id = std::distance(anims.cbegin(), std::find(anims.cbegin(), anims.cend(), name));
+	int anim_id = static_cast<int>(std::distance(anims.cbegin(), std::find(anims.cbegin(), anims.cend(), name)));
 	return Labels::Get(Labels::C_SPRITE_ANIMATIONS, (id << 8) | anim_id).value_or(std::wstring(name.cbegin(), name.cend()));
 }
 
 std::wstring SpriteData::GetSpriteFrameDisplayName(uint8_t id, const std::string& name) const
 {
 	const auto& frames = m_sprite_frames.at(id);
-	int frame_id = std::distance(frames.cbegin(), std::find(frames.cbegin(), frames.cend(), name));
+	int frame_id = static_cast<int>(std::distance(frames.cbegin(), std::find(frames.cbegin(), frames.cend(), name)));
 	return Labels::Get(Labels::C_SPRITE_FRAMES, (id << 8) | frame_id).value_or(std::wstring(name.cbegin(), name.cend()));
 }
 
@@ -551,7 +551,7 @@ SpriteData::SpriteMetadata SpriteData::GetSpriteMetadata(uint8_t id) const
 			metadata.animations[anim_name] = {};
 			for(const auto& frame_name : m_animation_frames.at(anim_name))
 			{
-				int frame_index = std::distance(frame_names.cbegin(), std::find(frame_names.cbegin(), frame_names.cend(), frame_name));
+				int frame_index = static_cast<int>(std::distance(frame_names.cbegin(), std::find(frame_names.cbegin(), frame_names.cend(), frame_name)));
 				metadata.animations[anim_name].push_back(frame_index);
 			}
 		}
@@ -928,7 +928,7 @@ uint8_t SpriteData::GetSpriteId(const std::string& name) const
 uint32_t SpriteData::GetSpriteAnimationCount(uint8_t id) const
 {
 	assert(m_animations.find(id) != m_animations.cend());
-	return m_animations.find(id)->second.size();
+	return static_cast<uint32_t>(m_animations.find(id)->second.size());
 }
 
 std::vector<std::string> SpriteData::GetSpriteAnimations(uint8_t id) const
@@ -947,7 +947,7 @@ std::vector<std::string> SpriteData::GetSpriteAnimations(const std::string& name
 uint32_t SpriteData::GetSpriteFrameCount(uint8_t id) const
 {
 	assert(m_sprite_frames.find(id) != m_sprite_frames.cend());
-	return m_sprite_frames.find(id)->second.size();
+	return static_cast<uint32_t>(m_sprite_frames.find(id)->second.size());
 }
 
 std::vector<std::string> SpriteData::GetSpriteFrames(uint8_t id) const
@@ -1097,14 +1097,14 @@ uint32_t SpriteData::GetSpriteAnimationFrameCount(uint8_t id, uint8_t anim_id) c
 	}
 	else
 	{
-		return GetSpriteAnimationFrames(id, anim_id).size();
+		return static_cast<uint32_t>(GetSpriteAnimationFrames(id, anim_id).size());
 	}
 }
 
 uint32_t SpriteData::GetSpriteAnimationFrameCount(const std::string& name) const
 {
 	assert(m_animation_frames.find(name) != m_animation_frames.cend());
-	return m_animation_frames.find(name)->second.size();
+	return static_cast<uint32_t>(m_animation_frames.find(name)->second.size());
 }
 
 std::vector<std::string> SpriteData::GetSpriteAnimationFrames(uint8_t id, uint8_t anim_id) const
@@ -2265,8 +2265,8 @@ bool SpriteData::AsmSaveSpriteData(const std::filesystem::path& dir)
 bool SpriteData::RomPrepareInjectSpriteFrames(const Rom& rom)
 {
 	uint32_t begin = rom.get_section(RomLabels::Sprites::SPRITE_SECTION).begin;
-	uint32_t lut_size = m_animations.size() * 2 * sizeof(uint16_t);
-	uint32_t anim_ptr_table_size = m_animation_frames.size() * sizeof(uint32_t);
+	uint32_t lut_size = static_cast<uint32_t>(m_animations.size() * 2 * sizeof(uint16_t));
+	uint32_t anim_ptr_table_size = static_cast<uint32_t>(m_animation_frames.size() * sizeof(uint32_t));
 	uint32_t frame_ptr_table_size = std::accumulate(m_animation_frames.cbegin(), m_animation_frames.cend(), 0,
 		[](int sum, const auto& elem) {
 			return sum + static_cast<int>(elem.second.size());
@@ -2302,7 +2302,7 @@ bool SpriteData::RomPrepareInjectSpriteFrames(const Rom& rom)
 	for (const auto& anim : m_animation_frames)
 	{
 		it = Insert<uint32_t>(it, frame_count * sizeof(uint32_t) + frame_ptrs_begin);
-		frame_count += anim.second.size();
+		frame_count += static_cast<uint32_t>(anim.second.size());
 	}
 	for (const auto& anim : m_animation_frames)
 	{
@@ -2327,13 +2327,13 @@ bool SpriteData::RomPrepareInjectSpritePalettes(const Rom& rom)
 
 	uint32_t pal_lut_begin = rom.get_section(RomLabels::Sprites::PALETTE_DATA).begin;
 	auto bytes = std::make_shared<ByteVector>(SerialisePaletteLUT());
-	uint32_t lo_pals_begin = pal_lut_begin + bytes->size();
+	uint32_t lo_pals_begin = pal_lut_begin + static_cast<uint32_t>(bytes->size());
 	for (const auto& p : m_lo_palettes)
 	{
 		auto b = p->GetBytes();
 		bytes->insert(bytes->end(), b->cbegin(), b->cend());
 	}
-	uint32_t hi_pals_begin = pal_lut_begin + bytes->size();
+	uint32_t hi_pals_begin = pal_lut_begin + static_cast<uint32_t>(bytes->size());
 	for (const auto& p : m_hi_palettes)
 	{
 		auto b = p->GetBytes();
@@ -2376,37 +2376,37 @@ bool SpriteData::RomPrepareInjectSpriteData(const Rom& rom)
 
 	uint32_t behavoff_begin = rom.get_section(RomLabels::Sprites::SPRITE_BEHAVIOUR_SECTION).begin;
 	auto behav_bytes = std::make_shared<ByteVector>(behaviour_bytes.first);
-	uint32_t behavtab_begin = behavoff_begin + behav_bytes->size();
+	uint32_t behavtab_begin = behavoff_begin + static_cast<uint32_t>(behav_bytes->size());
 	behav_bytes->insert(behav_bytes->end(), behaviour_bytes.second.cbegin(), behaviour_bytes.second.cend());
 
 	uint32_t visib_begin = rom.get_section(RomLabels::Sprites::SPRITE_DATA_SECTION).begin;
 	auto data_bytes = std::make_shared<ByteVector>(SerialiseFixedWidth<4>(EncodeFlags(m_sprite_visibility_flags)));
 
-	uint32_t onetime_begin = data_bytes->size() + visib_begin;
+	uint32_t onetime_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto onetime_bytes = SerialiseFixedWidth<6>(EncodeFlags(m_one_time_event_flags));
 	data_bytes->insert(data_bytes->end(), onetime_bytes.cbegin(), onetime_bytes.cend());
 
-	uint32_t clear_begin = data_bytes->size() + visib_begin;
+	uint32_t clear_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto clear_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_room_clear_flags));
 	data_bytes->insert(data_bytes->end(), clear_bytes.cbegin(), clear_bytes.cend());
 
-	uint32_t door_begin = data_bytes->size() + visib_begin;
+	uint32_t door_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto door_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_locked_door_flags));
 	data_bytes->insert(data_bytes->end(), door_bytes.cbegin(), door_bytes.cend());
 
-	uint32_t switch_begin = data_bytes->size() + visib_begin;
+	uint32_t switch_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto switch_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_permanent_switch_flags));
 	data_bytes->insert(data_bytes->end(), switch_bytes.cbegin(), switch_bytes.cend());
 
-	uint32_t tree_begin = data_bytes->size() + visib_begin;
+	uint32_t tree_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto tree_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_sacred_tree_flags));
 	data_bytes->insert(data_bytes->end(), tree_bytes.cbegin(), tree_bytes.cend());
 
-	uint32_t sprent_begin = data_bytes->size() + visib_begin;
+	uint32_t sprent_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto sprent_bytes = SerialiseMap(m_sprite_to_entity_lookup, true);
 	data_bytes->insert(data_bytes->end(), sprent_bytes.cbegin(), sprent_bytes.cend());
 
-	uint32_t hitbox_begin = data_bytes->size() + visib_begin;
+	uint32_t hitbox_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto hitbox_bytes = SerialiseMap<2>(m_sprite_dimensions);
 	data_bytes->insert(data_bytes->end(), hitbox_bytes.cbegin(), hitbox_bytes.cend());
 	if ((data_bytes->size() & 1) == 1)
@@ -2414,14 +2414,14 @@ bool SpriteData::RomPrepareInjectSpriteData(const Rom& rom)
 		data_bytes->push_back(0xFF);
 	}
 
-	uint32_t offsets_begin = data_bytes->size() + visib_begin;
+	uint32_t offsets_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	data_bytes->insert(data_bytes->end(), room_entities.second.cbegin(), room_entities.second.cend());
 
-	uint32_t enemy_begin = data_bytes->size() + visib_begin;
+	uint32_t enemy_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto enemy_bytes = SerialiseMap<5>(m_enemy_stats);
 	data_bytes->insert(data_bytes->end(), enemy_bytes.cbegin(), enemy_bytes.cend());
 
-	uint32_t table_begin = data_bytes->size() + visib_begin;
+	uint32_t table_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	data_bytes->insert(data_bytes->end(), room_entities.first.cbegin(), room_entities.first.cend());
 
 	m_pending_writes.push_back({ RomLabels::Sprites::ITEM_PROPERTIES_SECTION, item_bytes });

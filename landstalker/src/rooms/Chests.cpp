@@ -72,7 +72,7 @@ std::pair<std::vector<uint8_t>, std::vector<uint8_t>> Chests::GetData(int roomco
 			if (m_chests.count(i) > 0)
 			{
 				contents.insert(contents.end(), m_chests.at(i).begin(), m_chests.at(i).end());
-				offset += m_chests.at(i).size();
+				offset += static_cast<int>(m_chests.at(i).size());
 			}
 		}
 	}
@@ -139,7 +139,7 @@ bool Chests::GetRoomNoChestsFlag(uint16_t room) const
 
 bool Chests::CleanupRoomChests(const GameData& gd)
 {
-	int chest_count = 0;
+	std::size_t chest_count = 0;
 	for (uint16_t r = 0; r < static_cast<uint16_t>(gd.GetRoomData()->GetRoomCount()); ++r)
 	{
 		auto ents = gd.GetSpriteData()->GetRoomEntities(r);
@@ -178,7 +178,7 @@ int Chests::GetChestFlagBaseForRoom(uint16_t room) const
 	{
 		if (m_enabled.count(r) == 0 && m_chests.count(r) > 0)
 		{
-			chest_flag_base += m_chests.at(r).size();
+			chest_flag_base += static_cast<int>(m_chests.at(r).size());
 		}
 	}
 	return chest_flag_base;
@@ -195,7 +195,7 @@ ChestItem Chests::GetChestItemFromFlagID(int chest_flag_id) const
 		}
 		if (cur_flag >= static_cast<int>(room.second.size()))
 		{
-			cur_flag -= room.second.size();
+			cur_flag -= static_cast<int>(room.second.size());
 			continue;
 		}
 		return room.second[cur_flag];

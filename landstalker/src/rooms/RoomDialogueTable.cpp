@@ -48,7 +48,7 @@ std::vector<uint16_t> RoomDialogueTable::GetData() const
 	{
 		uint16_t room = d.first;
 		data.push_back(room);
-		int room_idx = data.size() - 1;
+		int room_idx = static_cast<int>(data.size()) - 1;
 		int chrcount = 0;
 		for (const auto& c : d.second)
 		{

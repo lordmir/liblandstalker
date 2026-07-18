@@ -374,7 +374,7 @@ bool DisplayPrice::operator!=(const DisplayPrice& rhs) const
 void DisplayPrice::ToAsm(AsmFile& file) const
 {
     file << AsmFile::Instruction("bsr", AsmFile::Width::W, { "DisplayItemPriceMessage" });
-    std::size_t counter = 0;
+    int counter = 0;
     for (const auto& action : display_price)
     {
         action.ActionToAsm(file, counter++);
@@ -800,7 +800,7 @@ bool ProgressList::operator!=(const ProgressList& rhs) const
 void ProgressList::ToAsm(AsmFile& file) const
 {
     file << AsmFile::Instruction("bsr", AsmFile::Width::W, { "HandleProgressDependentDialogue" });
-    std::size_t offset = 1;
+    int offset = 1;
     for (const auto& p : progress)
     {
         file << std::vector<uint8_t>{p.first.quest, p.first.progress};
@@ -956,7 +956,7 @@ bool ActionTable::operator!=(const ActionTable& rhs) const
 
 void ActionTable::ToAsm(AsmFile& file) const
 {
-    std::size_t counter = 0;
+    int counter = 0;
     for (const auto& action : actions)
     {
         action.ActionToAsm(file, counter++);

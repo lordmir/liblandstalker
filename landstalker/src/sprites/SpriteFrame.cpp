@@ -108,7 +108,7 @@ std::vector<uint8_t> SpriteFrame::GetBits(bool compressed)
 		bits.back() |= 0x80;
 	}
 
-	int last_cmd = bits.size();
+	int last_cmd = static_cast<int>(bits.size());
 	if (compressed) // compression
 	{
 		uint16_t word_count = static_cast<uint16_t>(std::min<std::size_t>(actual_tiles, expected_tiles) * 16);
@@ -145,7 +145,7 @@ std::vector<uint8_t> SpriteFrame::GetBits(bool compressed)
 				{
 					// Encountered a run of at least THRESHOLD blanks.
 					// We also have data pending. write out what we have so far.
-					last_cmd = bits.size();
+					last_cmd = static_cast<int>(bits.size());
 					bits.push_back(0x00 | (copy_len >> 8));
 					bits.push_back(copy_len & 0xFF);
 					bits.insert(bits.end(), tiles.begin() + copy_start_idx, tiles.begin() + copy_start_idx + copy_len * 2);
@@ -162,7 +162,7 @@ std::vector<uint8_t> SpriteFrame::GetBits(bool compressed)
 				}
 				else
 				{
-					last_cmd = bits.size();
+					last_cmd = static_cast<int>(bits.size());
 					bits.push_back(static_cast<uint8_t>(0x80 | (blanks >> 8)));
 					bits.push_back(static_cast<uint8_t>(blanks & 0xFF));
 					copy_start_idx += blanks * 2;
@@ -174,13 +174,13 @@ std::vector<uint8_t> SpriteFrame::GetBits(bool compressed)
 			{
 				if (blanks >= THRESHOLD)
 				{
-					last_cmd = bits.size();
+					last_cmd = static_cast<int>(bits.size());
 					bits.push_back(static_cast<uint8_t>(0x80 | (blanks >> 8)));
 					bits.push_back(static_cast<uint8_t>(blanks & 0xFF));
 				}
 				else
 				{
-					last_cmd = bits.size();
+					last_cmd = static_cast<int>(bits.size());
 					bits.push_back(0x00 | (copy_len >> 8));
 					bits.push_back(copy_len & 0xFF);
 					copy_len += blanks;
@@ -193,7 +193,7 @@ std::vector<uint8_t> SpriteFrame::GetBits(bool compressed)
 	// Fill in padding if required
 	if (actual_tiles < expected_tiles)
 	{
-		last_cmd = bits.size();
+		last_cmd = static_cast<int>(bits.size());
 		uint16_t word_count = static_cast<uint16_t>((expected_tiles - actual_tiles) * 16);
 		bits.push_back(0x80 | (word_count >> 8));
 		bits.push_back(word_count & 0xFF);
@@ -316,7 +316,7 @@ int SpriteFrame::GetRight() const
 	int right = -0xFFFFFF;
 	for (const auto& s : m_subsprites)
 	{
-		int r = s.x + s.w * m_sprite_gfx->GetTileWidth();
+		int r = s.x + static_cast<int>(s.w * m_sprite_gfx->GetTileWidth());
 		if (r > right)
 		{
 			right = r;
@@ -356,7 +356,7 @@ int SpriteFrame::GetBottom() const
 	int bottom = -0xFFFFFF;
 	for (const auto& s : m_subsprites)
 	{
-		int b = s.y + s.h * m_sprite_gfx->GetTileHeight();
+		int b = s.y + static_cast<int>(s.h * m_sprite_gfx->GetTileHeight());
 		if (b > bottom)
 		{
 			bottom = b;
@@ -395,9 +395,9 @@ std::pair<int, int> SpriteFrame::GetTilePosition(const Tile& tile) const
 		if ((tile.GetIndex() >= it->tile_idx) &&
 		    (tile.GetIndex()) < (it->tile_idx + (it->w * it->h)))
 		{
-			int p = tile.GetIndex() - it->tile_idx;
-			x = it->x + 8 * (p / it->h);
-			y = it->y + 8 * (p % it->h);
+			int p = static_cast<int>(tile.GetIndex() - it->tile_idx);
+			x = it->x + 8 * (p / static_cast<int>(it->h));
+			y = it->y + 8 * (p % static_cast<int>(it->h));
 			break;
 		}
 	}
@@ -540,7 +540,7 @@ void SpriteFrame::PrepareSubSprites()
 	for (auto& s : m_subsprites)
 	{
 		s.tile_idx = c;
-		c += s.w * s.h;
+		c += static_cast<int>(s.w * s.h);
 	}
 	m_sprite_gfx->Resize(c);
 }

@@ -884,7 +884,7 @@ void Tilemap2D::Resize(int width, int height)
 {
 	m_width = width;
 	m_height = height;
-	m_tiles.resize(width * height);
+	m_tiles.resize(static_cast<std::size_t>(width) * height);
 }
 
 Tile* Tilemap2D::Data()

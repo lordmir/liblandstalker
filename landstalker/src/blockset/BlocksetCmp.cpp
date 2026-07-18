@@ -198,7 +198,7 @@ uint16_t BlocksetCmp::Decode(const uint8_t* src, size_t length, Blockset& blocks
 
     const uint16_t TOTAL = static_cast<uint16_t>(bb.readBits(16));
     
-    new_tiles.resize(TOTAL * 4);   
+    new_tiles.resize(static_cast<std::size_t>(TOTAL) * 4);   
     blocks.reserve(blocks.size() + TOTAL);
     
     maskTiles(new_tiles, TileAttributes::Attribute::ATTR_PRIORITY, bb);

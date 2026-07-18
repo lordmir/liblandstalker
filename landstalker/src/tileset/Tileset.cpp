@@ -14,7 +14,7 @@ const std::size_t MAXIMUM_CAPACITY = 0x400;
 template<class T>
 void HFlip(std::vector<T>& elems, int width)
 {
-    int height = elems.size() / width;
+    int height = static_cast<int>(elems.size()) / width;
     for (int i = 0; i < height; ++i)
     {
         auto source_it = elems.begin() + width * i;
@@ -25,7 +25,7 @@ void HFlip(std::vector<T>& elems, int width)
 template<class T>
 void VFlip(std::vector<T>& elems, int width)
 {
-    int height = elems.size() / width;
+    int height = static_cast<int>(elems.size()) / width;
     for (int i = 0; i < height / 2; ++i)
     {
         auto source_it = elems.begin() + width * i;
@@ -102,7 +102,7 @@ uint32_t Tileset::SetBits(const std::vector<uint8_t>& src, bool compressed)
     const std::size_t tile_size_bytes = m_width * m_height * m_bit_depth / 8;
     const std::vector<uint8_t>* input = &src;
     m_compressed = compressed;
-    uint32_t ret = src.size();
+    uint32_t ret = static_cast<uint32_t>(src.size());
 
 	std::vector<uint8_t> buffer;
     if (compressed == true)
@@ -112,7 +112,7 @@ uint32_t Tileset::SetBits(const std::vector<uint8_t>& src, bool compressed)
         dlen = LZ77::Decode(src.data(), src.size(), buffer.data(), elen);
         buffer.resize(dlen);
         input = &buffer;
-        ret = elen;
+        ret = static_cast<uint32_t>(elen);
     }
     const std::size_t num_tiles = (input->size() + (tile_size_bytes - 1)) / tile_size_bytes;
 
@@ -153,7 +153,7 @@ void Tileset::SetParams(std::size_t width, std::size_t height, uint8_t bit_depth
     m_tilewidth = width;
     m_tileheight = height;
     m_bit_depth = bit_depth;
-    if (m_colour_indicies.size() < static_cast<std::size_t>(1 << bit_depth))
+    if (m_colour_indicies.size() < static_cast<std::size_t>(static_cast<uint32_t>(1 << bit_depth)))
     {
         m_colour_indicies.clear();
     }
@@ -387,7 +387,7 @@ void Tileset::SetColourIndicies(const std::vector<uint8_t>& colour_indicies)
 	{
 		m_colour_indicies.clear();
 	}
-    else if (colour_indicies.size() >= static_cast<std::size_t>(1 << m_bit_depth))
+    else if (colour_indicies.size() >= static_cast<std::size_t>(static_cast<uint32_t>(1 << m_bit_depth)))
     {
         bool ok = true;
         for (auto c : colour_indicies)
@@ -418,7 +418,7 @@ std::string Tileset::GetColourIndiciesAsString() const
 }
 std::vector<uint8_t> Tileset::GetDefaultColourIndicies() const
 {
-    std::vector<uint8_t> ret(1 << m_bit_depth);
+    std::vector<uint8_t> ret(static_cast<uint32_t>(1 << m_bit_depth));
     std::iota(ret.begin(), ret.end(), 0_u8);
     return ret;
 }
@@ -429,7 +429,7 @@ std::array<bool, 16> Tileset::GetLockedColours() const
     retval.fill(true);
     if (m_colour_indicies.empty())
     {
-        std::fill(retval.begin(), retval.begin() + (1 << m_bit_depth), false);
+        std::fill(retval.begin(), retval.begin() + static_cast<uint32_t>(1 << m_bit_depth), false);
     }
     else
     {
@@ -630,11 +630,11 @@ std::vector<uint8_t> Tileset::GetTile(const Tile& tile) const
     std::vector<uint8_t> ret(m_tiles[idx]);
     if (tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_VFLIP))
     {
-        VFlip(ret, m_width);
+        VFlip(ret, static_cast<int>(m_width));
     }
     if (tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_HFLIP))
     {
-        HFlip(ret, m_width);
+        HFlip(ret, static_cast<int>(m_width));
     }
     return ret;
 }

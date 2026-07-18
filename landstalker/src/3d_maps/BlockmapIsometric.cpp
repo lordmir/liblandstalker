@@ -10,8 +10,8 @@ BlockmapIsometric::BlockmapIsometric(std::size_t width, std::size_t height, std:
 TilePoint BlockmapIsometric::XYToTilePoint(const Point& point) const
 {
 	TilePoint ret{ 0, 0 };
-	int xgrid = static_cast<int>((point.x - GetLeft()) / GetBlockWidth());
-	int ygrid = static_cast<int>((2 * (point.y - GetTop())) / GetBlockHeight());
+	std::size_t xgrid = static_cast<std::size_t>((point.x - GetLeft()) / GetBlockWidth());
+	std::size_t ygrid = static_cast<std::size_t>((2 * (point.y - GetTop())) / GetBlockHeight());
 	ret.x = static_cast<std::size_t>((ygrid + xgrid - GetHeight() + 1) / 2);
 	ret.y = static_cast<std::size_t>((ygrid - xgrid + GetHeight() - 1) / 2);
 	return ret;

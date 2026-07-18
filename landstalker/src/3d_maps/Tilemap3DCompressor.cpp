@@ -102,7 +102,7 @@ static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset,
             bool right = false;
             while (true)
             {
-                next_offset += map_width + (right ? 1 : 0);
+                next_offset += static_cast<std::size_t>(map_width) + (right ? 1 : 0);
                 if (next_offset + match_run <= input.size() && next_offset >= b)
                 {
                     bool matches = true;
@@ -531,7 +531,7 @@ void Tilemap3DCompressor::OptimizeVerticalRun(const Tilemap3D& map, std::vector<
         
         while (next < tiles_size)
         {
-            next += map.GetWidth() + (right ? 1 : 0);
+            next += static_cast<std::size_t>(map.GetWidth()) + (right ? 1 : 0);
             auto nit = std::find_if(it, lz77.end(), [&](const LZ77Entry& comp)
                 {
                     return (comp.index == static_cast<int>(next)) && (comp.back_offset_idx == entry.back_offset_idx);

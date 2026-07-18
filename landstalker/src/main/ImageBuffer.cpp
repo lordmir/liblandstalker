@@ -92,7 +92,7 @@ void ImageBuffer::InsertTile(int x, int y, uint8_t palette_index, const Tile& ti
                 dest_it = row_it + m_width * (i / tileset.GetTileWidth());
                 pri_dest_it = pri_row_it + m_width * (i / tileset.GetTileWidth());
 				y++;
-				x -= tileset.GetTileWidth();
+				x -= static_cast<int>(tileset.GetTileWidth());
             }
             if (!use_alpha || (cmap[tile_bits[i]] != 0))
             {
@@ -131,7 +131,7 @@ void ImageBuffer::ClearTile(int x, int y, const Tileset& ts)
                 dest_it = row_it + m_width * (i / ts.GetTileWidth());
                 pri_dest_it = pri_row_it + m_width * (i / ts.GetTileWidth());
                 y++;
-                x -= ts.GetTileWidth();
+                x -= static_cast<int>(ts.GetTileWidth());
             }
             *dest_it++ = 0;
             *pri_dest_it++ = false;
@@ -141,7 +141,7 @@ void ImageBuffer::ClearTile(int x, int y, const Tileset& ts)
 
 void ImageBuffer::ClearBlock(int x, int y, const Blockset&, const Tileset& ts)
 {
-    if ((y + 7) * m_width + x + 7 < m_pixels.size())
+    if (static_cast<std::size_t>(y + 7) * m_width + x + 7 < m_pixels.size())
     {
         ClearTile(x, y, ts);
         ClearTile(x + 8, y, ts);
@@ -167,15 +167,15 @@ void ImageBuffer::InsertSprite(int x, int y, uint8_t palette_index, const Sprite
                 int xx, yy;
                 if (hflip)
                 {
-                    xx = -subs.x - xi * 8 + x - 8;
-                    yy = subs.y + yi * 8 + y;
+                    xx = -subs.x - static_cast<int>(xi) * 8 + x - 8;
+                    yy = subs.y + static_cast<int>(yi) * 8 + y;
                     InsertTile(xx, yy, palette_index, !Tile(static_cast<uint16_t>(index)), *frame.GetTileset());
                     ++index;
                 }
                 else
                 {
-                    xx = subs.x + xi * 8 + x;
-                    yy = subs.y + yi * 8 + y;
+                    xx = subs.x + static_cast<int>(xi) * 8 + x;
+                    yy = subs.y + static_cast<int>(yi) * 8 + y;
                     InsertTile(xx, yy, palette_index, Tile(static_cast<uint16_t>(index)), *frame.GetTileset());
                     ++index;
                 }
@@ -189,8 +189,8 @@ void ImageBuffer::InsertMap(int x, int y, uint8_t palette_index, const Tilemap2D
     {
         for (std::size_t xx = 0; xx < map.GetWidth(); ++xx)
         {
-            const int xpos = x + xx * tileset.GetTileWidth();
-            const int ypos = y + yy * tileset.GetTileHeight();
+            const int xpos = x + static_cast<int>(xx * tileset.GetTileWidth());
+            const int ypos = y + static_cast<int>(yy * tileset.GetTileHeight());
             InsertTile(xpos, ypos, palette_index, map.GetTile(xx, yy), tileset);
         }
     }
@@ -250,7 +250,8 @@ bool ImageBuffer::WritePNG(const std::string& filename, const std::vector<std::s
     png_set_IHDR(
         png,
         info,
-        m_width, m_height,
+        static_cast<png_uint_32>(m_width),
+        static_cast<png_uint_32>(m_height),
         8,
         PNG_COLOR_TYPE_PALETTE,
         PNG_INTERLACE_NONE,
@@ -313,10 +314,12 @@ void ImageBuffer::InsertBlock(std::size_t x, std::size_t y, uint8_t palette_inde
 {
     if ((y + 7) * m_width + x + 7 < m_pixels.size())
     {
-        InsertTile(x, y, palette_index, block.GetTile(0), tileset, true, mode);
-        InsertTile(x + 8, y, palette_index, block.GetTile(1), tileset, true, mode);
-        InsertTile(x, y + 8, palette_index, block.GetTile(2), tileset, true, mode);
-        InsertTile(x + 8, y + 8, palette_index, block.GetTile(3), tileset, true, mode);
+        int xi = static_cast<int>(x);
+        int yi = static_cast<int>(y);
+        InsertTile(xi, yi, palette_index, block.GetTile(0), tileset, true, mode);
+        InsertTile(xi + 8, yi, palette_index, block.GetTile(1), tileset, true, mode);
+        InsertTile(xi, yi + 8, palette_index, block.GetTile(2), tileset, true, mode);
+        InsertTile(xi + 8, yi + 8, palette_index, block.GetTile(3), tileset, true, mode);
     }
     else
     {
@@ -343,9 +346,9 @@ const std::vector<uint8_t>& ImageBuffer::GetRGB(const std::vector<std::shared_pt
     }
     for (const auto& pixel : m_pixels)
     {
-        *it++ = pal_lookup[(pixel << 2)];
-        *it++ = pal_lookup[(pixel << 2) + 1];
-        *it++ = pal_lookup[(pixel << 2) + 2];
+        *it++ = pal_lookup[static_cast<uint8_t>((pixel & 0x3F) << 2)];
+        *it++ = pal_lookup[static_cast<uint8_t>(((pixel & 0x3F) << 2) + 1)];
+        *it++ = pal_lookup[static_cast<uint8_t>(((pixel & 0x3F) << 2) + 2)];
     }
     return m_rgb;
 }

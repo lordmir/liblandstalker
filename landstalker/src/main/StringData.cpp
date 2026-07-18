@@ -1652,7 +1652,7 @@ uint32_t StringData::GetCharsetSize() const
 {
 	const auto& font = m_fonts_internal.at(RomLabels::Graphics::MAIN_FONT);
 	const auto& orig_font = m_fonts_by_name.at(font->GetName());
-	return orig_font->GetData()->GetTileCount();
+	return static_cast<uint32_t>(orig_font->GetData()->GetTileCount());
 }
 
 bool StringData::AsmLoadSystemFont()
@@ -1958,7 +1958,7 @@ bool StringData::RomLoadIntroStrings(const Rom& rom)
 	uint32_t ptrs_addr = Disasm::ReadOffset16(rom, RomLabels::Strings::INTRO_STRING_PTRS);
 	uint32_t room_flags_addr = rom.read<uint32_t>(RomLabels::Rooms::ROOM_VISIT_FLAGS);
 	uint32_t room_flags_end = rom.get_section(RomLabels::Strings::INTRO_STRING_DATA).end;
-	uint32_t end_addr = rom.size();
+	uint32_t end_addr = static_cast<uint32_t>(rom.size());
 	std::vector<uint32_t> ptrs;
 	std::vector<uint32_t> sizes;
 	while (ptrs_addr < end_addr)
@@ -2259,7 +2259,7 @@ bool StringData::RomPrepareInjectSystemText(const Rom& rom)
 	uint32_t begin = rom.get_section(RomLabels::Strings::REGION_CHECK_DATA_SECTION).begin;
 	for (int i = 0; i < 4; ++i)
 	{
-		addrs[i] = begin + bytes->size();
+		addrs[i] = begin + static_cast<uint32_t>(bytes->size());
 		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
 		write_string(bytes, converter.to_bytes(m_system_strings[i]));
 	}
@@ -2267,7 +2267,7 @@ bool StringData::RomPrepareInjectSystemText(const Rom& rom)
 	{
 		bytes->push_back(0xFF);
 	}
-	addrs[4] = begin + bytes->size();
+	addrs[4] = begin + static_cast<uint32_t>(bytes->size());
 	bytes->insert(bytes->end(), system_font_bytes->cbegin(), system_font_bytes->cend());
 	m_pending_writes.push_back({ RomLabels::Strings::REGION_CHECK_DATA_SECTION, bytes });
 	m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Strings::REGION_ERROR_LINE1, addrs[0]));
@@ -2287,7 +2287,7 @@ bool StringData::RomPrepareInjectCompressedStringData(const Rom& rom)
 	uint32_t begin = rom.get_section(RomLabels::Strings::STRING_SECTION).begin;
 	for (std::size_t i = 0; i < m_compressed_strings.size(); i += 256)
 	{
-		bank_ptrs.push_back(begin + bytes->size());
+		bank_ptrs.push_back(begin + static_cast<uint32_t>(bytes->size()));
 		for (std::size_t j = 0; j < 256 && (i + j) < m_compressed_strings.size(); ++j)
 		{
 			const auto& s = m_compressed_strings[i + j];
@@ -2298,7 +2298,7 @@ bool StringData::RomPrepareInjectCompressedStringData(const Rom& rom)
 	{
 		bytes->push_back(0);
 	}
-	bank_ptrs_ptr = bytes->size() + begin;
+	bank_ptrs_ptr = static_cast<uint32_t>(bytes->size()) + begin;
 	for (auto p : bank_ptrs)
 	{
 		auto b = Split<uint8_t, uint32_t>(p);
@@ -2319,14 +2319,14 @@ bool StringData::RomPrepareInjectHuffmanData(const Rom& rom)
 	auto textbox_3l_bytes = m_ui_tilemaps_internal[RomLabels::Graphics::TEXTBOX_3LINE_MAP]->GetBytes();
 	bytes->insert(bytes->end(), textbox_3l_bytes->cbegin(), textbox_3l_bytes->cend());
 
-	uint32_t textbox_2l_begin = begin + bytes->size();
+	uint32_t textbox_2l_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto textbox_2l_bytes = m_ui_tilemaps_internal[RomLabels::Graphics::TEXTBOX_2LINE_MAP]->GetBytes();
 	bytes->insert(bytes->end(), textbox_2l_bytes->cbegin(), textbox_2l_bytes->cend());
 
-	uint32_t huffman_offsets_begin = begin + bytes->size();
+	uint32_t huffman_offsets_begin = begin + static_cast<uint32_t>(bytes->size());
 	bytes->insert(bytes->end(), m_huffman_offsets.cbegin(), m_huffman_offsets.cend());
 
-	uint32_t huffman_tables_begin = begin + bytes->size();
+	uint32_t huffman_tables_begin = begin + static_cast<uint32_t>(bytes->size());
 	bytes->insert(bytes->end(), m_huffman_tables.cbegin(), m_huffman_tables.cend());
 
 	m_pending_writes.push_back({ RomLabels::Strings::HUFFMAN_SECTION, bytes });
@@ -2347,27 +2347,27 @@ bool StringData::RomPrepareInjectStringTables(const Rom& rom)
 	uint32_t map_begin = begin;
 	auto bytes = std::make_shared<ByteVector>(SerialiseLocationMap(m_island_map_locations));
 
-	uint32_t chars_begin = begin + bytes->size();
+	uint32_t chars_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector chars_bytes;
 	EncodeStrings(m_character_names, chars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), chars_bytes.cbegin(), chars_bytes.cend());
 
-	uint32_t schars_begin = begin + bytes->size();
+	uint32_t schars_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector schars_bytes;
 	EncodeStrings(m_special_character_names, schars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), schars_bytes.cbegin(), schars_bytes.cend());
 
-	uint32_t dchars_begin = begin + bytes->size();
+	uint32_t dchars_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector dchars_bytes;
 	EncodeString(m_default_character_name, dchars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), dchars_bytes.cbegin(), dchars_bytes.cend());
 
-	uint32_t items_begin = begin + bytes->size();
+	uint32_t items_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector items_bytes;
 	EncodeStrings(m_item_names, items_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), items_bytes.cbegin(), items_bytes.cend());
 
-	uint32_t menu_begin = begin + bytes->size();
+	uint32_t menu_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector menu_bytes;
 	EncodeStrings(m_menu_strings, menu_bytes, m_charsets.menu);
 	bytes->insert(bytes->end(), menu_bytes.cbegin(), menu_bytes.cend());
@@ -2392,7 +2392,7 @@ bool StringData::RomPrepareInjectIntroStrings(const Rom& rom)
 	int ptr_offset = 0;
 	for (const auto& s : m_intro_strings)
 	{
-		uint32_t addr = bytes->size() + begin;
+		uint32_t addr = static_cast<uint32_t>(bytes->size()) + begin;
 		bytes->at(ptr_offset++) = (addr >> 24) & 0xFF;
 		bytes->at(ptr_offset++) = (addr >> 16) & 0xFF;
 		bytes->at(ptr_offset++) = (addr >> 8) & 0xFF;
@@ -2405,7 +2405,7 @@ bool StringData::RomPrepareInjectIntroStrings(const Rom& rom)
 			bytes->push_back(0xFF);
 		}
 	}
-	uint32_t visit_begin = begin + bytes->size();
+	uint32_t visit_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto visit_bytes = SerialiseVisitFlags();
 	bytes->insert(bytes->end(), visit_bytes.cbegin(), visit_bytes.cend());
 

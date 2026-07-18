@@ -11,9 +11,10 @@
 #include <landstalker/misc/Literals.h>
 #include <landstalker/misc/Labels.h>
 
+
 namespace Landstalker {
 
-std::map<uint16_t, std::vector<TileSwapFlag>> DecodeGfxSwap(const ByteVector& data)
+static std::map<uint16_t, std::vector<TileSwapFlag>> DecodeGfxSwap(const ByteVector& data)
 {
     std::map<uint16_t, std::vector<TileSwapFlag>> flags;
     assert(data.size() % (sizeof(uint16_t) * 2) == 2);
@@ -32,7 +33,7 @@ std::map<uint16_t, std::vector<TileSwapFlag>> DecodeGfxSwap(const ByteVector& da
     return flags;
 }
 
-ByteVector EncodeGfxSwap(const std::map<uint16_t, std::vector<TileSwapFlag>>& data)
+static ByteVector EncodeGfxSwap(const std::map<uint16_t, std::vector<TileSwapFlag>>& data)
 {
     ByteVector ret;
     ret.reserve(data.size() * 4 + 2);
@@ -49,7 +50,7 @@ ByteVector EncodeGfxSwap(const std::map<uint16_t, std::vector<TileSwapFlag>>& da
     return ret;
 }
 
-std::vector<TreeWarpFlag> DecodeTreeWarp(const ByteVector& data)
+static std::vector<TreeWarpFlag> DecodeTreeWarp(const ByteVector& data)
 {
     std::vector<TreeWarpFlag> flags;
     assert(data.size() % TreeWarpFlag::SIZE == 2);
@@ -62,7 +63,7 @@ std::vector<TreeWarpFlag> DecodeTreeWarp(const ByteVector& data)
     return flags;
 }
 
-ByteVector EncodeTreeWarp(const std::vector<TreeWarpFlag>& data)
+static ByteVector EncodeTreeWarp(const std::vector<TreeWarpFlag>& data)
 {
     ByteVector ret;
     ret.reserve(data.size() * TreeWarpFlag::SIZE + 2);
@@ -76,7 +77,7 @@ ByteVector EncodeTreeWarp(const std::vector<TreeWarpFlag>& data)
     return ret;
 }
 
-std::map<uint16_t, uint16_t> DecodeToMap(const ByteVector& data)
+static std::map<uint16_t, uint16_t> DecodeToMap(const ByteVector& data)
 {
     std::map<uint16_t, uint16_t> map;
     assert(data.size() % (sizeof(uint16_t) * 2) == 2);
@@ -89,7 +90,7 @@ std::map<uint16_t, uint16_t> DecodeToMap(const ByteVector& data)
     return map;
 }
 
-ByteVector EncodeFromMap(const std::map<uint16_t, uint16_t>& data)
+static ByteVector EncodeFromMap(const std::map<uint16_t, uint16_t>& data)
 {
     ByteVector ret;
     ret.reserve(data.size() * 4 + 2);
@@ -105,7 +106,7 @@ ByteVector EncodeFromMap(const std::map<uint16_t, uint16_t>& data)
     return ret;
 }
 
-std::set<uint16_t> DecodeToSet(const ByteVector& data, bool terminate = true)
+static std::set<uint16_t> DecodeToSet(const ByteVector& data, bool terminate = true)
 {
     std::set<uint16_t> set;
     assert(data.size() % sizeof(uint16_t) == 0);
@@ -120,7 +121,7 @@ std::set<uint16_t> DecodeToSet(const ByteVector& data, bool terminate = true)
     return set;
 }
 
-ByteVector EncodeFromSet(const std::set<uint16_t>& data, bool terminate = true)
+static ByteVector EncodeFromSet(const std::set<uint16_t>& data, bool terminate = true)
 {
     ByteVector ret;
     ret.reserve(data.size() * 2 + 2);
@@ -523,7 +524,7 @@ std::wstring RoomData::GetRoomDisplayName(uint16_t room) const
 
 std::wstring RoomData::GetMapDisplayName(const std::string& map) const
 {
-    int index = std::distance(m_maps.cbegin(), m_maps.find(map));
+    int index = static_cast<int>(std::distance(m_maps.cbegin(), m_maps.find(map)));
     return Labels::Get(Labels::C_MAPS, index).value_or(std::wstring(map.cbegin(), map.cend()));
 }
 
@@ -2390,7 +2391,7 @@ bool RoomData::AsmSaveAnimatedTilesetData(const std::filesystem::path& dir)
 
 bool RoomData::AsmSaveChestData(const std::filesystem::path& dir)
 {
-    auto result = m_chests.GetData(GetRoomCount());
+    auto result = m_chests.GetData(static_cast<int>(GetRoomCount()));
     WriteBytes(result.first, dir / m_chest_offset_data_filename);
     WriteBytes(result.second, dir / m_chest_data_filename);
     return true;
@@ -2398,7 +2399,7 @@ bool RoomData::AsmSaveChestData(const std::filesystem::path& dir)
 
 bool RoomData::AsmSaveDoorData(const std::filesystem::path& dir)
 {
-    auto result = m_doors.GetData(GetRoomCount());
+    auto result = m_doors.GetData(static_cast<int>(GetRoomCount()));
     WriteBytes(result.first, dir / m_door_offset_data_filename);
     WriteBytes(result.second, dir / m_door_table_data_filename);
     return true;
@@ -2433,8 +2434,8 @@ bool RoomData::RomPrepareInjectMiscWarp(const Rom& rom)
     m_pending_writes.push_back({ RomLabels::Rooms::MISC_WARP_SECTION, pend_write });
 
     uint32_t fall_addr = rom.get_section(RomLabels::Rooms::MISC_WARP_SECTION).begin;
-    uint32_t climb_addr = fall_addr + fall_bytes.size();
-    uint32_t transition_addr = climb_addr + climb_bytes.size();
+    uint32_t climb_addr = fall_addr + static_cast<uint32_t>(fall_bytes.size());
+    uint32_t transition_addr = climb_addr + static_cast<uint32_t>(climb_bytes.size());
 
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::FALL_TABLE_LEA_LOC, fall_addr));
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::CLIMB_TABLE_LEA_LOC, climb_addr));
@@ -2450,7 +2451,7 @@ bool RoomData::RomPrepareInjectRoomData(const Rom& rom)
     std::vector<uint8_t> map_bytes;
     std::vector<uint8_t> pal_bytes;
     auto bytes = std::make_shared<std::vector<uint8_t>>();
-    uint32_t roomlist_size = m_roomlist.size() * 8;
+    uint32_t roomlist_size = static_cast<uint32_t>(m_roomlist.size()) * 8;
     uint32_t data_begin = rom.get_section(RomLabels::Rooms::ROOM_DATA_SECTION).begin;
     auto warp_bytes = m_warps.GetWarpBytes();
     for (auto& map : m_maps)
@@ -2472,13 +2473,13 @@ bool RoomData::RomPrepareInjectRoomData(const Rom& rom)
     {
         bytes->push_back(0xFF);
     }
-    uint32_t pal_begin = data_begin + bytes->size();
+    uint32_t pal_begin = data_begin + static_cast<uint32_t>(bytes->size());
     for (auto& pal : m_room_pals)
     {
         auto pbytes = pal->GetBytes();
         bytes->insert(bytes->end(), pbytes->begin(), pbytes->end());
     }
-    uint32_t warp_begin = data_begin + bytes->size();
+    uint32_t warp_begin = data_begin + static_cast<uint32_t>(bytes->size());
     bytes->insert(bytes->end(), warp_bytes.begin(), warp_bytes.end());
     m_pending_writes.push_back({ RomLabels::Rooms::ROOM_DATA_SECTION, bytes });
     m_pending_writes.push_back({ RomLabels::Rooms::ROOM_DATA_PTR, std::make_shared<std::vector<uint8_t>>(Split<uint8_t>(data_begin)) });
@@ -2515,7 +2516,7 @@ bool RoomData::RomPrepareInjectBlocksetData(const Rom& rom)
     std::map<std::string, uint32_t> blockset_addrs;
     uint32_t base = rom.get_section(RomLabels::Blocksets::SECTION).begin;
     uint32_t pri_size = (64 + 1) * 4;
-    uint32_t sec_size = m_blocksets.size() * 4;
+    uint32_t sec_size = static_cast<uint32_t>(m_blocksets.size()) * 4;
     uint32_t blockset_data_offset = base + pri_size + sec_size;
     ByteVectorPtr bytes = std::make_shared<ByteVector>();
     ByteVector blocks;
@@ -2559,17 +2560,17 @@ bool RoomData::RomPrepareInjectBlocksetData(const Rom& rom)
 
 bool RoomData::RomPrepareInjectTilesetData(const Rom& rom)
 {
-    const std::size_t tilesets_begin = rom.get_section(RomLabels::Tilesets::SECTION).begin;
+    const uint32_t tilesets_begin = rom.get_section(RomLabels::Tilesets::SECTION).begin;
     auto bytes = std::make_shared<ByteVector>();
     ByteVector tilesets;
-    const uint32_t misc_pointer_space = (2 + m_animated_ts.size()) * sizeof(uint32_t);
+    const uint32_t misc_pointer_space = static_cast<uint32_t>((2 + m_animated_ts.size()) * sizeof(uint32_t));
     const uint32_t tileset_pointer_space = 32 * sizeof(uint32_t);
     const uint32_t tileset_base = tilesets_begin + misc_pointer_space + tileset_pointer_space;
     std::map<std::string, uint32_t> addrs;
 
     for (const auto& ts : m_tilesets_by_name)
     {
-        addrs[ts.first] = tileset_base + tilesets.size();
+        addrs[ts.first] = tileset_base + static_cast<uint32_t>(tilesets.size());
         auto data = ts.second->GetBytes();
         tilesets.insert(tilesets.end(), data->cbegin(), data->cend());
     }
@@ -2579,11 +2580,11 @@ bool RoomData::RomPrepareInjectTilesetData(const Rom& rom)
     }
     for (const auto& ts : m_animated_ts_by_name)
     {
-        addrs[ts.first] = tileset_base + tilesets.size();
+        addrs[ts.first] = tileset_base + static_cast<uint32_t>(tilesets.size());
         auto data = ts.second->GetBytes();
         tilesets.insert(tilesets.end(), data->cbegin(), data->cend());
     }
-    addrs[m_intro_font->GetName()] = tileset_base + tilesets.size();
+    addrs[m_intro_font->GetName()] = tileset_base + static_cast<uint32_t>(tilesets.size());
     auto data = m_intro_font->GetBytes();
     tilesets.insert(tilesets.end(), data->cbegin(), data->cend());
 
@@ -2593,7 +2594,7 @@ bool RoomData::RomPrepareInjectTilesetData(const Rom& rom)
         dest->insert(dest->end(), ptrbytes.cbegin(), ptrbytes.cend());
     };
 
-    insert_pointer(bytes, tilesets_begin + misc_pointer_space);
+    insert_pointer(bytes, static_cast<uint32_t>(tilesets_begin + misc_pointer_space));
     for (const auto& ts : m_animated_ts_by_name)
     {
         insert_pointer(bytes, addrs.at(ts.first));
@@ -2645,7 +2646,7 @@ bool RoomData::RomPrepareInjectAnimatedTilesetData(const Rom& rom)
         bytes->push_back(ts.second->GetData()->GetFrameSizeBytes() & 0xFF);
         bytes->push_back(ts.second->GetData()->GetAnimationSpeed());
         bytes->push_back(ts.second->GetData()->GetAnimationFrames());
-        auto ptr = Split<uint8_t, uint32_t>(tilesets_begin + (i * sizeof(uint32_t)));
+        auto ptr = Split<uint8_t, uint32_t>(static_cast<uint32_t>(tilesets_begin + (i * sizeof(uint32_t))));
         bytes->insert(bytes->end(), ptr.cbegin(), ptr.cend());
         i++;
     }
@@ -2657,9 +2658,9 @@ bool RoomData::RomPrepareInjectAnimatedTilesetData(const Rom& rom)
 
 bool RoomData::RomPrepareInjectChestData(const Rom& rom)
 {
-    auto results = m_chests.GetData(GetRoomCount());
+    auto results = m_chests.GetData(static_cast<int>(GetRoomCount()));
     uint32_t offsets_begin = rom.get_section(RomLabels::Rooms::CHEST_SECTION).begin;
-    uint32_t chests_begin = offsets_begin + results.first.size();
+    uint32_t chests_begin = offsets_begin + static_cast<uint32_t>(results.first.size());
     auto data = std::make_shared<ByteVector>(results.first);
     data->insert(data->end(), results.second.begin(), results.second.end());
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::CHEST_OFFSETS, offsets_begin));
@@ -2670,9 +2671,9 @@ bool RoomData::RomPrepareInjectChestData(const Rom& rom)
 
 bool RoomData::RomPrepareInjectDoorData(const Rom& rom)
 {
-    auto result = m_doors.GetData(GetRoomCount());
+    auto result = m_doors.GetData(static_cast<int>(GetRoomCount()));
     uint32_t offsets_begin = rom.get_section(RomLabels::Rooms::DOOR_TABLE_SECTION).begin;
-    uint32_t doors_begin = offsets_begin + result.first.size();
+    uint32_t doors_begin = offsets_begin + static_cast<uint32_t>(result.first.size());
     auto data = std::make_shared<ByteVector>(result.first);
     data->insert(data->end(), result.second.begin(), result.second.end());
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::DOOR_OFFSET_TABLE, offsets_begin));
@@ -2688,9 +2689,9 @@ bool RoomData::RomPrepareInjectGfxSwapData(const Rom& rom)
     auto tree_bytes = EncodeTreeWarp(m_gfxswap_big_tree_flags);
     auto table_bytes = m_gfxswaps.GetData();
     uint32_t flags_begin = rom.get_section(RomLabels::Rooms::GFX_SWAP_SECTION).begin;
-    uint32_t doors_begin = flags_begin + flag_bytes.size();
-    uint32_t trees_begin = doors_begin + door_bytes.size();
-    uint32_t table_begin = trees_begin + tree_bytes.size();
+    uint32_t doors_begin = flags_begin + static_cast<uint32_t>(flag_bytes.size());
+    uint32_t trees_begin = doors_begin + static_cast<uint32_t>(door_bytes.size());
+    uint32_t table_begin = trees_begin + static_cast<uint32_t>(tree_bytes.size());
     auto data = std::make_shared<ByteVector>(flag_bytes);
     data->insert(data->end(), door_bytes.begin(), door_bytes.end());
     data->insert(data->end(), tree_bytes.begin(), tree_bytes.end());

@@ -513,7 +513,7 @@ int Palette::GetSize() const
 	if (size == -1)
 	{
 		// Var-width palette
-		size = m_pal.size();
+		size = static_cast<int>(m_pal.size());
 	}
 	return size;
 }
@@ -524,7 +524,7 @@ int Palette::GetSizeBytes() const
 	if (size == -1)
 	{
 		// Var-width palette
-		size = m_pal.size() * 2 + 4;
+		size = static_cast<int>(m_pal.size() * 2 + 4);
 	}
 	return size * 2;
 }
