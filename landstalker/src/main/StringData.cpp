@@ -2058,7 +2058,7 @@ bool StringData::AsmSaveSystemText(const std::filesystem::path& dir)
 	try
 	{
 		AsmFile sfile, ifile;
-		ByteVector str[4];
+		std::string str[4];
 		ifile.WriteFileHeader(m_region_check_filename, "Region Check");
 		ifile << AsmFile::Label(RomLabels::Strings::REGION_CHECK_ROUTINE) << AsmFile::IncludeFile(m_region_check_routine_filename, AsmFile::FileType::ASSEMBLER);
 		ifile << AsmFile::Label(RomLabels::Strings::REGION_CHECK_STRINGS) << AsmFile::IncludeFile(m_region_check_strings_filename, AsmFile::FileType::ASSEMBLER);
@@ -2068,14 +2068,14 @@ bool StringData::AsmSaveSystemText(const std::filesystem::path& dir)
 		for (int i = 0; i < 4; ++i)
 		{
 			std::transform(m_system_strings[i].cbegin(), m_system_strings[i].cend(), std::back_inserter(str[i]), [](const auto& c) {
-				return static_cast<uint8_t>(c);
+				return static_cast<char>(static_cast<uint8_t>(c));
 				});
-			str[i].push_back(0);
+			str[i].push_back('\0');
 		}
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE1) << str[0];
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_NTSC) << str[1];
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_PAL) << str[2];
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE3) << str[3];
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE1) << AsmFile::String(str[0]);
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_NTSC) << AsmFile::String(str[1]);
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_PAL) << AsmFile::String(str[2]);
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE3) << AsmFile::String(str[3]);
 		sfile.WriteFile(dir / m_region_check_strings_filename);
 		return true;
 	}

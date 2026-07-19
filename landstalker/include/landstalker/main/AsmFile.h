@@ -142,6 +142,14 @@ public:
 		static Instruction FromAsmLine(const AsmFile::AsmLine& line, const std::map<std::string, std::string>& defines = {});
 	};
 
+	// A byte string to be emitted as printable quoted runs interspersed with
+	// hexadecimal byte literals for characters that cannot appear in a run.
+	struct String
+	{
+		explicit String(const std::string& p_value) : value(p_value) {}
+		std::string value;
+	};
+
 	struct NewLine {};
 
 	using ScriptAction = std::optional<std::variant<ScriptId, ScriptJump>>;
@@ -224,6 +232,7 @@ public:
 	template<typename T>
 	bool Write(const T& data);
 	bool Write(const std::string& data);
+	bool Write(const String& data);
 	template<std::size_t N>
 	bool Write(const char(&data)[N]);
 	bool Write(const Label& label);

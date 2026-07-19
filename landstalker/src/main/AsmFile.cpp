@@ -18,6 +18,154 @@ const std::unordered_map<std::string, AsmFile::Inst> AsmFile::INSTRUCTIONS
 };
 const std::unordered_map<std::string, AsmFile::Width> AsmFile::WIDTHS{ {"", Width::NONE}, {"b", Width::B}, {"w", Width::W}, {"l", Width::L}, {"s", Width::S} };
 
+namespace {
+
+std::size_t FindUnquoted(const std::string& text, char needle)
+{
+	char quote = '\0';
+	for (std::size_t i = 0; i < text.size(); ++i)
+	{
+		const char c = text[i];
+		if (quote != '\0')
+		{
+			if (c == quote)
+			{
+				if (i + 1 < text.size() && text[i + 1] == quote)
+				{
+					++i;
+				}
+				else
+				{
+					quote = '\0';
+				}
+			}
+		}
+		else if (c == '"' || c == '\'')
+		{
+			quote = c;
+		}
+		else if (c == needle)
+		{
+			return i;
+		}
+	}
+	return std::string::npos;
+}
+
+std::vector<std::string> SplitOperands(const std::string& operands)
+{
+	std::vector<std::string> result;
+	std::string operand;
+	char quote = '\0';
+	for (std::size_t i = 0; i < operands.size(); ++i)
+	{
+		const char c = operands[i];
+		if (quote != '\0')
+		{
+			operand += c;
+			if (c == quote)
+			{
+				if (i + 1 < operands.size() && operands[i + 1] == quote)
+				{
+					operand += operands[++i];
+				}
+				else
+				{
+					quote = '\0';
+				}
+			}
+		}
+		else if (c == '"' || c == '\'')
+		{
+			quote = c;
+			operand += c;
+		}
+		else if (c == ',')
+		{
+			result.push_back(Trim(operand));
+			operand.clear();
+		}
+		else
+		{
+			operand += c;
+		}
+	}
+	result.push_back(Trim(operand));
+	return result;
+}
+
+bool ParseStringLiteral(const std::string& operand, std::string& value)
+{
+	const std::string literal = Trim(operand);
+	if (literal.size() < 2 || (literal.front() != '"' && literal.front() != '\'') ||
+		literal.back() != literal.front())
+	{
+		return false;
+	}
+
+	value.clear();
+	const char quote = literal.front();
+	for (std::size_t i = 1; i + 1 < literal.size(); ++i)
+	{
+		if (literal[i] != quote)
+		{
+			value += literal[i];
+		}
+		else if (i + 2 < literal.size() && literal[i + 1] == quote)
+		{
+			value += quote;
+			++i;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+std::string FormatStringLiteral(const std::string& value)
+{
+	std::string result;
+	std::string printable;
+	auto append_operand = [&result](const std::string& operand)
+	{
+		if (!result.empty())
+		{
+			result += ',';
+		}
+		result += operand;
+	};
+	auto flush_printable = [&]()
+	{
+		if (!printable.empty())
+		{
+			append_operand('"' + printable + '"');
+			printable.clear();
+		}
+	};
+
+	for (const unsigned char c : value)
+	{
+		if (c >= 0x20 && c <= 0x7E && c != '"')
+		{
+			printable += static_cast<char>(c);
+		}
+		else
+		{
+			flush_printable();
+			std::ostringstream hex;
+			hex << '$' << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+				<< static_cast<unsigned int>(c);
+			append_operand(hex.str());
+		}
+	}
+	flush_printable();
+	return result.empty() ? "\"\"" : result;
+}
+
+} // namespace
+
 std::string AsmFile::Instruction::ToLine(const std::string& label, const std::string& comment) const
 {
 	return AsmFile::ToAsmLine(ToAsmLine(label, comment));
@@ -70,12 +218,9 @@ AsmFile::Instruction AsmFile::Instruction::FromAsmLine(const AsmFile::AsmLine& l
 		return Instruction();
 	}
 
-	std::string param;
-	std::stringstream ss(line.operand);
 	Instruction ins(line.instruction, width);
-	while (ss.good())
+	for (const std::string& param : SplitOperands(line.operand))
 	{
-		std::getline(ss, param, ',');
 		auto result = ParseValue(param, defines);
 		if (result != -1)
 		{
@@ -663,6 +808,18 @@ bool AsmFile::Write(const std::string& data)
 	return true;
 }
 
+bool AsmFile::Write(const String& data)
+{
+	if (!m_nextline.instruction.empty())
+	{
+		PushNextLine();
+	}
+	m_nextline.instruction = FindMapKey(INSTRUCTIONS, Inst::DC)->first;
+	m_nextline.width = FindMapKey(WIDTHS, Width::B)->first;
+	m_nextline.operand = FormatStringLiteral(data.value);
+	return true;
+}
+
 bool AsmFile::Write(const Label& label)
 {
 	PushNextLine();
@@ -763,7 +920,7 @@ bool AsmFile::ParseLine(AsmFile::AsmLine& line, const std::string& str)
 {
 	std::string s(str);
 	size_t end = 0;
-	end = s.find(";");
+	end = FindUnquoted(s, ';');
 	if (end != std::string::npos)
 	{
 		line.comment = Trim(s.substr(end));
@@ -965,11 +1122,17 @@ bool AsmFile::ProcessInst<AsmFile::Inst::DC>(const AsmFile::AsmLine& line)
 	{
 		return false;
 	}
-	std::string word;
-	std::stringstream ss(line.operand);
-	while (ss.good())
+	for (const std::string& word : SplitOperands(line.operand))
 	{
-		std::getline(ss, word, ',');
+		std::string literal;
+		if (width == Width::B && ParseStringLiteral(word, literal))
+		{
+			for (const unsigned char c : literal)
+			{
+				m_data.emplace_back(static_cast<uint8_t>(c));
+			}
+			continue;
+		}
 		auto result = ParseValue(word);
 		if (result != -1)
 		{
