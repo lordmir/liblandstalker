@@ -429,7 +429,7 @@ std::array<bool, 16> Tileset::GetLockedColours() const
     retval.fill(true);
     if (m_colour_indicies.empty())
     {
-        std::fill(retval.begin(), retval.begin() + static_cast<uint32_t>(1 << m_bit_depth), false);
+        std::fill(retval.begin(), retval.begin() + static_cast<uint32_t>(1UL << m_bit_depth), false);
     }
     else
     {
