@@ -71,6 +71,7 @@ public:
 	bool operator!=(const WarpList& rhs) const;
 
 	std::vector<Warp> GetWarpsForRoom(uint16_t room) const;
+	static bool HasDuplicateWarps(const std::vector<Warp>& warps);
 	void UpdateWarpsForRoom(uint16_t room, const std::vector<Warp>& warps);
 	bool HasFallDestination(uint16_t room) const;
 	uint16_t GetFallDestination(uint16_t room) const;
@@ -78,6 +79,7 @@ public:
 	uint16_t GetClimbDestination(uint16_t room) const;
 	std::vector<Transition> GetAllTransitionsForRoom(uint16_t room) const;
 	std::vector<Transition> GetSrcTransitionsForRoom(uint16_t room) const;
+	void UpdateTransitionsForRoom(uint16_t room, const std::vector<Transition>& data);
 	void SetSrcTransitionsForRoom(uint16_t room, const std::vector<Transition>& data);
 
 	void SetHasFallDestination(uint16_t room, bool enabled);

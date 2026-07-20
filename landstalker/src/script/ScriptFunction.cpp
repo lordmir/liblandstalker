@@ -241,7 +241,7 @@ bool ScriptFunction::ProcessScriptFunction(const AsmFile::Instruction& ins, AsmF
         statements->push_back(Statements::IsFlagSet(file));
         return true;
     }
-    else if (funcname == "Sleep_0")
+    else if (funcname == "ScriptSleep" || funcname == "Sleep_0")
     {
         statements->push_back(Statements::Sleep(file));
         return true;
@@ -251,12 +251,12 @@ bool ScriptFunction::ProcessScriptFunction(const AsmFile::Instruction& ins, AsmF
         statements->push_back(Statements::DisplayPrice(file));
         return true;
     }
-    else if (funcname == "HandleShopInterraction")
+    else if (funcname == "HandleShopInteraction" || funcname == "HandleShopInterraction")
     {
         statements->push_back(Statements::ShopInteraction(file));
         return true;
     }
-    else if (funcname == "HandleChurchInterraction")
+    else if (funcname == "HandleChurchInteraction" || funcname == "HandleShopInterraction")
     {
         statements->push_back(Statements::ChurchInteraction(file));
         return true;

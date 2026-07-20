@@ -174,6 +174,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Doors.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\MapToTmx.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\RoomToTmx.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\RoomToYaml.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3D.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3DCompressor.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\TileSwaps.cpp" />
@@ -237,6 +238,7 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Doors.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\MapToTmx.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\RoomToTmx.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\RoomToYaml.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3D.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3DCompressor.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\TileSwaps.h" />

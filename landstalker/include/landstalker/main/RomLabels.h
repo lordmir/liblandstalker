@@ -330,6 +330,7 @@ namespace RomLabels
 		extern const std::string GAME_LOAD_ROUTINES_1;
 		extern const std::string GAME_LOAD_ROUTINES_2;
 		extern const std::string GAME_LOAD_ROUTINES_3;
+		extern const std::string GAME_LOAD_ROUTINES_4;
 		extern const std::string GAME_LOAD_PALETTE;
 		extern const std::string GAME_LOAD_PALETTE_LEA;
 		extern const std::string GAME_LOAD_PLAYER_PALETTE;
@@ -423,6 +424,7 @@ namespace RomLabels
 		extern const std::string GAME_LOAD_ROUTINES_1_FILE;
 		extern const std::string GAME_LOAD_ROUTINES_2_FILE;
 		extern const std::string GAME_LOAD_ROUTINES_3_FILE;
+		extern const std::string GAME_LOAD_ROUTINES_4_FILE;
 		extern const std::string GAME_LOAD_PALETTE_FILE;
 		extern const std::string GAME_LOAD_PLAYER_PALETTE_FILE;
 		extern const std::string GAME_LOAD_CHARS_FILE;

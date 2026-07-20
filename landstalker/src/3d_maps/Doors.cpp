@@ -91,7 +91,11 @@ bool Doors::RoomHasDoors(uint16_t room) const
 
 void Doors::SetRoomDoors(uint16_t room, const std::vector<Door>& swaps)
 {
-	if (m_doors.count(room) > 0)
+	if (swaps.empty())
+	{
+		m_doors.erase(room);
+	}
+	else if (m_doors.count(room) > 0)
 	{
 		m_doors[room] = swaps;
 	}

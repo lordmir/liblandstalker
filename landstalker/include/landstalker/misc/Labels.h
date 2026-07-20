@@ -17,8 +17,14 @@ public:
     static void SaveData(const std::string& filename);
     static bool Exists(const std::wstring& what, int id);
     static std::optional<std::wstring> Get(const std::wstring& what, int id);
+    static std::optional<std::wstring> NormalizePath(const std::wstring& what);
+    static bool IsValidPath(const std::wstring& what);
     static bool IsValid(const std::wstring& what);
+    static bool IsValid(const std::wstring& what, const std::wstring& category, int id);
     static bool Update(const std::wstring& category, int id, const std::wstring& updated);
+    static bool Reorder(const std::wstring& category, std::size_t old_index,
+        std::size_t new_index, std::size_t count);
+    static bool Erase(const std::wstring& category, std::size_t index, std::size_t count);
 
     static const std::wstring C_ROOMS;
     static const std::wstring C_BGMS;
@@ -41,7 +47,8 @@ public:
     static const std::wstring C_CHARACTER;
     static const std::wstring C_GLOBAL_CHARACTER;
 private:
-    static bool IsExistingValid(const std::wstring& what);
+    static bool IsValid(const std::wstring& what,
+        const std::optional<std::pair<std::wstring, int>>& excluded);
     static std::map<std::pair<std::wstring, int>, std::wstring> m_data;
     static const std::map<std::wstring, std::wstring>& GetFormatStrings();
 

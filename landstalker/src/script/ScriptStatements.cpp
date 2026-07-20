@@ -302,7 +302,7 @@ bool Sleep::operator!=(const Sleep& rhs) const
 
 void Sleep::ToAsm(AsmFile& file) const
 {
-    file << AsmFile::Instruction("bsr", AsmFile::Width::W, { "Sleep_0" }) << ticks;
+    file << AsmFile::Instruction("bsr", AsmFile::Width::W, { "ScriptSleep" }) << ticks;
 }
 
 void Sleep::ToYaml(YAML::Emitter& out) const
@@ -524,7 +524,7 @@ bool ShopInteraction::operator!=(const ShopInteraction& rhs) const
 
 void ShopInteraction::ToAsm(AsmFile& file) const
 {
-    file << AsmFile::Instruction("bsr", AsmFile::Width::W, { "HandleShopInterraction" });
+    file << AsmFile::Instruction("bsr", AsmFile::Width::W, { "HandleShopInteraction" });
     on_sale_prompt.ActionToAsm(file, 0);
     on_sale_confirm.ActionToAsm(file, 1);
     on_no_money.ActionToAsm(file, 2);
@@ -593,7 +593,7 @@ bool ChurchInteraction::operator!=(const ChurchInteraction& rhs) const
 
 void ChurchInteraction::ToAsm(AsmFile& file) const
 {
-    file << AsmFile::Instruction("bsr", AsmFile::Width::S, { "HandleChurchInterraction" });
+    file << AsmFile::Instruction("bsr", AsmFile::Width::S, { "HandleChurchInteraction" });
     script_normal_priest.ActionToAsm(file, 0);
     script_skeleton_priest.ActionToAsm(file, 1);
 }

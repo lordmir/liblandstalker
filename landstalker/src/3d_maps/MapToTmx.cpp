@@ -69,20 +69,24 @@ static std::vector<uint16_t> ReadData(int width, int height, const std::string& 
 bool MapToTmx::ImportFromTmx(const std::string& fname, Tilemap3D& map)
 {
 	pugi::xml_document tmx;
-	tmx.load_file(fname.c_str());
-	int width = tmx.child("map").attribute("width").as_int() - 1;
-	int height = tmx.child("map").attribute("height").as_int();
-	std::vector<uint16_t> fg, bg;
-	for (pugi::xml_node_iterator it = tmx.child("layer").begin(); it != tmx.child("layer").end(); ++it)
+	if (!tmx.load_file(fname.c_str()))
 	{
-		auto data = it->child("data");
+		return false;
+	}
+	const auto map_node = tmx.child("map");
+	int width = map_node.attribute("width").as_int() - 1;
+	int height = map_node.attribute("height").as_int();
+	std::vector<uint16_t> fg, bg;
+	for (const auto layer : map_node.children("layer"))
+	{
+		auto data = layer.child("data");
 		if (data && data.attribute("encoding").as_string() == std::string("csv"))
 		{
-			if(it->attribute("id").as_int() == 1)
+			if(layer.attribute("id").as_int() == 1)
 			{
 				bg = ReadData(width, height, data.child_value());
 			}
-			else if (it->attribute("id").as_int() == 2)
+			else if (layer.attribute("id").as_int() == 2)
 			{
 				fg = ReadData(width, height, data.child_value());
 			}

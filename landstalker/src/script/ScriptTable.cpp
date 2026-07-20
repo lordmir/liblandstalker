@@ -165,65 +165,89 @@ bool WriteItemTable(const std::filesystem::path& prefix, const std::filesystem::
 	return file.WriteFile(prefix / path);
 }
 
-static std::ostringstream& ActionsToYaml(std::ostringstream& ss, const std::vector<Action>& actions, std::size_t indent = 1)
+static std::string TableRowComment(std::size_t index)
 {
-	for (const auto& action : actions)
+	return StrPrintf("0x%04X", static_cast<unsigned int>(index));
+}
+
+static void ActionsToYaml(YAML::Emitter& out, const std::vector<Action>& actions, bool include_row_indices)
+{
+	out << YAML::BeginSeq;
+	for (std::size_t i = 0; i < actions.size(); ++i)
 	{
-		std::visit([&](const auto& arg)
+		out << YAML::BeginMap;
+		std::visit([&out](const auto& arg)
 			{
 				using T = std::decay_t<decltype(arg)>;
 				if constexpr (std::is_same_v<T, uint16_t>)
 				{
-					ss << std::setw(indent * 2) << "- " << "ScriptID:   " << Hex(arg) << std::endl;
+					out << YAML::Key << "ScriptID" << YAML::Value << YAML::Hex << arg;
 				}
 				else if constexpr (std::is_same_v<T, std::string>)
 				{
-					ss << std::setw(indent * 2) << "- " << "ScriptJump: " << arg << std::endl;
+					out << YAML::Key << "ScriptJump" << YAML::Value << arg;
 				}
-			}, action);
+			}, actions[i]);
+		if (include_row_indices)
+		{
+			out << YAML::Comment(TableRowComment(i));
+		}
+		out << YAML::EndMap;
 	}
-	return ss;
+	out << YAML::EndSeq;
 }
 
 std::string TableToYaml(std::shared_ptr<std::vector<Action>> table)
 {
-	std::ostringstream ss;
-	ActionsToYaml(ss, *table);
-	return ss.str();
+	YAML::Emitter out;
+	ActionsToYaml(out, *table, true);
+	return std::string(out.c_str()) + "\n";
 }
 
 std::string TableToYaml(std::shared_ptr<std::vector<Shop>> table)
 {
-	std::ostringstream ss;
-	for (const auto& shop : *table)
+	YAML::Emitter out;
+	out << YAML::BeginSeq;
+	for (std::size_t i = 0; i < table->size(); ++i)
 	{
-		ss << "- Shop:                   " << Hex(shop.room) << std::endl;
-		ss << "  ItemMarkupPercent:      " << (shop.markup * 6.25 - 100.0) << std::endl;
-		ss << "  LifestockMarkupPercent: " << (shop.lifestock_markup * 6.25 - 100.0) << std::endl;
-		ss << "  Script: " << std::endl;
-		ActionsToYaml(ss, std::vector<Action>(shop.actions.cbegin(), shop.actions.cend()), 2) << std::endl;
+		const auto& shop = table->at(i);
+		out << YAML::BeginMap;
+		out << YAML::Key << "Shop" << YAML::Value << YAML::Hex << shop.room
+			<< YAML::Comment(TableRowComment(i));
+		out << YAML::Key << "ItemMarkupPercent" << YAML::Value << (shop.markup * 6.25 - 100.0);
+		out << YAML::Key << "LifestockMarkupPercent" << YAML::Value << (shop.lifestock_markup * 6.25 - 100.0);
+		out << YAML::Key << "Script" << YAML::Value;
+		ActionsToYaml(out, std::vector<Action>(shop.actions.cbegin(), shop.actions.cend()), false);
+		out << YAML::EndMap;
 	}
-	return ss.str();
+	out << YAML::EndSeq;
+	return std::string(out.c_str()) + "\n";
 }
 
 std::string TableToYaml(std::shared_ptr<std::vector<Item>> table)
 {
-	std::ostringstream ss;
-	for (const auto& item : *table)
+	YAML::Emitter out;
+	out << YAML::BeginSeq;
+	for (std::size_t i = 0; i < table->size(); ++i)
 	{
-		ss << "- Item:      " << Hex(item.item) << std::endl;
+		const auto& item = table->at(i);
+		out << YAML::BeginMap;
+		out << YAML::Key << "Item" << YAML::Value << YAML::Hex << static_cast<unsigned int>(item.item)
+			<< YAML::Comment(TableRowComment(i));
 		if (item.shop != 0xFFFF)
 		{
-			ss << "  Shop:      " << Hex(item.shop) << std::endl;
+			out << YAML::Key << "Shop" << YAML::Value << YAML::Hex << item.shop;
 		}
 		if (item.other.has_value())
 		{
-			ss << "  ExtraData: " << Hex(*item.other) << std::endl;
+			out << YAML::Key << "ExtraData" << YAML::Value << YAML::Hex << *item.other;
 		}
-		ss << "  Script:    " << std::endl;
-		ActionsToYaml(ss, item.actions, 2) << std::endl;
+		out << YAML::Key << "Script" << YAML::Value;
+		ActionsToYaml(out, item.actions, false);
+		out << YAML::EndMap;
 	}
-	return ss.str();
+	out << YAML::EndSeq;
+	return std::string(out.c_str()) + "\n";
 }
 
 static void ParseTable(const YAML::Node& node, std::vector<Action>& actions, std::size_t& counter)

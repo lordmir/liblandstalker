@@ -79,8 +79,19 @@ public:
     std::size_t GetRoomCount() const;
     std::shared_ptr<Room> GetRoom(uint16_t index) const;
     std::shared_ptr<Room> GetRoom(const std::string& name) const;
+    static bool IsValidRoomName(const std::string& name);
+    bool RenameRoom(uint16_t index, const std::string& name);
     const std::map<std::string, std::shared_ptr<Tilemap3DEntry>>& GetMaps() const;
+    const std::vector<std::string>& GetMapOrder() const;
     std::shared_ptr<Tilemap3DEntry> GetMap(const std::string& name) const;
+    static bool IsValidMapName(const std::string& name);
+    bool RenameMap(const std::string& old_name, const std::string& new_name);
+    bool ReorderMap(const std::string& name, std::size_t new_index);
+    std::shared_ptr<Tilemap3DEntry> CreateMap(const std::string& name,
+        uint8_t width, uint8_t height, uint8_t heightmap_width, uint8_t heightmap_height,
+        uint8_t heightmap_left, uint8_t heightmap_top);
+    bool IsMapReferenced(const std::string& name) const;
+    bool DeleteMap(const std::string& name);
     std::shared_ptr<PaletteEntry> GetPaletteForRoom(const std::string& name) const;
     std::shared_ptr<PaletteEntry> GetPaletteForRoom(uint16_t roomnum) const;
     std::shared_ptr<TilesetEntry> GetTilesetForRoom(const std::string& name) const;
@@ -111,6 +122,7 @@ public:
     void SetClimbDestination(uint16_t room, uint16_t dest);
     std::vector<WarpList::Transition> GetTransitions(uint16_t room) const;
     std::vector<WarpList::Transition> GetSrcTransitions(uint16_t room) const;
+    void SetTransitions(uint16_t room, const std::vector<WarpList::Transition>& data);
     void SetSrcTransitions(uint16_t room, const std::vector<WarpList::Transition>& data);
 
     bool IsShop(uint16_t room) const;
@@ -263,6 +275,8 @@ private:
 
     std::map<std::string, std::shared_ptr<Tilemap3DEntry>> m_maps;
     std::map<std::string, std::shared_ptr<Tilemap3DEntry>> m_maps_orig;
+    std::vector<std::string> m_map_order;
+    std::vector<std::string> m_map_order_orig;
 
     WarpList m_warps;
     WarpList m_warps_orig;

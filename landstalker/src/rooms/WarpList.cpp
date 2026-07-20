@@ -1,5 +1,6 @@
 #include <landstalker/rooms/WarpList.h>
 
+#include <algorithm>
 #include <cassert>
 #include <queue>
 
@@ -76,6 +77,25 @@ std::vector<WarpList::Warp> WarpList::GetWarpsForRoom(uint16_t room) const
 	return warps;
 }
 
+bool WarpList::HasDuplicateWarps(const std::vector<Warp>& warps)
+{
+	for (auto first = warps.cbegin(); first != warps.cend(); ++first)
+	{
+		if (!first->IsValid())
+		{
+			continue;
+		}
+		for (auto second = std::next(first); second != warps.cend(); ++second)
+		{
+			if (second->IsValid() && *first == *second)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 void WarpList::UpdateWarpsForRoom(uint16_t room, const std::vector<Warp>& warps)
 {
 	std::queue<std::vector<Warp>::iterator> iterators;
@@ -110,6 +130,24 @@ void WarpList::UpdateWarpsForRoom(uint16_t room, const std::vector<Warp>& warps)
 				auto& it = iterators.front();
 				*it = warp;
 				iterators.pop();
+			}
+		}
+	}
+
+	// A warp has no intrinsic direction: reversing room1/room2 and their coordinates
+	// still describes the same connection. Keep the first occurrence if an editor or
+	// importer supplies both orientations.
+	for (auto first = m_warps.begin(); first != m_warps.end(); ++first)
+	{
+		for (auto second = std::next(first); second != m_warps.end(); )
+		{
+			if (*first == *second)
+			{
+				second = m_warps.erase(second);
+			}
+			else
+			{
+				++second;
 			}
 		}
 	}
@@ -167,6 +205,15 @@ std::vector<WarpList::Transition> WarpList::GetSrcTransitionsForRoom(uint16_t ro
 		}
 	}
 	return retval;
+}
+
+void WarpList::UpdateTransitionsForRoom(uint16_t room, const std::vector<WarpList::Transition>& data)
+{
+	m_transitions.erase(std::remove_if(m_transitions.begin(), m_transitions.end(), [&](const auto& transition)
+		{
+			return transition.src_rm == room || transition.dst_rm == room;
+		}), m_transitions.end());
+	m_transitions.insert(m_transitions.end(), data.cbegin(), data.cend());
 }
 
 void WarpList::SetSrcTransitionsForRoom(uint16_t room, const std::vector<WarpList::Transition>& data)
@@ -427,6 +474,7 @@ std::vector<uint8_t> WarpList::Warp::GetRaw() const
 	retval[0] |= (y_size > 1) ? 0x10 : 0;
 	retval[0] |= (type == Type::STAIR_SE) ? 0x20 : 0;
 	retval[0] |= (type == Type::STAIR_SW) ? 0x40 : 0;
+	retval[0] |= (type == Type::UNKNOWN) ? 0x60 : 0;
 
 	return retval;
 }

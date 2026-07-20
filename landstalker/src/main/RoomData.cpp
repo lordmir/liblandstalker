@@ -3,6 +3,7 @@
 #include <set>
 #include <cassert>
 #include <algorithm>
+#include <cctype>
 
 #include <landstalker/misc/Utils.h>
 #include <landstalker/main/AsmUtils.h>
@@ -364,6 +365,10 @@ bool RoomData::HasBeenModified() const
     {
         return true;
     }
+    if (m_map_order != m_map_order_orig)
+    {
+        return true;
+    }
     if (std::any_of(m_room_pals.begin(), m_room_pals.end(), entry_pred))
     {
         return true;
@@ -399,7 +404,8 @@ bool RoomData::HasBeenModified() const
     }
     for (std::size_t i = 0; i < m_roomlist.size(); ++i)
     {
-        if (*m_roomlist[i] != *m_roomlist_orig[i])
+        if (m_roomlist[i]->name != m_roomlist_orig[i]->name ||
+            *m_roomlist[i] != *m_roomlist_orig[i])
         {
             return true;
         }
@@ -524,7 +530,10 @@ std::wstring RoomData::GetRoomDisplayName(uint16_t room) const
 
 std::wstring RoomData::GetMapDisplayName(const std::string& map) const
 {
-    int index = static_cast<int>(std::distance(m_maps.cbegin(), m_maps.find(map)));
+    const auto entry = std::find(m_map_order.cbegin(), m_map_order.cend(), map);
+    const int index = entry == m_map_order.cend()
+        ? -1
+        : static_cast<int>(std::distance(m_map_order.cbegin(), entry));
     return Labels::Get(Labels::C_MAPS, index).value_or(std::wstring(map.cbegin(), map.cend()));
 }
 
@@ -780,15 +789,228 @@ std::shared_ptr<Room> RoomData::GetRoom(const std::string& name) const
     return m_roomlist_by_name.find(name)->second;
 }
 
+bool RoomData::IsValidRoomName(const std::string& name)
+{
+    if (name.empty() || std::isdigit(static_cast<unsigned char>(name.front())))
+    {
+        return false;
+    }
+    return std::all_of(name.cbegin(), name.cend(), [](const unsigned char c)
+    {
+        return std::isalnum(c) || c == '_';
+    });
+}
+
+bool RoomData::RenameRoom(uint16_t index, const std::string& name)
+{
+    if (index >= m_roomlist.size() || !IsValidRoomName(name))
+    {
+        return false;
+    }
+
+    const auto room = m_roomlist[index];
+    const auto existing = m_roomlist_by_name.find(name);
+    if (existing != m_roomlist_by_name.cend() && existing->second != room)
+    {
+        return false;
+    }
+    if (room->name == name)
+    {
+        return true;
+    }
+
+    const auto old = m_roomlist_by_name.find(room->name);
+    if (old != m_roomlist_by_name.cend() && old->second == room)
+    {
+        m_roomlist_by_name.erase(old);
+    }
+    room->name = name;
+    m_roomlist_by_name[name] = room;
+    return true;
+}
+
 const std::map<std::string, std::shared_ptr<Tilemap3DEntry>>& RoomData::GetMaps() const
 {
     return m_maps;
+}
+
+const std::vector<std::string>& RoomData::GetMapOrder() const
+{
+    return m_map_order;
 }
 
 std::shared_ptr<Tilemap3DEntry> RoomData::GetMap(const std::string& name) const
 {
     assert(m_maps.find(name) != m_maps.cend());
     return m_maps.find(name)->second;
+}
+
+bool RoomData::IsValidMapName(const std::string& name)
+{
+    if (name.empty() || name.size() > 30 ||
+        !((name.front() >= 'A' && name.front() <= 'Z') ||
+          (name.front() >= 'a' && name.front() <= 'z') || name.front() == '_'))
+    {
+        return false;
+    }
+    return std::all_of(std::next(name.cbegin()), name.cend(), [](const char c)
+    {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '_';
+    });
+}
+
+bool RoomData::RenameMap(const std::string& old_name, const std::string& new_name)
+{
+    const auto old = m_maps.find(old_name);
+    if (old == m_maps.cend() || !IsValidMapName(new_name))
+    {
+        return false;
+    }
+    const auto existing = m_maps.find(new_name);
+    if (existing != m_maps.cend() && existing != old)
+    {
+        return false;
+    }
+    if (old_name == new_name)
+    {
+        return true;
+    }
+
+    const auto map = old->second;
+    m_maps.erase(old);
+    m_maps.emplace(new_name, map);
+    map->SetName(new_name);
+    const auto order = std::find(m_map_order.begin(), m_map_order.end(), old_name);
+    if (order != m_map_order.end())
+    {
+        *order = new_name;
+    }
+    for (const auto& room : m_roomlist)
+    {
+        if (room->map == old_name)
+        {
+            room->map = new_name;
+        }
+    }
+    return true;
+}
+
+std::shared_ptr<Tilemap3DEntry> RoomData::CreateMap(const std::string& name,
+    uint8_t width, uint8_t height, uint8_t heightmap_width, uint8_t heightmap_height,
+    uint8_t heightmap_left, uint8_t heightmap_top)
+{
+    if (!IsValidMapName(name) || m_maps.count(name) != 0 ||
+        width == 0 || width > 64 || height == 0 || height > 64 ||
+        heightmap_width == 0 || heightmap_width > 64 ||
+        heightmap_height == 0 || heightmap_height > 64 ||
+        heightmap_left > 63 || heightmap_top > 63)
+    {
+        return nullptr;
+    }
+
+    Tilemap3D map;
+    map.Resize(width, height);
+    map.ResizeHeightmap(heightmap_width, heightmap_height);
+    map.SetLeft(heightmap_left);
+    map.SetTop(heightmap_top);
+    ByteVector bytes(65536);
+    const auto length = map.Encode(bytes.data(), bytes.size());
+    if (length == 0)
+    {
+        return nullptr;
+    }
+    bytes.resize(length);
+
+    std::filesystem::path filename;
+    if (!m_map_order.empty())
+    {
+        const auto existing = m_maps.at(m_map_order.front())->GetFilename();
+        filename = existing.parent_path() / (name + existing.extension().string());
+    }
+    else
+    {
+        filename = StrPrintf(RomLabels::Rooms::MAP_FILENAME_FORMAT_STRING, name.c_str());
+    }
+    const auto filename_in_use = [&](const std::filesystem::path& candidate)
+    {
+        auto normalized = candidate.generic_string();
+        std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](const unsigned char c)
+        {
+            return static_cast<char>(std::tolower(c));
+        });
+        return std::any_of(m_maps.cbegin(), m_maps.cend(), [&](const auto& existing)
+        {
+            auto other = existing.second->GetFilename().generic_string();
+            std::transform(other.begin(), other.end(), other.begin(), [](const unsigned char c)
+            {
+                return static_cast<char>(std::tolower(c));
+            });
+            return other == normalized;
+        });
+    };
+    if (filename_in_use(filename))
+    {
+        const auto parent = filename.parent_path();
+        const auto stem = filename.stem().string();
+        const auto extension = filename.extension().string();
+        for (unsigned int suffix = 1; filename_in_use(filename); ++suffix)
+        {
+            filename = parent / (stem + "_" + std::to_string(suffix) + extension);
+        }
+    }
+    const auto entry = Tilemap3DEntry::Create(this, bytes, name, filename);
+    m_maps.emplace(name, entry);
+    m_map_order.push_back(name);
+    return entry;
+}
+
+bool RoomData::IsMapReferenced(const std::string& name) const
+{
+    return std::any_of(m_roomlist.cbegin(), m_roomlist.cend(), [&](const auto& room)
+    {
+        return room->map == name;
+    });
+}
+
+bool RoomData::DeleteMap(const std::string& name)
+{
+    const auto map = m_maps.find(name);
+    const auto order = std::find(m_map_order.begin(), m_map_order.end(), name);
+    if (map == m_maps.end() || order == m_map_order.end() || IsMapReferenced(name))
+    {
+        return false;
+    }
+    const auto index = static_cast<std::size_t>(std::distance(m_map_order.begin(), order));
+    if (!Labels::Erase(Labels::C_MAPS, index, m_map_order.size()))
+    {
+        return false;
+    }
+    m_map_order.erase(order);
+    m_maps.erase(map);
+    return true;
+}
+
+bool RoomData::ReorderMap(const std::string& name, std::size_t new_index)
+{
+    const auto current = std::find(m_map_order.begin(), m_map_order.end(), name);
+    if (current == m_map_order.end() || new_index >= m_map_order.size())
+    {
+        return false;
+    }
+    const auto current_index = static_cast<std::size_t>(std::distance(m_map_order.begin(), current));
+    if (current_index == new_index)
+    {
+        return true;
+    }
+    if (!Labels::Reorder(Labels::C_MAPS, current_index, new_index, m_map_order.size()))
+    {
+        return false;
+    }
+    const auto value = *current;
+    m_map_order.erase(current);
+    m_map_order.insert(m_map_order.begin() + static_cast<std::ptrdiff_t>(new_index), value);
+    return true;
 }
 
 std::shared_ptr<PaletteEntry> RoomData::GetPaletteForRoom(const std::string& name) const
@@ -964,6 +1186,11 @@ std::vector<WarpList::Transition> RoomData::GetSrcTransitions(uint16_t room) con
     return m_warps.GetSrcTransitionsForRoom(room);
 }
 
+void RoomData::SetTransitions(uint16_t room, const std::vector<WarpList::Transition>& data)
+{
+    m_warps.UpdateTransitionsForRoom(room, data);
+}
+
 void RoomData::SetSrcTransitions(uint16_t room, const std::vector<WarpList::Transition>& data)
 {
     m_warps.SetSrcTransitionsForRoom(room, data);
@@ -1022,9 +1249,9 @@ uint16_t RoomData::GetLifestockSaleFlag(uint16_t room) const
 
 void RoomData::SetLifestockSaleFlag(uint16_t room, uint16_t flag)
 {
-    if (flag != 0xFFFF && !HasLifestockSaleFlag(room))
+    if (flag != 0xFFFF)
     {
-        m_lifestock_sold_flags.insert({ room, flag });
+        m_lifestock_sold_flags[room] = flag;
     }
     else if (flag == 0xFFFF && HasLifestockSaleFlag(room))
     {
@@ -1056,9 +1283,9 @@ uint16_t RoomData::GetLanternFlag(uint16_t room) const
 
 void RoomData::SetLanternFlag(uint16_t room, uint16_t flag)
 {
-    if (flag != 0xFFFF && !HasLanternFlag(room))
+    if (flag != 0xFFFF)
     {
-        m_lantern_flag_list.insert({ room, flag });
+        m_lantern_flag_list[room] = flag;
     }
     else if (flag == 0xFFFF && HasLanternFlag(room))
     {
@@ -1223,6 +1450,7 @@ void RoomData::CommitAllChanges()
     m_blocksets_orig = m_blocksets;
     m_lava_palette_orig = m_lava_palette;
     m_maps_orig = m_maps;
+    m_map_order_orig = m_map_order;
     m_room_pals_orig = m_room_pals;
     m_tilesets_orig = m_tilesets;
     m_warp_palette_orig = m_warp_palette;
@@ -1399,8 +1627,10 @@ bool RoomData::AsmLoadMaps()
             auto raw_data = std::make_shared<std::vector<uint8_t>>(ReadBytes(mapfile));
             auto map_entry = Tilemap3DEntry::Create(this, ReadBytes(mapfile), lbl, inc.path);
             m_maps[lbl] = map_entry;
+            m_map_order.push_back(lbl);
         }
         m_maps_orig = m_maps;
+        m_map_order_orig = m_map_order;
         return true;
     }
     catch (const std::exception&)
@@ -1784,6 +2014,7 @@ bool RoomData::RomLoadRoomData(const Rom& rom)
             auto map_entry = Tilemap3DEntry::Create(this, rom.read_array<uint8_t>(begin, end - begin), name, fname);
             map_entry->SetStartAddress(begin);
             m_maps.insert(std::make_pair(name, map_entry));
+            m_map_order.push_back(name);
         }
         for (auto& room : m_roomlist)
         {
@@ -1791,6 +2022,7 @@ bool RoomData::RomLoadRoomData(const Rom& rom)
             m_roomlist_orig.push_back(std::make_shared<Room>(*room));
         }
         m_maps_orig = m_maps;
+        m_map_order_orig = m_map_order;
         return true;
     }
     catch (...)
@@ -2120,10 +2352,11 @@ bool RoomData::AsmSaveMaps(const std::filesystem::path& dir)
     {
         AsmFile file;
         file.WriteFileHeader(m_map_data_filename, "Map data include file");
-        for (auto& map : m_maps)
+        for (const auto& name : m_map_order)
         {
-            file << AsmFile::Label(map.first) << AsmFile::IncludeFile(map.second->GetFilename(), AsmFile::FileType::BINARY);
-            if (!map.second->Save(dir))
+            const auto map = m_maps.at(name);
+            file << AsmFile::Label(name) << AsmFile::IncludeFile(map->GetFilename(), AsmFile::FileType::BINARY);
+            if (!map->Save(dir))
             {
                 return false;
             }
@@ -2454,10 +2687,11 @@ bool RoomData::RomPrepareInjectRoomData(const Rom& rom)
     uint32_t roomlist_size = static_cast<uint32_t>(m_roomlist.size()) * 8;
     uint32_t data_begin = rom.get_section(RomLabels::Rooms::ROOM_DATA_SECTION).begin;
     auto warp_bytes = m_warps.GetWarpBytes();
-    for (auto& map : m_maps)
+    for (const auto& name : m_map_order)
     {
-        map_addrs.insert({ map.first, static_cast<uint32_t>(map_bytes.size() + roomlist_size + data_begin) });
-        auto mbytes = map.second->GetBytes();
+        const auto map = m_maps.at(name);
+        map_addrs.insert({ name, static_cast<uint32_t>(map_bytes.size() + roomlist_size + data_begin) });
+        auto mbytes = map->GetBytes();
         map_bytes.insert(map_bytes.end(), mbytes->begin(), mbytes->end());
     }
     for (const auto& room : m_roomlist)

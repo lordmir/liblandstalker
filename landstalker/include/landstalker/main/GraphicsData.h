@@ -134,6 +134,7 @@ private:
     std::filesystem::path m_load_game_routines_1_path;
     std::filesystem::path m_load_game_routines_2_path;
     std::filesystem::path m_load_game_routines_3_path;
+    std::filesystem::path m_load_game_routines_4_path;
     std::filesystem::path m_lithograph_path;
 
     std::map<std::string, std::shared_ptr<TilesetEntry>> m_fonts_by_name;

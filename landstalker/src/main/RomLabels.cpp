@@ -327,6 +327,7 @@ namespace RomLabels
 		const std::string GAME_LOAD_ROUTINES_1("GameLoadScreenRoutines1");
 		const std::string GAME_LOAD_ROUTINES_2("GameLoadScreenRoutines2");
 		const std::string GAME_LOAD_ROUTINES_3("GameLoadScreenRoutines3");
+		const std::string GAME_LOAD_ROUTINES_4("GameLoadScreenRoutines4");
 		const std::string GAME_LOAD_PALETTE("GameStartPalette");
 		const std::string GAME_LOAD_PALETTE_LEA("GameLoadScreen");
 		const std::string GAME_LOAD_PLAYER_PALETTE("InitialPlayerPal");
@@ -420,6 +421,7 @@ namespace RomLabels
 		const std::string GAME_LOAD_ROUTINES_1_FILE("code/title/gameloadscreen1.asm");
 		const std::string GAME_LOAD_ROUTINES_2_FILE("code/title/gameloadscreen2.asm");
 		const std::string GAME_LOAD_ROUTINES_3_FILE("code/title/gameloadscreen3.asm");
+		const std::string GAME_LOAD_ROUTINES_4_FILE("code/title/gameloadscreen4.asm");
 		const std::string GAME_LOAD_PALETTE_FILE("assets_packed/graphics/static/loadgame/loadgame.pal");
 		const std::string GAME_LOAD_PLAYER_PALETTE_FILE("assets_packed/graphics/static/loadgame/nigel.pal");
 		const std::string GAME_LOAD_CHARS_FILE("assets_packed/graphics/static/loadgame/chars.lz77");

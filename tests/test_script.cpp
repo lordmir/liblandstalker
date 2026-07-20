@@ -1,6 +1,11 @@
 #include <gtest/gtest.h>
+#include <landstalker/script/Script.h>
 #include <landstalker/script/ScriptFunctionTable.h>
+#include <landstalker/script/ScriptTable.h>
 #include <landstalker/main/AsmFile.h>
+#include <landstalker/misc/Utils.h>
+
+#include <yaml-cpp/yaml.h>
 
 #include <cstdlib>
 #include <filesystem>
@@ -142,6 +147,83 @@ TEST(ScriptFunctionTableTest, YamlRoundTripPreservesContent)
 
     ScriptFunctionTable parsed(yaml);
     EXPECT_EQ(original, parsed);
+}
+
+TEST(ScriptTableTest, ActionYamlUsesEmitterAndIncludesHexRowIndices)
+{
+    auto original = std::make_shared<std::vector<ScriptTable::Action>>();
+    original->emplace_back(uint16_t(0x0123));
+    original->emplace_back(std::string("Function:WithYamlSyntax"));
+
+    const std::string yaml = ScriptTable::TableToYaml(original);
+    EXPECT_NE(yaml.find("# 0x0000"), std::string::npos);
+    EXPECT_NE(yaml.find("# 0x0001"), std::string::npos);
+    EXPECT_EQ(*original, ScriptTable::TableFromYaml(yaml));
+}
+
+TEST(ScriptTableTest, ShopAndItemYamlIncludeHexRowIndicesAndRoundTrip)
+{
+    auto shops = std::make_shared<std::vector<ScriptTable::Shop>>();
+    ScriptTable::Shop shop;
+    shop.room = 0x0123;
+    shop.markup = 16;
+    shop.lifestock_markup = 17;
+    shop.actions = { uint16_t(1), std::string("Shop:Action"), uint16_t(2), uint16_t(3), uint16_t(4) };
+    shops->push_back(shop);
+
+    const std::string shop_yaml = ScriptTable::TableToYaml(shops);
+    EXPECT_NE(shop_yaml.find("# 0x0000"), std::string::npos);
+    EXPECT_EQ(*shops, ScriptTable::ShopTableFromYaml(shop_yaml));
+
+    auto items = std::make_shared<std::vector<ScriptTable::Item>>();
+    ScriptTable::Item item;
+    item.item = 7;
+    item.shop = 0x0123;
+    item.other = 0x4567;
+    item.actions = { std::string("Item:Action"), uint16_t(5) };
+    items->push_back(item);
+
+    const std::string item_yaml = ScriptTable::TableToYaml(items);
+    EXPECT_NE(item_yaml.find("# 0x0000"), std::string::npos);
+    EXPECT_EQ(*items, ScriptTable::ItemTableFromYaml(item_yaml));
+}
+
+TEST(MainScriptTest, YamlUsesEmitterAndIncludesHexRowIndices)
+{
+    const std::vector<uint16_t> words = {
+        ScriptNumLoadEntry(42, false, false).ToBytes(),
+        ScriptSetFlagEntry(123, true, false).ToBytes(),
+        ScriptGiveItemEntry(false, true).ToBytes()
+    };
+    std::vector<uint8_t> bytes;
+    for (uint16_t word : words)
+    {
+        bytes.push_back(static_cast<uint8_t>(word >> 8));
+        bytes.push_back(static_cast<uint8_t>(word));
+    }
+
+    Script original(bytes);
+    const std::string yaml = wstr_to_utf8(original.ToYaml(nullptr));
+    EXPECT_NE(yaml.find("# 0x0000"), std::string::npos);
+    EXPECT_NE(yaml.find("# 0x0001"), std::string::npos);
+    EXPECT_NE(yaml.find("# 0x0002"), std::string::npos);
+
+    Script parsed;
+    ASSERT_TRUE(parsed.FromYaml(nullptr, yaml));
+    EXPECT_EQ(original, parsed);
+}
+
+TEST(MainScriptTest, ScriptStringEntryEmitsYamlThroughYamlCpp)
+{
+    ScriptStringEntry entry(0x0123, false, false);
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    entry.ToYaml(out, nullptr);
+    out << YAML::EndMap;
+
+    const YAML::Node node = YAML::Load(out.c_str());
+    ASSERT_TRUE(node.IsMap());
+    EXPECT_EQ(node["String"].as<uint16_t>(), 0x0123);
 }
 
 TEST(ScriptFunctionTableTest, YamlEmissionIsStable)

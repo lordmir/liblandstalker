@@ -839,6 +839,7 @@ void GraphicsData::SetDefaultFilenames()
 	if (m_load_game_routines_1_path.empty()) m_load_game_routines_1_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_1_FILE;
 	if (m_load_game_routines_2_path.empty()) m_load_game_routines_2_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_2_FILE;
 	if (m_load_game_routines_3_path.empty()) m_load_game_routines_3_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_3_FILE;
+	if (m_load_game_routines_4_path.empty()) m_load_game_routines_4_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_4_FILE;
 }
 
 bool GraphicsData::CreateDirectoryStructure(const std::filesystem::path& dir)
@@ -863,6 +864,7 @@ bool GraphicsData::CreateDirectoryStructure(const std::filesystem::path& dir)
 	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_1_path);
 	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_2_path);
 	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_3_path);
+	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_4_path);
 	for (const auto& f : m_fonts_by_name)
 	{
 		retval = retval && CreateDirectoryTree(dir / f.second->GetFilename());
@@ -1536,13 +1538,14 @@ bool GraphicsData::AsmLoadLoadGameScreenData()
 		}
 		assert(entries.size() >= 8);
 		m_load_game_routines_1_path = std::get<1>(entries[0]);
-		auto pal = PaletteEntry::Create(this, std::get<2>(entries[1]), std::get<0>(entries[1]), std::get<1>(entries[1]), Palette::Type::FULL);
-		m_load_game_routines_2_path = std::get<1>(entries[2]);
-		auto player_pal = PaletteEntry::Create(this, std::get<2>(entries[3]), std::get<0>(entries[3]), std::get<1>(entries[3]), Palette::Type::FULL);
-		auto chars = TilesetEntry::Create(this, std::get<2>(entries[4]), std::get<0>(entries[4]), std::get<1>(entries[4]));
-		auto tiles = TilesetEntry::Create(this, std::get<2>(entries[5]), std::get<0>(entries[5]), std::get<1>(entries[5]));
-		m_load_game_map = Tilemap2DEntry::Create(this, std::get<2>(entries[6]), std::get<0>(entries[6]), std::get<1>(entries[6]), Tilemap2D::Compression::RLE, 0x100);
-		m_load_game_routines_3_path = std::get<1>(entries[7]);
+		m_load_game_routines_2_path = std::get<1>(entries[1]);
+		auto pal = PaletteEntry::Create(this, std::get<2>(entries[2]), std::get<0>(entries[2]), std::get<1>(entries[2]), Palette::Type::FULL);
+		m_load_game_routines_3_path = std::get<1>(entries[3]);
+		auto player_pal = PaletteEntry::Create(this, std::get<2>(entries[4]), std::get<0>(entries[4]), std::get<1>(entries[4]), Palette::Type::FULL);
+		auto chars = TilesetEntry::Create(this, std::get<2>(entries[5]), std::get<0>(entries[5]), std::get<1>(entries[5]));
+		auto tiles = TilesetEntry::Create(this, std::get<2>(entries[6]), std::get<0>(entries[6]), std::get<1>(entries[6]));
+		m_load_game_map = Tilemap2DEntry::Create(this, std::get<2>(entries[7]), std::get<0>(entries[7]), std::get<1>(entries[7]), Tilemap2D::Compression::RLE, 0x100);
+		m_load_game_routines_4_path = std::get<1>(entries[8]);
 
 		m_load_game_pals.insert({ pal->GetName(), pal });
 		m_load_game_pals_internal.insert({ RomLabels::Graphics::GAME_LOAD_PALETTE, pal });
@@ -2487,16 +2490,18 @@ bool GraphicsData::AsmSaveGameLoadData(const std::filesystem::path& dir)
 		};
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_1)
 			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_1_FILE, AsmFile::FileType::ASSEMBLER);
-		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PALETTE]);
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_2)
 			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_2_FILE, AsmFile::FileType::ASSEMBLER);
+		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PALETTE]);
+		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_3)
+			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_3_FILE, AsmFile::FileType::ASSEMBLER);
 		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PLAYER_PALETTE]);
 		write_include(m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_CHARS]);
 		write_include(m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_TILES]);
 		write_include(m_load_game_map);
 		file << AsmFile::Align(2);
-		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_3)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_3_FILE, AsmFile::FileType::ASSEMBLER);
+		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_4)
+			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_4_FILE, AsmFile::FileType::ASSEMBLER);
 
 		file.WriteFile(dir / m_load_game_path);
 		return true;

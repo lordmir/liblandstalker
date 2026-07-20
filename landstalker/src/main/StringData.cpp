@@ -1040,9 +1040,9 @@ uint16_t StringData::GetRoomVisitFlag(uint16_t room) const
 
 void StringData::SetRoomVisitFlag(uint16_t room, uint16_t flag)
 {
-	if (room < m_room_visit_flags.size())
+	if (room >= m_room_visit_flags.size())
 	{
-		m_room_visit_flags.resize(room + 1);
+		m_room_visit_flags.resize(room + 1, 0xFFFF);
 	}
 	m_room_visit_flags[room] = flag;
 }
@@ -1069,17 +1069,15 @@ uint8_t StringData::GetSaveLocation(uint16_t room)
 
 void StringData::SetSaveLocation(uint16_t room, uint8_t name)
 {
+	if (name == 0xFF)
+	{
+		m_save_game_locations.erase(room);
+		return;
+	}
 	auto loc = m_save_game_locations.find(room);
 	if (loc != m_save_game_locations.cend())
 	{
-		if (name == 0xFF)
-		{
-			m_save_game_locations.erase(room);
-		}
-		else
-		{
-			m_save_game_locations[room].second = name;
-		}
+		m_save_game_locations[room].second = name;
 	}
 	else
 	{
@@ -1109,6 +1107,11 @@ uint8_t StringData::GetMapPosition(uint16_t room)
 
 void StringData::SetMapLocation(uint16_t room, uint8_t name, uint8_t position)
 {
+	if (name == 0xFF)
+	{
+		m_island_map_locations.erase(room);
+		return;
+	}
 	if (position == 0xFF)
 	{
 		return;
@@ -1116,15 +1119,8 @@ void StringData::SetMapLocation(uint16_t room, uint8_t name, uint8_t position)
 	auto loc = m_island_map_locations.find(room);
 	if (loc != m_island_map_locations.cend())
 	{
-		if (name == 0xFF)
-		{
-			m_island_map_locations.erase(room);
-		}
-		else
-		{
-			m_island_map_locations[room].first = name;
-			m_island_map_locations[room].second = position;
-		}
+		m_island_map_locations[room].first = name;
+		m_island_map_locations[room].second = position;
 	}
 	else
 	{
