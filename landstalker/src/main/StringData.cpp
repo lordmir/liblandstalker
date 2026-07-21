@@ -1773,7 +1773,7 @@ bool StringData::AsmLoadStringTables()
 	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_schar_table_path), m_special_character_names, m_charsets.main);
 	retval = retval && DecodeString(ReadBytes(GetBasePath() / m_dchar_table_path), m_default_character_name, m_charsets.main);
 	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_item_table_path), m_item_names, m_charsets.main);
-	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_menu_table_path), m_menu_strings, m_charsets.menu);
+	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_menu_table_path), m_menu_strings, m_charsets.main);
 	return retval;
 }
 
@@ -1944,7 +1944,7 @@ bool StringData::RomLoadStringTables(const Rom& rom)
 	retval = retval && DecodeStrings(schars_bytes, m_special_character_names, m_charsets.main);
 	retval = retval && DecodeString(dchars_bytes, m_default_character_name, m_charsets.main);
 	retval = retval && DecodeStrings(items_bytes, m_item_names, m_charsets.main);
-	retval = retval && DecodeStrings(menu_bytes, m_menu_strings, m_charsets.menu);
+	retval = retval && DecodeStrings(menu_bytes, m_menu_strings, m_charsets.main);
 
 	return retval;
 }
@@ -2146,7 +2146,7 @@ bool StringData::AsmSaveStringTables(const std::filesystem::path& dir)
 		EncodeStrings(m_special_character_names, sbytes, m_charsets.main);
 		EncodeString(m_default_character_name, dbytes, m_charsets.main);
 		EncodeStrings(m_item_names, ibytes, m_charsets.main);
-		EncodeStrings(m_menu_strings, mbytes, m_charsets.menu);
+		EncodeStrings(m_menu_strings, mbytes, m_charsets.main);
 		WriteBytes(cbytes, dir / m_char_table_path);
 		WriteBytes(sbytes, dir / m_schar_table_path);
 		WriteBytes(dbytes, dir / m_dchar_table_path);
@@ -2365,7 +2365,7 @@ bool StringData::RomPrepareInjectStringTables(const Rom& rom)
 
 	uint32_t menu_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector menu_bytes;
-	EncodeStrings(m_menu_strings, menu_bytes, m_charsets.menu);
+	EncodeStrings(m_menu_strings, menu_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), menu_bytes.cbegin(), menu_bytes.cend());
 	
 	m_pending_writes.push_back({ RomLabels::Strings::SAVE_GAME_LOCATIONS, save_bytes });

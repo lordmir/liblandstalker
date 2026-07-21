@@ -390,7 +390,7 @@ namespace RomLabels
 		const std::string ISLAND_MAP_FRIDAY_FILE("assets_packed/graphics/static/islandmap/friday.lz77");
 		const std::string ISLAND_MAP_FG_PAL_FILE("assets_packed/graphics/static/islandmap/foreground.pal");
 		const std::string ISLAND_MAP_BG_PAL_FILE("assets_packed/graphics/static/islandmap/background.pal");
-		const std::string TITLE_DATA_FILE("code/graphics/staticimages/titlescreen.asm");
+		const std::string TITLE_DATA_FILE("code/title/titlescreen.asm");
 		const std::string TITLE_PALETTE_BLUE_FILE("assets_packed/graphics/static/titlescreen/blues.pal");
 		const std::string TITLE_PALETTE_YELLOW_FILE("assets_packed/graphics/static/titlescreen/yellows.pal");
 		const std::string TITLE_1_TILES_FILE("assets_packed/graphics/static/titlescreen/title1.lz77");
@@ -401,9 +401,9 @@ namespace RomLabels
 		const std::string TITLE_3_MAP_FILE("assets_packed/graphics/static/titlescreen/title3.rle");
 		const std::string TITLE_3_PAL_FILE("assets_packed/graphics/static/titlescreen/title3.pal");
 		const std::string TITLE_3_PAL_HIGHLIGHT_FILE("assets_packed/graphics/static/titlescreen/title3_highlight.pal");
-		const std::string TITLE_ROUTINES_1_FILE("code/graphics/staticimages/titlescreen1.asm");
-		const std::string TITLE_ROUTINES_2_FILE("code/graphics/staticimages/titlescreen2.asm");
-		const std::string TITLE_ROUTINES_3_FILE("code/graphics/staticimages/titlescreen3.asm");
+		const std::string TITLE_ROUTINES_1_FILE("code/title/titlescreen1.asm");
+		const std::string TITLE_ROUTINES_2_FILE("code/title/titlescreen2.asm");
+		const std::string TITLE_ROUTINES_3_FILE("code/title/titlescreen3.asm");
 		const std::string LITHOGRAPH_DATA_FILE("code/graphics/staticimages/lithographdata.asm");
 		const std::string LITHOGRAPH_PAL_FILE("assets_packed/graphics/static/lithograph/lithograph.pal");
 		const std::string LITHOGRAPH_TILES_FILE("assets_packed/graphics/static/lithograph/lithograph.lz77");

@@ -54,7 +54,8 @@ const LSString::CharacterSet DEFAULT_GERMAN_CHARSET = {
     {32_u8, L"V"}, {33_u8, L"W"}, {34_u8, L"X"}, {35_u8, L"Y"}, {36_u8, L"Z"}, {37_u8, L"*"}, {38_u8, L"."}, {39_u8, L","},
     {40_u8, L"?"}, {41_u8, L"!"}, {42_u8, L"/"}, {43_u8, L"<"}, {44_u8, L">"}, {45_u8, L":"}, {46_u8, L"-"}, {47_u8, L"\'"},
     {48_u8, L"\""}, {49_u8, L"%"}, {50_u8, L"#"}, {51_u8, L"&"}, {52_u8, L"("}, {53_u8, L")"}, {54_u8, L"="}, {55_u8, L"↖"},
-    {56_u8, L"↗"}, {57_u8, L"↘"}, {58_u8, L"↙"}, {59_u8, L"Ä"}, {60_u8, L"Ö"}, {61_u8, L"Ü"}, {62_u8, L"ß"}
+    {56_u8, L"↗"}, {57_u8, L"↘"}, {58_u8, L"↙"}, {59_u8, L"Ä"}, {60_u8, L"Ö"}, {61_u8, L"Ü"}, {62_u8, L"ß"},
+    {63_u8, L";"}, {64_u8, L"`"}
 };
 
 const LSString::CharacterSet DEFAULT_JAPANESE_CHARSET =
@@ -67,7 +68,7 @@ const LSString::CharacterSet DEFAULT_JAPANESE_CHARSET =
     { 40_u8, L"ほ"}, { 41_u8, L"ま"}, { 42_u8, L"み"}, { 43_u8, L"む"}, { 44_u8, L"め"}, { 45_u8, L"も"}, { 46_u8, L"や"}, { 47_u8, L"ゆ"},
     { 48_u8, L"よ"}, { 49_u8, L"ら"}, { 50_u8, L"り"}, { 51_u8, L"る"}, { 52_u8, L"れ"}, { 53_u8, L"ろ"}, { 54_u8, L"わ"}, { 55_u8, L"を"},
     { 56_u8, L"ん"}, { 57_u8, L"ぁ"}, { 58_u8, L"ぃ"}, { 59_u8, L"ぅ"}, { 60_u8, L"ぇ"}, { 61_u8, L"ぉ"}, { 62_u8, L"ゃ"}, { 63_u8, L"ゅ"},
-    { 64_u8, L"ょ"}, { 65_u8, L"ゎ"}, { 66_u8, L"ア"}, { 67_u8, L"イ"}, { 68_u8, L"ウ"}, { 69_u8, L"エ"}, { 70_u8, L"オ"}, { 71_u8, L"カ"},
+    { 64_u8, L"ょ"}, { 65_u8, L"っ"}, { 66_u8, L"ア"}, { 67_u8, L"イ"}, { 68_u8, L"ウ"}, { 69_u8, L"エ"}, { 70_u8, L"オ"}, { 71_u8, L"カ"},
     { 72_u8, L"キ"}, { 73_u8, L"ク"}, { 74_u8, L"ケ"}, { 75_u8, L"コ"}, { 76_u8, L"サ"}, { 77_u8, L"シ"}, { 78_u8, L"ス"}, { 79_u8, L"セ"},
     { 80_u8, L"ソ"}, { 81_u8, L"タ"}, { 82_u8, L"チ"}, { 83_u8, L"ツ"}, { 84_u8, L"テ"}, { 85_u8, L"ト"}, { 86_u8, L"ナ"}, { 87_u8, L"ニ"},
     { 88_u8, L"ヌ"}, { 89_u8, L"ネ"}, { 90_u8, L"ノ"}, { 91_u8, L"ハ"}, { 92_u8, L"ヒ"}, { 93_u8, L"フ"}, { 94_u8, L"ヘ"}, { 95_u8, L"ホ"},
@@ -89,6 +90,67 @@ const LSString::CharacterSet DEFAULT_JAPANESE_CHARSET =
     {216_u8, L"・"}, {217_u8, L"「"}, {218_u8, L"」"}, {219_u8, L"↘"}, {220_u8, L"↖"}, {221_u8, L"↙"}, {222_u8, L"↗"}, {223_u8, L"王"},
     {224_u8, L"剣"}, {225_u8, L"士"}, {226_u8, L"国"}, {227_u8, L"本"}, {228_u8, L"法"}, {229_u8, L"A"}, {230_u8, L"B"}, {231_u8, L"C"},
     {232_u8, L"."}, {236_u8, L"╳"}															   
+};
+
+const LSString::CharacterSet MENU_ENGLISH_CHARSET = {
+    { 0_u8, L" "}, { 1_u8, L"0"}, { 2_u8, L"1"}, { 3_u8, L"2"}, { 4_u8, L"3"}, { 5_u8, L"4"}, { 6_u8, L"5"}, { 7_u8, L"6"},
+    { 8_u8, L"7"}, { 9_u8, L"8"}, {10_u8, L"9"}, {11_u8, L"A"}, {12_u8, L"B"}, {13_u8, L"C"}, {14_u8, L"D"}, {15_u8, L"E"},
+    {16_u8, L"F"}, {17_u8, L"G"}, {18_u8, L"H"}, {19_u8, L"I"}, {20_u8, L"J"}, {21_u8, L"K"}, {22_u8, L"L"}, {23_u8, L"M"},
+    {24_u8, L"N"}, {25_u8, L"O"}, {26_u8, L"P"}, {27_u8, L"Q"}, {28_u8, L"R"}, {29_u8, L"S"}, {30_u8, L"T"}, {31_u8, L"U"},
+    {32_u8, L"V"}, {33_u8, L"W"}, {34_u8, L"X"}, {35_u8, L"Y"}, {36_u8, L"Z"}, {37_u8, L"a"}, {38_u8, L"b"}, {39_u8, L"c"},
+    {40_u8, L"d"}, {41_u8, L"e"}, {42_u8, L"f"}, {43_u8, L"g"}, {44_u8, L"h"}, {45_u8, L"i"}, {46_u8, L"j"}, {47_u8, L"k"},
+    {48_u8, L"l"}, {49_u8, L"m"}, {50_u8, L"n"}, {51_u8, L"o"}, {52_u8, L"p"}, {53_u8, L"q"}, {54_u8, L"r"}, {55_u8, L"s"},
+    {56_u8, L"t"}, {57_u8, L"u"}, {58_u8, L"v"}, {59_u8, L"w"}, {60_u8, L"x"}, {61_u8, L"y"}, {62_u8, L"z"}, {63_u8, L"*"},
+    {64_u8, L"."}, {65_u8, L","}, {66_u8, L"?"}, {67_u8, L"!"}, {68_u8, L"/"}, {69_u8, L"<"}, {70_u8, L">"}, {71_u8, L":"},
+    {72_u8, L"-"}, {73_u8, L"\'"}, {74_u8, L"\""}, {75_u8, L"%"}, {76_u8, L"#"}, {77_u8, L"&"}, {78_u8, L"("}, {79_u8, L")"},
+    {80_u8, L"="}, {81_u8, L"↖"}, {82_u8, L"↗"}, {83_u8, L"↘"}, {84_u8, L"↙"}, {85_u8, L"×"}
+};
+
+const LSString::CharacterSet MENU_FRENCH_CHARSET = {
+    { 0_u8, L" "}, { 1_u8, L"0"}, { 2_u8, L"1"}, { 3_u8, L"2"}, { 4_u8, L"3"}, { 5_u8, L"4"}, { 6_u8, L"5"}, { 7_u8, L"6"},
+    { 8_u8, L"7"}, { 9_u8, L"8"}, {10_u8, L"9"}, {11_u8, L"A"}, {12_u8, L"B"}, {13_u8, L"C"}, {14_u8, L"D"}, {15_u8, L"E"},
+    {16_u8, L"F"}, {17_u8, L"G"}, {18_u8, L"H"}, {19_u8, L"I"}, {20_u8, L"J"}, {21_u8, L"K"}, {22_u8, L"L"}, {23_u8, L"M"},
+    {24_u8, L"N"}, {25_u8, L"O"}, {26_u8, L"P"}, {27_u8, L"Q"}, {28_u8, L"R"}, {29_u8, L"S"}, {30_u8, L"T"}, {31_u8, L"U"},
+    {32_u8, L"V"}, {33_u8, L"W"}, {34_u8, L"X"}, {35_u8, L"Y"}, {36_u8, L"Z"}, {37_u8, L"a"}, {38_u8, L"b"}, {39_u8, L"c"},
+    {40_u8, L"d"}, {41_u8, L"e"}, {42_u8, L"f"}, {43_u8, L"g"}, {44_u8, L"h"}, {45_u8, L"i"}, {46_u8, L"j"}, {47_u8, L"k"},
+    {48_u8, L"l"}, {49_u8, L"m"}, {50_u8, L"n"}, {51_u8, L"o"}, {52_u8, L"p"}, {53_u8, L"q"}, {54_u8, L"r"}, {55_u8, L"s"},
+    {56_u8, L"t"}, {57_u8, L"u"}, {58_u8, L"v"}, {59_u8, L"w"}, {60_u8, L"x"}, {61_u8, L"y"}, {62_u8, L"z"}, {63_u8, L"\'"},
+    {64_u8, L"é"}, {65_u8, L"à"}, {66_u8, L"è"}, {67_u8, L"ù"}, {68_u8, L"â"}, {69_u8, L"ê"}, {70_u8, L"î"}, {71_u8, L"ô"},
+    {72_u8, L"û"}, {74_u8, L"-"}, {75_u8, L"×"}
+};
+
+const LSString::CharacterSet MENU_GERMAN_CHARSET = {
+    { 0_u8, L" "}, { 1_u8, L"0"}, { 2_u8, L"1"}, { 3_u8, L"2"}, { 4_u8, L"3"}, { 5_u8, L"4"}, { 6_u8, L"5"}, { 7_u8, L"6"},
+    { 8_u8, L"7"}, { 9_u8, L"8"}, {10_u8, L"9"}, {11_u8, L"A"}, {12_u8, L"B"}, {13_u8, L"C"}, {14_u8, L"D"}, {15_u8, L"E"},
+    {16_u8, L"F"}, {17_u8, L"G"}, {18_u8, L"H"}, {19_u8, L"I"}, {20_u8, L"J"}, {21_u8, L"K"}, {22_u8, L"L"}, {23_u8, L"M"},
+    {24_u8, L"N"}, {25_u8, L"O"}, {26_u8, L"P"}, {27_u8, L"Q"}, {28_u8, L"R"}, {29_u8, L"S"}, {30_u8, L"T"}, {31_u8, L"U"},
+    {32_u8, L"V"}, {33_u8, L"W"}, {34_u8, L"X"}, {35_u8, L"Y"}, {36_u8, L"Z"}, {37_u8, L"a"}, {38_u8, L"b"}, {39_u8, L"c"},
+    {40_u8, L"d"}, {41_u8, L"e"}, {42_u8, L"f"}, {43_u8, L"g"}, {44_u8, L"h"}, {45_u8, L"i"}, {46_u8, L"j"}, {47_u8, L"k"},
+    {48_u8, L"l"}, {49_u8, L"m"}, {50_u8, L"n"}, {51_u8, L"o"}, {52_u8, L"p"}, {53_u8, L"q"}, {54_u8, L"r"}, {55_u8, L"s"},
+    {56_u8, L"t"}, {57_u8, L"u"}, {58_u8, L"v"}, {59_u8, L"w"}, {60_u8, L"x"}, {61_u8, L"y"}, {62_u8, L"z"}, {63_u8, L"Ä"},
+    {64_u8, L"Ö"}, {65_u8, L"Ü"}, {66_u8, L"ä"}, {67_u8, L"ö"}, {68_u8, L"ü"}, {69_u8, L"ß"}, {70_u8, L";"}, {71_u8, L"-"},
+    {72_u8, L"×"}
+};
+
+const LSString::CharacterSet MENU_JAPANESE_CHARSET = {
+    {  0_u8, L" "}, {  1_u8, L"0"}, {  2_u8, L"1"}, {  3_u8, L"2"}, {  4_u8, L"3"}, {  5_u8, L"4"}, {  6_u8, L"5"}, {  7_u8, L"6"},
+    {  8_u8, L"7"}, {  9_u8, L"8"}, { 10_u8, L"9"}, { 11_u8, L"あ"}, { 12_u8, L"い"}, { 13_u8, L"う"}, { 14_u8, L"え"}, { 15_u8, L"お"},
+    { 16_u8, L"か"}, { 17_u8, L"き"}, { 18_u8, L"く"}, { 19_u8, L"け"}, { 20_u8, L"こ"}, { 21_u8, L"さ"}, { 22_u8, L"し"}, { 23_u8, L"す"},
+    { 24_u8, L"せ"}, { 25_u8, L"そ"}, { 26_u8, L"た"}, { 27_u8, L"ち"}, { 28_u8, L"つ"}, { 29_u8, L"て"}, { 30_u8, L"と"}, { 31_u8, L"な"},
+    { 32_u8, L"に"}, { 33_u8, L"ぬ"}, { 34_u8, L"ね"}, { 35_u8, L"の"}, { 36_u8, L"は"}, { 37_u8, L"ひ"}, { 38_u8, L"ふ"}, { 39_u8, L"へ"},
+    { 40_u8, L"ほ"}, { 41_u8, L"ま"}, { 42_u8, L"み"}, { 43_u8, L"む"}, { 44_u8, L"め"}, { 45_u8, L"も"}, { 46_u8, L"や"}, { 47_u8, L"ゆ"},
+    { 48_u8, L"よ"}, { 49_u8, L"ら"}, { 50_u8, L"り"}, { 51_u8, L"る"}, { 52_u8, L"れ"}, { 53_u8, L"ろ"}, { 54_u8, L"わ"}, { 55_u8, L"を"},
+    { 56_u8, L"ん"}, { 57_u8, L"◉"}, { 58_u8, L"ぃ"}, { 59_u8, L"ぅ"}, { 60_u8, L"ぇ"}, { 61_u8, L"ぉ"}, { 62_u8, L"ゃ"}, { 63_u8, L"ゅ"},
+    { 64_u8, L"ょ"}, { 65_u8, L"っ"}, { 66_u8, L"ア"}, { 67_u8, L"イ"}, { 68_u8, L"ウ"}, { 69_u8, L"エ"}, { 70_u8, L"オ"}, { 71_u8, L"カ"},
+    { 72_u8, L"キ"}, { 73_u8, L"ク"}, { 74_u8, L"ケ"}, { 75_u8, L"コ"}, { 76_u8, L"サ"}, { 77_u8, L"シ"}, { 78_u8, L"ス"}, { 79_u8, L"セ"},
+    { 80_u8, L"ソ"}, { 81_u8, L"タ"}, { 82_u8, L"チ"}, { 83_u8, L"ツ"}, { 84_u8, L"テ"}, { 85_u8, L"ト"}, { 86_u8, L"ナ"}, { 87_u8, L"ニ"},
+    { 88_u8, L"ヌ"}, { 89_u8, L"ネ"}, { 90_u8, L"ノ"}, { 91_u8, L"ハ"}, { 92_u8, L"ヒ"}, { 93_u8, L"フ"}, { 94_u8, L"ヘ"}, { 95_u8, L"ホ"},
+    { 96_u8, L"マ"}, { 97_u8, L"ミ"}, { 98_u8, L"ム"}, { 99_u8, L"メ"}, {100_u8, L"モ"}, {101_u8, L"ヤ"}, {102_u8, L"ユ"}, {103_u8, L"ヨ"},
+    {104_u8, L"ラ"}, {105_u8, L"リ"}, {106_u8, L"ル"}, {107_u8, L"レ"}, {108_u8, L"ロ"}, {109_u8, L"ワ"}, {110_u8, L"ヲ"}, {111_u8, L"ン"},
+    {112_u8, L"ァ"}, {113_u8, L"ィ"}, {114_u8, L"ゥ"}, {115_u8, L"ェ"}, {116_u8, L"ォ"}, {117_u8, L"ャ"}, {118_u8, L"ュ"}, {119_u8, L"ョ"},
+    {120_u8, L"ッ"}, {121_u8, L"、"}, {122_u8, L"。"}, {123_u8, L"゛"}, {124_u8, L"゜"}, {125_u8, L"ー"}, {126_u8, L"!"}, {127_u8, L"?"},
+    {128_u8, L"×"}, {129_u8, L"・"}, {130_u8, L"["}, {131_u8, L"]"}, {138_u8, L"H"}, {139_u8, L"M"}, {140_u8, L"P"}, {157_u8, L"「"},
+    {158_u8, L"」"}
 };
 
 const LSString::DiacriticMap JAPANESE_DIACRITIC_MAP =
@@ -139,50 +201,35 @@ bool IsNumeric(const LSString::StringType& value)
         [](wchar_t c) { return c >= L'0' && c <= L'9'; });
 }
 
-// The default CHR_* code-point constants that each region's assembler source
-// references, taken verbatim from the disassembly's hand-written
-// code/include/constants/charset/charset_<lang>.inc files. These cannot be
-// derived reliably from the charsets - the German main charset has no lowercase
-// glyphs, the US/French charsets have no multiplication sign, the Japanese
-// control characters sit in the menu-charset code range, and the menu-specific
-// symbols alias unrelated code points - so the authoritative values are listed
-// explicitly here and can be overridden per project by the charset YAML. Only
-// the constants a region actually references are listed (e.g. CHR_S/CHR_SS are
-// German-only, CHR_Z is French/German-only).
-//
-// The CHR_MENU_* word-wrap constants are used by the inventory/menu rendering
-// code, while the plain CHR_HYPHENATION_POINT / CHR_BREAKING_SPACE /
-// CHR_BREAK_POINT are the in-string control codes. They coincide for every
-// region except Japanese, whose menu word-wrap codes live in the menu-charset
-// code range ($7B/$7C) rather than after the string marker (the Japanese string
-// word-wrap codes are unused, so they are not emitted).
 std::vector<CharsetConstant> BuildDefaultConstants(RomOffsets::Region region)
 {
     switch (region)
     {
     case RomOffsets::Region::JP:
         return {
-            { "CHR_SPACE",               0x00 },
-            { "CHR_MENU_BREAKING_SPACE", 0x7B },
-            { "CHR_MENU_BREAK_POINT",    0x7C },
-            { "CHR_MULT",                0x80 },
-            { "CHR_PERIOD",              0xD8 },
-            { "CHR_BEGIN_TALK",          0xD9 },
-            { "CHR_STR_BEGIN",           0xE9 },
-            { "CHR_ARROW_PROMPT",        0xEA },
+            { "CHR_SPACE",              0x00 },
+            // The voicing marks are drawn a row above the cursor without advancing it,
+            // so they combine with the preceding kana. Japanese has no menu word-wrap.
+            { "CHR_MENU_DAKUTEN",       0x7B },
+            { "CHR_MENU_HANDAKUTEN",    0x7C },
+            { "CHR_MULT",               0x80 },
+            { "CHR_ELLIPSIS_DOT",       0xD8 },
+            { "CHR_BEGIN_TALK",         0xD9 },
+            { "CHR_STR_BEGIN",          0xE9 },
+            { "CHR_ARROW_PROMPT",       0xEA },
         };
     case RomOffsets::Region::FR:
         return {
             { "CHR_SPACE",                  0x00 },
-            { "CHR_LOWERCASE_Z",            0x3E },
+            { "CHR_LAST_LETTER",            0x3E },
             { "CHR_MENU_APOSTROPHE",        0x3F },
-            { "CHR_PERIOD",                 0x40 },
+            { "CHR_ELLIPSIS_DOT",           0x40 },
             { "CHR_BEGIN_TALK",             0x47 },
             { "CHR_DASH",                   0x48 },
             { "CHR_APOSTROPHE",             0x49 },
             { "CHR_MENU_DASH",              0x4A },
             { "CHR_MULT",                   0x4B },
-            { "CHR_OPEN_BRACKET",           0x4E },
+            { "CHR_OPEN_PAREN",             0x4E },
             { "CHR_STR_BEGIN",              0x64 },
             { "CHR_ARROW_PROMPT",           0x65 },
             { "CHR_HYPHENATION_POINT",      0x78 },
@@ -196,8 +243,9 @@ std::vector<CharsetConstant> BuildDefaultConstants(RomOffsets::Region region)
         return {
             { "CHR_SPACE",                  0x00 },
             { "CHR_UPPERCASE_S",            0x1D },
-            { "CHR_LOWERCASE_Z",            0x24 },
-            { "CHR_PERIOD",                 0x26 },
+            // The German main font is caps-only, so the alphabet ends at uppercase Z.
+            { "CHR_LAST_LETTER",            0x24 },
+            { "CHR_ELLIPSIS_DOT",           0x26 },
             { "CHR_BEGIN_TALK",             0x2D },
             { "CHR_DASH",                   0x2E },
             { "CHR_SS",                     0x3E },
@@ -218,7 +266,7 @@ std::vector<CharsetConstant> BuildDefaultConstants(RomOffsets::Region region)
     default:
         return {
             { "CHR_SPACE",                  0x00 },
-            { "CHR_PERIOD",                 0x40 },
+            { "CHR_ELLIPSIS_DOT",           0x40 },
             { "CHR_BEGIN_TALK",             0x47 },
             { "CHR_DASH",                   0x48 },
             { "CHR_MULT",                   0x55 },
@@ -240,12 +288,11 @@ Charsets GetDefaultCharsets(RomOffsets::Region region)
 {
     Charsets charsets;
     charsets.main = GetDefaultCharset(region);
-    charsets.menu = charsets.main;
-    charsets.intro = IntroString::GetDefaultCharset();
-    charsets.credits = EndCreditString::GetDefaultCharset();
+    charsets.menu = GetDefaultMenuCharset(region);
+    charsets.intro = IntroString::GetDefaultCharset(region);
+    charsets.credits = EndCreditString::GetDefaultCharset(region);
     charsets.diacritics = GetDiacriticMap(region);
     charsets.eos_marker = GetEOSChar(region);
-    charsets.control_chars["BEGIN_TALK"] = (region == RomOffsets::Region::JP) ? L"「" : L":";
     for (const auto& cc : CONTROL_CHAR_OFFSETS)
     {
         charsets.control_chars[cc.first] = std::to_wstring(charsets.eos_marker + cc.second);

@@ -8,6 +8,7 @@
 #include <landstalker/3d_maps/Tilemap3D.h>
 #include <landstalker/2d_maps/Tilemap2DRLE.h>
 #include <landstalker/tileset/AnimatedTileset.h>
+#include <landstalker/tileset/EndCreditFont.h>
 #include <landstalker/sprites/SpriteFrame.h>
 #include <landstalker/main/EntryPreferences.h>
 
@@ -48,6 +49,41 @@ private:
 	std::string m_ptrname;
 	std::string m_palindicies;
 	int m_index;
+};
+
+// The end credit font is stored as variable width, column-major glyphs rather than as a tileset -
+// see EndCreditFont. It is presented to the rest of the editor as an ordinary TilesetEntry so that
+// it can be edited with the regular tileset tools.
+class EndCreditFontEntry : public TilesetEntry
+{
+public:
+	EndCreditFontEntry(DataManager* owner, const ByteVector& b, const std::string& name, const std::filesystem::path& filename)
+		: TilesetEntry(owner, b, name, filename, true, EndCreditFont::GLYPH_WIDTH, EndCreditFont::GLYPH_HEIGHT, EndCreditFont::GLYPH_BPP)
+	{}
+
+	static std::shared_ptr<EndCreditFontEntry> Create(DataManager* owner, const ByteVector& b, const std::string& name, const std::filesystem::path& filename);
+
+	virtual bool Serialise(const std::shared_ptr<Tileset> in, ByteVectorPtr out) override;
+	virtual bool Deserialise(const ByteVectorPtr in, std::shared_ptr<Tileset>& out) override;
+
+	// The widths are not part of the tileset, so the inherited change tracking cannot see them.
+	virtual bool HasDataChanged() const override;
+	virtual bool HasSavedDataChanged() const override;
+	virtual void Commit() override;
+	virtual void AbandonChanges() override;
+
+	// The advance width of a glyph in pixels, including the trailing blank columns that provide its
+	// spacing. Setting a width narrower than the glyph's pixels has no effect - see
+	// EndCreditFont::ResolveGlyphWidth().
+	uint8_t GetGlyphWidth(std::size_t glyph_index) const;
+	void SetGlyphWidth(std::size_t glyph_index, uint8_t width);
+
+private:
+	// Entry<Tileset> copies its data through Tileset, which slices away anything an EndCreditFont
+	// adds, so the widths have to be held here rather than in the tileset the editor works on.
+	std::vector<uint8_t> m_widths;
+	std::vector<uint8_t> m_orig_widths;
+	std::vector<uint8_t> m_saved_widths;
 };
 
 class AnimatedTilesetEntry : public DataManager::Entry<AnimatedTileset>, public PalettePreferences

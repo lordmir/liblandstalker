@@ -229,6 +229,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tile.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\TileAttributes.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tileset.cpp" />
+    <ClCompile Include="landstalker\src\tileset\EndCreditFont.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\2d_maps\Blockmap2D.h" />
@@ -296,6 +297,7 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\Tile.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\TileAttributes.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\Tileset.h" />
+    <ClInclude Include="landstalker\include\landstalker\tileset\EndCreditFont.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

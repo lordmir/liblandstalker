@@ -1307,7 +1307,7 @@ bool GraphicsData::AsmLoadEndCreditData()
 		m_end_credits_palette = PaletteEntry::Create(this, pal_bytes, pal_name, pal_path, Palette::Type::END_CREDITS);
 		m_end_credits_tileset = TilesetEntry::Create(this, logos_bytes, logos_name, logos_path);
 		m_end_credits_map = Tilemap2DEntry::Create(this, map_bytes, map_name, map_path, Tilemap2D::Compression::RLE, 0x100);
-		auto font = TilesetEntry::Create(this, font_bytes, font_name, font_path, true, 8, 8, 2);
+		auto font = EndCreditFontEntry::Create(this, font_bytes, font_name, font_path);
 		m_fonts_by_name.insert({ font->GetName(), font });
 		m_fonts_internal.insert({ RomLabels::Graphics::END_CREDITS_FONT, font });
 		return true;
@@ -1876,8 +1876,8 @@ bool GraphicsData::RomLoadEndCreditData(const Rom& rom)
 		RomLabels::Graphics::END_CREDITS_LOGOS_FILE);
 	m_end_credits_map = Tilemap2DEntry::Create(this, map_bytes, RomLabels::Graphics::END_CREDITS_MAP,
 		RomLabels::Graphics::END_CREDITS_MAP_FILE, Tilemap2D::Compression::RLE, 0x100);
-	auto font = TilesetEntry::Create(this, font_bytes, RomLabels::Graphics::END_CREDITS_FONT,
-		RomLabels::Graphics::END_CREDITS_FONT_FILE, true, 8, 8, 2);
+	auto font = EndCreditFontEntry::Create(this, font_bytes, RomLabels::Graphics::END_CREDITS_FONT,
+		RomLabels::Graphics::END_CREDITS_FONT_FILE);
 	m_fonts_by_name.insert({ font->GetName(), font });
 	m_fonts_internal.insert({ RomLabels::Graphics::END_CREDITS_FONT, font });
 

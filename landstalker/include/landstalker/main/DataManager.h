@@ -202,7 +202,7 @@ inline std::shared_ptr<T> DataManager::Entry<T>::GetData()
 template<class T>
 inline std::shared_ptr<const T> DataManager::Entry<T>::GetData() const
 {
-	return GetData();
+	return m_data;
 }
 
 template<class T>

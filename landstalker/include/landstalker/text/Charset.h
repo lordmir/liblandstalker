@@ -18,6 +18,12 @@ namespace Charset
 	extern const LSString::CharacterSet DEFAULT_FRENCH_CHARSET;
 	extern const LSString::CharacterSet DEFAULT_GERMAN_CHARSET;
 	extern const LSString::CharacterSet DEFAULT_JAPANESE_CHARSET;
+	// The inventory has its own font whose glyph order differs from the main font's, so item and
+	// menu strings need their own character sets - see GetDefaultMenuCharset().
+	extern const LSString::CharacterSet MENU_ENGLISH_CHARSET;
+	extern const LSString::CharacterSet MENU_FRENCH_CHARSET;
+	extern const LSString::CharacterSet MENU_GERMAN_CHARSET;
+	extern const LSString::CharacterSet MENU_JAPANESE_CHARSET;
 	extern const LSString::DiacriticMap JAPANESE_DIACRITIC_MAP;
 	extern const LSString::DiacriticMap DEFAULT_DIACRITIC_MAP;
 
@@ -109,6 +115,25 @@ namespace Charset
 		case RomOffsets::Region::US_BETA:
 		default:
 			return DEFAULT_ENGLISH_CHARSET;
+		}
+	}
+
+	// The character set for strings drawn with the inventory font: item names and menu strings.
+	inline const LSString::CharacterSet& GetDefaultMenuCharset(RomOffsets::Region region)
+	{
+		switch (region)
+		{
+		case RomOffsets::Region::JP:
+			return MENU_JAPANESE_CHARSET;
+		case RomOffsets::Region::FR:
+			return MENU_FRENCH_CHARSET;
+		case RomOffsets::Region::DE:
+			return MENU_GERMAN_CHARSET;
+		case RomOffsets::Region::US:
+		case RomOffsets::Region::UK:
+		case RomOffsets::Region::US_BETA:
+		default:
+			return MENU_ENGLISH_CHARSET;
 		}
 	}
 

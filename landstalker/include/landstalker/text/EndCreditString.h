@@ -2,6 +2,7 @@
 #define _END_CREDIT_STRING_H_
 
 #include <vector>
+#include <landstalker/main/RomOffsets.h>
 #include <landstalker/text/LSString.h>
 
 namespace Landstalker {
@@ -16,7 +17,11 @@ public:
 	bool operator==(const EndCreditString& rhs) const;
 	bool operator!=(const EndCreditString& rhs) const;
 
-	static const CharacterSet& GetDefaultCharset();
+	// The credit fonts differ by region, so the charset does too. The German and French fonts carry
+	// extra letters above the shared codes, the Japanese font redefines one of them, and the
+	// kerning codes begin just above each font's last glyph and so move with it - see _rclChkKern
+	// in endcredits2.asm.
+	static const CharacterSet& GetDefaultCharset(RomOffsets::Region region = RomOffsets::Region::US);
 
 	virtual size_t Decode(const uint8_t* buffer, size_t size);
 	virtual size_t Encode(uint8_t* buffer, size_t size) const;

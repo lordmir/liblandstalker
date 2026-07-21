@@ -184,8 +184,9 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tile.cpp">
       <Filter>Source Files\Tileset</Filter>
     </ClCompile>
-    <ClCompile Include="landstalker\src\text\Charset.cpp">
-      <Filter>Source Files\Text</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\Charset.cpp" />
+    <ClCompile Include="landstalker\src\tileset\EndCreditFont.cpp">
+      <Filter>Source Files\Tileset</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -382,6 +383,9 @@
       <Filter>Header Files\Tileset</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\Tileset.h">
+      <Filter>Header Files\Tileset</Filter>
+    </ClInclude>
+    <ClInclude Include="landstalker\include\landstalker\tileset\EndCreditFont.h">
       <Filter>Header Files\Tileset</Filter>
     </ClInclude>
   </ItemGroup>

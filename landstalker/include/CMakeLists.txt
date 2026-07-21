@@ -63,6 +63,7 @@ target_sources(${MODULE_NAME}
     "./landstalker/text/IntroString.h"
     "./landstalker/text/LSString.h"
     "./landstalker/tileset/AnimatedTileset.h"
+    "./landstalker/tileset/EndCreditFont.h"
     "./landstalker/tileset/Tile.h"
     "./landstalker/tileset/TileAttributes.h"
     "./landstalker/tileset/Tileset.h"
