@@ -34,61 +34,84 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
     return Tilemap3DCompressor::Encode(*this, dst, size);
 }
 
+namespace
+{
+
+// Splits one line of a CSV into hexadecimal values. Returns false on anything unparseable.
+bool ReadCsvRow(const std::string& row, std::vector<uint16_t>& cells)
+{
+	std::istringstream rss(row);
+	std::string cell;
+	while (std::getline(rss, cell, ','))
+	{
+		try
+		{
+			cells.push_back(static_cast<uint16_t>(std::stoul(cell, nullptr, 16)));
+		}
+		catch (const std::exception&)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool ReadCsv(const std::string& csv, std::vector<std::vector<uint16_t>>& rows)
+{
+	std::istringstream iss(csv);
+	std::string row;
+	while (std::getline(iss, row))
+	{
+		// Ignore blank lines so a trailing newline does not read as an empty row.
+		if (row.find_first_not_of(" \t\r\n") == std::string::npos)
+		{
+			continue;
+		}
+		rows.push_back({});
+		if (!ReadCsvRow(row, rows.back()))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+}
+
 bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& background_csv, const std::string& heightmap_csv)
 {
-	std::ifstream bg(background_csv, std::ios::in);
-	std::ifstream fg(foreground_csv, std::ios::in);
-	std::ifstream hm(heightmap_csv, std::ios::in);
-
-	std::size_t w, h, t, l, hw, hh;
 	std::vector<std::vector<uint16_t>> fgvec, bgvec, hmvec;
-
-	auto read_csv = [](auto& iss, auto& data)
-	{
-		std::string row;
-		std::string cell;
-		while (std::getline(iss, row))
-		{
-			data.push_back(std::vector<uint16_t>());
-			std::istringstream rss(row);
-			while (std::getline(rss, cell, ','))
-			{
-				data.back().push_back(static_cast<uint16_t>(std::stoi(cell, nullptr, 16)));
-			}
-		}
-	};
-	
-	read_csv(fg, fgvec);
-	read_csv(bg, bgvec);
-	read_csv(hm, hmvec);
-
-	if (hmvec.size() < 2 || hmvec.front().size() != 2)
-	{
-		return false;
-	}
-	if (fgvec.size() == 0 || fgvec.front().size() == 0)
-	{
-		return false;
-	}
-	if (bgvec.size() == 0 || bgvec.front().size() == 0)
-	{
-		return false;
-	}
-	w = fgvec.front().size();
-	h = fgvec.size();
-	hw = hmvec[1].size();
-	hh = hmvec.size() - 1;
-	l = hmvec[0][0];
-	t = hmvec[0][1];
-
-	if (background.size() != h)
+	if (!ReadCsv(foreground_csv, fgvec) ||
+	    !ReadCsv(background_csv, bgvec) ||
+	    !ReadCsv(heightmap_csv, hmvec))
 	{
 		return false;
 	}
 
+	// The heightmap CSV leads with a "left,top" row, then one row per heightmap row.
+	if (hmvec.size() < 2 || hmvec.front().size() != 2 ||
+	    fgvec.empty() || fgvec.front().empty() ||
+	    bgvec.empty() || bgvec.front().empty())
+	{
+		return false;
+	}
+
+	const std::size_t w = fgvec.front().size();
+	const std::size_t h = fgvec.size();
+	const std::size_t hw = hmvec[1].size();
+	const std::size_t hh = hmvec.size() - 1;
+	const std::size_t l = hmvec[0][0];
+	const std::size_t t = hmvec[0][1];
+
+	if (w == 0 || w > 64 || h == 0 || h > 64 ||
+	    hw == 0 || hw > 64 || hh == 0 || hh > 64 ||
+	    l > 63 || t > 63 || bgvec.size() != h)
+	{
+		return false;
+	}
 	for (std::size_t i = 0; i < h; ++i)
 	{
-		if (bgvec[i].size() != w || bgvec[i].size() != w)
+		if (bgvec[i].size() != w || fgvec[i].size() != w)
 		{
 			return false;
 		}
@@ -105,7 +128,7 @@ bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& ba
 	ResizeHeightmap(static_cast<uint8_t>(hw), static_cast<uint8_t>(hh));
 	SetLeft(static_cast<uint8_t>(l));
 	SetTop(static_cast<uint8_t>(t));
-	
+
 	uint16_t i = 0;
 	for (std::size_t y = 0; y < h; ++y)
 	{
@@ -126,46 +149,37 @@ bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& ba
 	}
 	return true;
 }
-bool Tilemap3D::ToCsv(std::string &foreground_csv, std::string &background_csv, std::string &heightmap_csv) const
-{
-	std::stringstream bg(background_csv, std::ios::out | std::ios::trunc);
-	std::stringstream fg(foreground_csv, std::ios::out | std::ios::trunc);
-	std::stringstream hm(heightmap_csv, std::ios::out | std::ios::trunc);
 
+bool Tilemap3D::ToCsv(std::string& foreground_csv, std::string& background_csv, std::string& heightmap_csv) const
+{
+	if (GetWidth() == 0 || GetHeight() == 0 || GetHeightmapWidth() == 0 || GetHeightmapHeight() == 0)
+	{
+		return false;
+	}
+
+	std::ostringstream fg, bg, hm;
 	for (uint16_t i = 0; i < GetWidth() * GetHeight(); ++i)
 	{
 		fg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::FG).value);
 		bg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::BG).value);
-		if ((i + 1) % GetWidth() == 0)
+		const bool end_of_row = (i + 1) % GetWidth() == 0;
+		fg << (end_of_row ? "\n" : ",");
+		bg << (end_of_row ? "\n" : ",");
+	}
+
+	hm << StrPrintf("%02X", GetLeft()) << "," << StrPrintf("%02X", GetTop()) << "\n";
+	for (int y = 0; y < GetHeightmapHeight(); ++y)
+	{
+		for (int x = 0; x < GetHeightmapWidth(); ++x)
 		{
-			fg << std::endl;
-			bg << std::endl;
-		}
-		else
-		{
-			fg << ",";
-			bg << ",";
+			hm << StrPrintf("%X%X%02X", GetCellProps({ x, y }), GetHeight({ x, y }), GetCellType({ x, y }));
+			hm << ((x + 1) == GetHeightmapWidth() ? "\n" : ",");
 		}
 	}
-	hm << StrPrintf("%02X", GetLeft()) << "," << StrPrintf("%02X",GetTop()) << std::endl;
-	for (int i = 0; i < GetHeightmapHeight(); ++i)
-    {
-		for (int j = 0; j < GetHeightmapWidth(); ++j)
-		{
-			hm << StrPrintf("%X%X%02X", GetCellProps({ j, i }), GetHeight({ j, i }), GetCellType({j, i}));
-			if ((j + 1) % GetHeightmapWidth() == 0)
-			{
-				hm << std::endl;
-			}
-			else
-			{
-				hm << ",";
-			}
-		}
-    }
-    foreground_csv = fg.str();
-    background_csv = bg.str();
-    heightmap_csv = hm.str();
+
+	foreground_csv = fg.str();
+	background_csv = bg.str();
+	heightmap_csv = hm.str();
 	return true;
 }
 

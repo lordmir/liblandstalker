@@ -78,28 +78,39 @@ void Labels::LoadData(const std::string& filename)
 
 void Labels::SaveData(const std::string& filename)
 {
-    std::wofstream ofs(filename, std::ios::binary | std::ios::out);
-    ofs.imbue(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
-    std::wstring category = L"";
-    bool begin = true;
+    // Emitting through yaml-cpp rather than writing the quotes by hand means labels
+    // containing quotes or backslashes are escaped properly and survive a round trip.
+    // m_data is keyed on (category, id), so iterating it walks each category in turn.
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    std::wstring category;
+    bool in_category = false;
     for (const auto& label : m_data)
     {
-        if (category != label.first.first)
+        if (!in_category || category != label.first.first)
         {
+            if (in_category)
+            {
+                out << YAML::EndMap;
+            }
             category = label.first.first;
-            if (begin)
-            {
-                begin = false;
-            }
-            else
-            {
-                ofs << std::endl;
-            }
-            ofs << category << L":" << std::endl;
+            in_category = true;
+            out << YAML::Key << wstr_to_utf8(category) << YAML::Value << YAML::BeginMap;
         }
-        const std::wstring fmt = GetFormatStrings().count(label.first.first) > 0 ? GetFormatStrings().at(label.first.first) : L"%d";
-        ofs << L"    " << StrWPrintf(fmt, label.first.second) << L": \"" << label.second << "\"" << std::endl;
+        const std::wstring fmt = GetFormatStrings().count(label.first.first) > 0
+            ? GetFormatStrings().at(label.first.first)
+            : L"%d";
+        out << YAML::Key << wstr_to_utf8(StrWPrintf(fmt, label.first.second))
+            << YAML::Value << wstr_to_utf8(label.second);
     }
+    if (in_category)
+    {
+        out << YAML::EndMap;
+    }
+    out << YAML::EndMap;
+
+    std::ofstream ofs(filename, std::ios::binary | std::ios::out);
+    ofs << out.c_str() << std::endl;
 }
 
 bool Labels::Exists(const std::wstring& what, int id)
@@ -225,8 +236,10 @@ std::optional<std::wstring> Labels::NormalizePath(const std::wstring& what)
             codepoint == 0x205F || codepoint == 0x3000;
         const bool noncharacter = (codepoint >= 0xFDD0 && codepoint <= 0xFDEF) ||
             (codepoint & 0xFFFF) == 0xFFFE || (codepoint & 0xFFFF) == 0xFFFF;
-        if (control || non_space_whitespace || noncharacter || codepoint > 0x10FFFF || codepoint == L'\\' ||
-            codepoint == L'\'' || codepoint == L'"')
+        // Quotes and backslashes used to be rejected because SaveData wrapped values in
+        // quotes by hand; the emitter escapes them now, so only genuinely unprintable or
+        // invalid codepoints are refused.
+        if (control || non_space_whitespace || noncharacter || codepoint > 0x10FFFF)
         {
             Debug("Invalid characters");
             return std::nullopt;

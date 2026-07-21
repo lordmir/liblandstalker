@@ -108,6 +108,9 @@ public:
 
     uint16_t Decode(const uint8_t* src);
     uint16_t Encode(uint8_t* dst, size_t size);
+    // CSV conversion works on the contents of the three layer files, not their paths;
+    // callers own the file I/O. FromCsv validates everything before it touches the map,
+    // so a rejected import leaves the map exactly as it was.
     bool FromCsv(const std::string& foreground_csv,
                  const std::string& background_csv,
                  const std::string& heightmap_csv);

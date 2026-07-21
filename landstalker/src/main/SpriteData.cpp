@@ -1183,6 +1183,14 @@ std::vector<Entity> SpriteData::GetRoomEntities(uint16_t room) const
 
 void SpriteData::SetRoomEntities(uint16_t room, const std::vector<Entity>& entities)
 {
+	// Writing back an unchanged list has to be a no-op. Rooms with no entities have no
+	// entry at all, so storing an empty vector for one would insert a new element and
+	// leave the project looking modified without anything having been edited.
+	const auto existing = m_room_entities.find(room);
+	if (existing == m_room_entities.cend() ? entities.empty() : existing->second == entities)
+	{
+		return;
+	}
 	m_room_entities[room] = entities;
 }
 

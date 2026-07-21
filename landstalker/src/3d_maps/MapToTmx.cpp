@@ -1,7 +1,11 @@
 #include <landstalker/3d_maps/MapToTmx.h>
+#include <cctype>
+#include <exception>
 #include <sstream>
 #include <iomanip>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace Landstalker {
 
@@ -44,6 +48,49 @@ static std::string GetHMData(const Tilemap3D& map)
     }
 
     return ss.str();
+}
+
+// Reads the "heightmap" map property written by GetHMData: a comma separated list of hex
+// cells, one text row per heightmap row. XML attribute value normalisation turns those row
+// breaks into spaces, so treat any comma or whitespace as a separator and lean on the
+// declared heightmap size to confirm the right number of cells arrived.
+static bool ReadHMData(const std::string& data, std::size_t expected, std::vector<uint16_t>& cells)
+{
+	cells.clear();
+	std::string token;
+	auto flush = [&cells, &token]()
+	{
+		if (token.empty())
+		{
+			return true;
+		}
+		try
+		{
+			cells.push_back(static_cast<uint16_t>(std::stoul(token, nullptr, 16)));
+		}
+		catch (const std::exception&)
+		{
+			return false;
+		}
+		token.clear();
+		return true;
+	};
+
+	for (const char c : data)
+	{
+		if (c == ',' || std::isspace(static_cast<unsigned char>(c)))
+		{
+			if (!flush())
+			{
+				return false;
+			}
+		}
+		else
+		{
+			token += c;
+		}
+	}
+	return flush() && cells.size() == expected;
 }
 
 static std::vector<uint16_t> ReadData(int width, int height, const std::string& csv)
@@ -93,6 +140,50 @@ bool MapToTmx::ImportFromTmx(const std::string& fname, Tilemap3D& map)
 		}
 	}
 
+	// The heightmap rides along in the map properties rather than in a layer. Older files
+	// were written without it, so its absence is not an error - but a property that is
+	// present and unreadable is, rather than silently dropping the user's heightmap.
+	int hmwidth = 0;
+	int hmheight = 0;
+	int hmleft = 0;
+	int hmtop = 0;
+	std::string hmdata;
+	for (const auto property : map_node.child("properties").children("property"))
+	{
+		const std::string name = property.attribute("name").as_string();
+		const auto value = property.attribute("value");
+		if (name == "hmwidth")
+		{
+			hmwidth = value.as_int();
+		}
+		else if (name == "hmheight")
+		{
+			hmheight = value.as_int();
+		}
+		else if (name == "hmleft")
+		{
+			hmleft = value.as_int();
+		}
+		else if (name == "hmtop")
+		{
+			hmtop = value.as_int();
+		}
+		else if (name == "heightmap")
+		{
+			hmdata = value.as_string();
+		}
+	}
+
+	std::vector<uint16_t> hm;
+	const bool has_heightmap = !hmdata.empty();
+	if (has_heightmap &&
+	    !(hmwidth > 0 && hmwidth <= 64 && hmheight > 0 && hmheight <= 64 &&
+	      hmleft >= 0 && hmleft <= 63 && hmtop >= 0 && hmtop <= 63 &&
+	      ReadHMData(hmdata, static_cast<std::size_t>(hmwidth) * hmheight, hm)))
+	{
+		return false;
+	}
+
 	if (width > 0 && width < 64 &&
 	    height > 0 && height < 64 &&
 		fg.size() == static_cast<std::size_t>(width * height) &&
@@ -106,6 +197,20 @@ bool MapToTmx::ImportFromTmx(const std::string& fname, Tilemap3D& map)
 			{
 				map.SetBlock({ fg[i], {x, y} }, Tilemap3D::Layer::FG);
 				map.SetBlock({ bg[i], {x, y} }, Tilemap3D::Layer::BG);
+			}
+		}
+		if (has_heightmap)
+		{
+			map.ResizeHeightmap(static_cast<uint8_t>(hmwidth), static_cast<uint8_t>(hmheight));
+			map.SetLeft(static_cast<uint8_t>(hmleft));
+			map.SetTop(static_cast<uint8_t>(hmtop));
+			int j = 0;
+			for (int y = 0; y < hmheight; ++y)
+			{
+				for (int x = 0; x < hmwidth; ++x, ++j)
+				{
+					map.SetHeightmapCell({ x, y }, hm[j]);
+				}
 			}
 		}
 		return true;

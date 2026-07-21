@@ -849,7 +849,7 @@ bool RoomData::IsValidMapName(const std::string& name)
 {
     if (name.empty() || name.size() > 30 ||
         !((name.front() >= 'A' && name.front() <= 'Z') ||
-          (name.front() >= 'a' && name.front() <= 'z') || name.front() == '_'))
+          (name.front() >= 'a' && name.front() <= 'z')))
     {
         return false;
     }

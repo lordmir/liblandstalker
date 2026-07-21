@@ -98,6 +98,15 @@ bool WarpList::HasDuplicateWarps(const std::vector<Warp>& warps)
 
 void WarpList::UpdateWarpsForRoom(uint16_t room, const std::vector<Warp>& warps)
 {
+	// Writing back an unchanged list has to be a no-op. The deduplication at the end of
+	// this function walks the entire warp table, not just this room's, so without this
+	// guard an editor that merely opens a room and commits nothing would drop a duplicate
+	// pair elsewhere in the game and leave the project looking modified.
+	if (GetWarpsForRoom(room) == warps)
+	{
+		return;
+	}
+
 	std::queue<std::vector<Warp>::iterator> iterators;
 	for (auto it = m_warps.begin(); it != m_warps.end(); )
 	{
