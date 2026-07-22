@@ -115,10 +115,24 @@ public:
     void SetEndCreditString(std::size_t index, const EndCreditString& value);
     bool HasEndCreditStringChanged(std::size_t index) const;
 
+    // g_RoomVisitedFlags is a 99-byte bitfield in the save block, so flag numbers run
+    // from 0 to 791. Vanilla only reaches 0x281, leaving headroom for added rooms.
+    static constexpr uint16_t MAX_ROOM_VISIT_FLAG = 791;
+    static constexpr uint16_t INVALID_ROOM_VISIT_FLAG = 0xFFFF;
+
+    std::size_t GetRoomVisitFlagCount() const;
     uint16_t GetRoomVisitFlag(uint16_t room) const;
     void SetRoomVisitFlag(uint16_t room, uint16_t flag);
+    // Returns a flag number no room is using yet, or INVALID_ROOM_VISIT_FLAG if the
+    // bitfield is full.
+    uint16_t GetUnusedRoomVisitFlag() const;
+    // Renumbers the room-keyed tables this manager owns. Go through GameData::MoveRoom
+    // rather than calling this directly.
+    void RemapRooms(const RoomIndexMap& mapping);
     std::vector<uint16_t> GetRoomCharacters(uint16_t room) const;
-    void SetRoomCharacters(uint16_t room, const std::vector<uint16_t>& characters);
+    // Returns false and leaves the room untouched if the list needs more runs to encode
+    // than the game's table scan can handle - see RoomDialogueTable::MAX_RUNS_PER_ROOM.
+    bool SetRoomCharacters(uint16_t room, const std::vector<uint16_t>& characters);
 
     uint8_t GetSaveLocation(uint16_t room);
     void SetSaveLocation(uint16_t room, uint8_t name);

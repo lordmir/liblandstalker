@@ -6,5 +6,6 @@ target_sources(${MODULE_NAME} PRIVATE
     "Flags.cpp"
     "Room.cpp"
     "RoomDialogueTable.cpp"
+    "RoomIndexMap.cpp"
     "WarpList.cpp"
 )

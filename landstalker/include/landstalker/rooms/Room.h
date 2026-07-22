@@ -41,6 +41,9 @@ public:
 
     Room(const std::string& name_, const std::string& map_name, uint16_t index_, const std::vector<uint8_t>& params);
     Room(const std::string& name_, const std::string& map_name, uint16_t index_, uint8_t params[4]);
+    Room(const std::string& name_, const std::string& map_name, uint16_t index_,
+         uint8_t tileset_, uint8_t room_palette_, uint8_t pri_blockset_, uint8_t sec_blockset_,
+         uint8_t room_z_begin_, uint8_t room_z_end_, uint8_t bgm_);
 
     bool operator==(const Room& rhs) const;
     bool operator!=(const Room& rhs) const;

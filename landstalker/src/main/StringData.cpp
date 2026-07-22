@@ -1029,13 +1029,75 @@ bool StringData::HasEndCreditStringChanged(std::size_t index) const
 	return m_ending_strings_orig[index] != m_ending_strings[index];
 }
 
+std::size_t StringData::GetRoomVisitFlagCount() const
+{
+	return m_room_visit_flags.size();
+}
+
 uint16_t StringData::GetRoomVisitFlag(uint16_t room) const
 {
 	if (room < m_room_visit_flags.size())
 	{
 		return m_room_visit_flags.at(room);
 	}
-	return 0xFFFF;
+	return INVALID_ROOM_VISIT_FLAG;
+}
+
+uint16_t StringData::GetUnusedRoomVisitFlag() const
+{
+	if (m_room_visit_flags.empty())
+	{
+		return 0;
+	}
+	// Take the next flag above everything in use rather than filling a gap: the visited
+	// bitfield is also read directly by the map screen, so a gap may not be spare.
+	uint16_t highest = 0;
+	for (const auto& flag : m_room_visit_flags)
+	{
+		if (flag <= MAX_ROOM_VISIT_FLAG)
+		{
+			highest = std::max(highest, flag);
+		}
+	}
+	return highest < MAX_ROOM_VISIT_FLAG ? static_cast<uint16_t>(highest + 1) : INVALID_ROOM_VISIT_FLAG;
+}
+
+void StringData::RemapRooms(const RoomIndexMap& mapping)
+{
+	if (!IsValidRoomRenumbering(mapping))
+	{
+		return;
+	}
+	// Indexed by room number rather than keyed, so the entries themselves get shuffled.
+	// The table can be shorter than the room list if a previous save trimmed an unset
+	// tail, so pad it out first - otherwise a room moving into that range loses its
+	// entry. Pad with freshly allocated flags rather than INVALID_ROOM_VISIT_FLAG:
+	// SetRoomVisited does no validity check, so a 0xFFFF entry makes it bset bit 65535,
+	// scribbling on RAM 8KB past the end of the visited bitfield. Every room needs a
+	// real flag.
+	if (!m_room_visit_flags.empty())
+	{
+		while (m_room_visit_flags.size() < mapping.size())
+		{
+			const auto flag = GetUnusedRoomVisitFlag();
+			// If the bitfield is genuinely full, share room 0's flag. Rooms sharing a
+			// visited bit is normal (vanilla has 11 rooms on one flag) and merely makes
+			// them count as visited together - unlike 0xFFFF, it cannot corrupt memory.
+			m_room_visit_flags.push_back(flag == INVALID_ROOM_VISIT_FLAG ? m_room_visit_flags.front() : flag);
+		}
+		std::vector<uint16_t> reordered(mapping.size() - CountDeletedRooms(mapping), INVALID_ROOM_VISIT_FLAG);
+		for (std::size_t old_index = 0; old_index < m_room_visit_flags.size(); ++old_index)
+		{
+			if (!IsRoomDeleted(mapping, static_cast<uint16_t>(old_index)))
+			{
+				reordered[mapping[old_index]] = m_room_visit_flags[old_index];
+			}
+		}
+		m_room_visit_flags.swap(reordered);
+	}
+	m_room_dialogue_table.RemapRooms(mapping);
+	RemapRoomKeys(mapping, m_island_map_locations);
+	RemapRoomKeys(mapping, m_save_game_locations);
 }
 
 void StringData::SetRoomVisitFlag(uint16_t room, uint16_t flag)
@@ -1052,9 +1114,9 @@ std::vector<uint16_t> StringData::GetRoomCharacters(uint16_t room) const
 	return m_room_dialogue_table.GetRoomCharacters(room);
 }
 
-void StringData::SetRoomCharacters(uint16_t room, const std::vector<uint16_t>& characters)
+bool StringData::SetRoomCharacters(uint16_t room, const std::vector<uint16_t>& characters)
 {
-	m_room_dialogue_table.SetRoomCharacters(room, characters);
+	return m_room_dialogue_table.SetRoomCharacters(room, characters);
 }
 
 uint8_t StringData::GetSaveLocation(uint16_t room)
@@ -1447,10 +1509,7 @@ bool StringData::SaveCharsetConstants(const std::filesystem::path& inc_file) con
 		{
 			continue;
 		}
-		char value[8];
-		std::snprintf(value, sizeof(value), "$%02X", c.value);
-		inc << AsmFile::Label(c.name)
-		    << AsmFile::Instruction("equ", AsmFile::Width::NONE, { std::string(value) });
+		inc << AsmFile::Define(c.name, c.value, AsmFile::Width::B);
 	}
 	return inc.WriteFile(inc_file);
 }
@@ -1621,14 +1680,16 @@ std::vector<uint8_t> StringData::SerialiseLocationMap(const std::map<uint16_t, s
 
 void StringData::DeserialiseVisitFlags(const std::vector<uint8_t>& bytes)
 {
-	for (std::size_t i = 0; i < bytes.size(); i += 2)
+	for (std::size_t i = 0; i + 1 < bytes.size(); i += 2)
 	{
-		uint16_t room = bytes[i] << 8 | bytes[i + 1];
-		if (room > 0x7FFF)
-		{
-			break;
-		}
-		m_room_visit_flags.push_back(room);
+		m_room_visit_flags.push_back(bytes[i] << 8 | bytes[i + 1]);
+	}
+	// The ROM pads the tail of this table with 0xFF. Only strip trailing entries: a room
+	// in the middle of the table with no visit flag is legitimate, and dropping the rest
+	// of the table on the first one would leave later rooms without an entry at all.
+	while (!m_room_visit_flags.empty() && m_room_visit_flags.back() > 0x7FFF)
+	{
+		m_room_visit_flags.pop_back();
 	}
 }
 

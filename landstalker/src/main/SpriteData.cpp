@@ -429,7 +429,8 @@ bool SpriteData::HasBeenModified() const
 	{
 		return true;
 	}
-	if (m_room_entities_orig != m_room_entities)
+	if (m_room_entities_orig != m_room_entities ||
+		m_room_entity_table_size_orig != m_room_entity_table_size)
 	{
 		return true;
 	}
@@ -1194,6 +1195,37 @@ void SpriteData::SetRoomEntities(uint16_t room, const std::vector<Entity>& entit
 	m_room_entities[room] = entities;
 }
 
+std::size_t SpriteData::GetRoomEntityTableSize() const
+{
+	return m_room_entity_table_size;
+}
+
+void SpriteData::SetRoomEntityTableSize(std::size_t rooms)
+{
+	m_room_entity_table_size = rooms;
+}
+
+void SpriteData::RemapRooms(const RoomIndexMap& mapping)
+{
+	if (!IsValidRoomRenumbering(mapping))
+	{
+		return;
+	}
+	RemapRoomKeys(mapping, m_room_entities);
+	RemapRoomRecords(mapping, m_sprite_visibility_flags, { &EntityFlag::room });
+	RemapRoomRecords(mapping, m_one_time_event_flags, { &OneTimeEventFlag::room });
+	RemapRoomRecords(mapping, m_room_clear_flags, { &RoomClearFlag::room });
+	RemapRoomRecords(mapping, m_locked_door_flags, { &RoomClearFlag::room });
+	RemapRoomRecords(mapping, m_permanent_switch_flags, { &RoomClearFlag::room });
+	RemapRoomRecords(mapping, m_sacred_tree_flags, { &SacredTreeFlag::room });
+	// The entity offset table is sized by room count, so it shrinks with the room list.
+	const auto deleted = CountDeletedRooms(mapping);
+	if (deleted > 0 && m_room_entity_table_size >= deleted)
+	{
+		m_room_entity_table_size -= deleted;
+	}
+}
+
 std::vector<EntityFlag> SpriteData::GetEntityVisibilityFlagsForRoom(uint16_t room)
 {
 	return GetFlagsForRoom(room, m_sprite_visibility_flags);
@@ -1470,6 +1502,7 @@ void SpriteData::CommitAllChanges()
 	m_enemy_stats_orig = m_enemy_stats;
 	m_sprite_to_entity_lookup_orig = m_sprite_to_entity_lookup;
 	m_room_entities_orig = m_room_entities;
+	m_room_entity_table_size_orig = m_room_entity_table_size;
 	m_item_properties_orig = m_item_properties;
 	m_sprite_behaviours_orig = m_sprite_behaviours;
 	m_sprite_animation_flags_orig = m_sprite_animation_flags;
@@ -1598,6 +1631,7 @@ void SpriteData::InitCache()
 	m_enemy_stats_orig = m_enemy_stats;
 	m_sprite_to_entity_lookup_orig = m_sprite_to_entity_lookup;
 	m_room_entities_orig = m_room_entities;
+	m_room_entity_table_size_orig = m_room_entity_table_size;
 	m_item_properties_orig = m_item_properties;
 	m_sprite_behaviours_orig = m_sprite_behaviours;
 	m_sprite_animation_flags_orig = m_sprite_animation_flags;
@@ -1700,6 +1734,7 @@ std::vector<std::shared_ptr<PaletteEntry>> SpriteData::DeserialisePalArray(const
 
 void SpriteData::DeserialiseRoomEntityTable(const ByteVector& offsets, const ByteVector& bytes)
 {
+	m_room_entity_table_size = std::max(m_room_entity_table_size, offsets.size() / 2);
 	for (uint16_t i = 0; (i * 2) < static_cast<uint16_t>(offsets.size()); ++i)
 	{
 		uint16_t offset = (offsets[i * 2] << 8) | offsets[i * 2 + 1];
@@ -1722,9 +1757,15 @@ void SpriteData::DeserialiseRoomEntityTable(const ByteVector& offsets, const Byt
 std::pair<ByteVector, ByteVector> SpriteData::SerialiseRoomEntityTable() const
 {
 	ByteVector bytes, offsets;
-	offsets.reserve((m_room_entities.rbegin()->first + 1) * sizeof(uint16_t));
-	for (uint16_t i = 0; i <= m_room_entities.rbegin()->first; ++i)
+	// The table must span every room, not just up to the last one that has entities,
+	// otherwise a trailing entity-less room makes the game index past the end of it.
+	const std::size_t last_populated = m_room_entities.empty() ? std::size_t{ 0 } :
+		static_cast<std::size_t>(m_room_entities.rbegin()->first) + 1;
+	const std::size_t table_size = std::max(m_room_entity_table_size, last_populated);
+	offsets.reserve(table_size * sizeof(uint16_t));
+	for (std::size_t idx = 0; idx < table_size; ++idx)
 	{
+		const uint16_t i = static_cast<uint16_t>(idx);
 		auto res = m_room_entities.find(i);
 		if (res == m_room_entities.cend())
 		{

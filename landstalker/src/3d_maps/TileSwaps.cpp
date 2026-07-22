@@ -87,6 +87,11 @@ void TileSwaps::SetRoomSwaps(uint16_t room, const std::vector<TileSwap>& swaps)
 	}
 }
 
+void TileSwaps::RemapRooms(const RoomIndexMap& mapping)
+{
+	RemapRoomKeys(mapping, m_swaps);
+}
+
 TileSwap::TileSwap(const std::vector<uint8_t>& in)
 	: active(true)
 {

@@ -21,6 +21,24 @@ Room::Room(const std::string& name_, const std::string& map_name, uint16_t index
     SetParams(params[0], params[1], params[2], params[3]);
 }
 
+Room::Room(const std::string& name_, const std::string& map_name, uint16_t index_,
+           uint8_t tileset_, uint8_t room_palette_, uint8_t pri_blockset_, uint8_t sec_blockset_,
+           uint8_t room_z_begin_, uint8_t room_z_end_, uint8_t bgm_)
+    : map(map_name),
+      name(name_),
+      index(index_),
+      tileset(tileset_),
+      pri_blockset(pri_blockset_),
+      sec_blockset(sec_blockset_),
+      room_palette(room_palette_),
+      bgm(bgm_),
+      room_z_begin(room_z_begin_),
+      room_z_end(room_z_end_),
+      unknown_param1(0),
+      unknown_param2(0)
+{
+}
+
 bool Room::operator==(const Room& rhs) const
 {
     return ((this->bgm == rhs.bgm) &&

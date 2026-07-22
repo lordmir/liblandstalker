@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <landstalker/3d_maps/Tilemap3D.h>
+#include <landstalker/rooms/RoomIndexMap.h>
 
 namespace Landstalker {
 
@@ -71,6 +72,7 @@ public:
 	std::vector<TileSwap> GetSwapsForRoom(uint16_t room) const;
 	bool RoomHasSwaps(uint16_t room) const;
 	void SetRoomSwaps(uint16_t room, const std::vector<TileSwap>& swaps);
+	void RemapRooms(const RoomIndexMap& mapping);
 private:
 	std::map<uint16_t, std::vector<TileSwap>> m_swaps;
 };

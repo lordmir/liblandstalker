@@ -1,6 +1,8 @@
 #include <landstalker/main/AsmFile.h>
 #include <landstalker/misc/Utils.h>
 
+#include <algorithm>
+#include <cctype>
 #include <regex>
 #include <set>
 #include <unordered_map>
@@ -14,7 +16,8 @@ namespace Landstalker {
 const std::unordered_map<std::string, AsmFile::Inst> AsmFile::INSTRUCTIONS
 {
 	{"dc", Inst::DC}, {"dcb", Inst::DCB}, {"include", Inst::INCLUDE}, {"incbin", Inst::INCBIN},
-	{"Align", Inst::ALIGN}, {"ScriptID", Inst::SCRIPTID}, {"ScriptJump", Inst::SCRIPTJUMP}
+	{"Align", Inst::ALIGN}, {"ScriptID", Inst::SCRIPTID}, {"ScriptJump", Inst::SCRIPTJUMP},
+	{"equ", Inst::EQU}
 };
 const std::unordered_map<std::string, AsmFile::Width> AsmFile::WIDTHS{ {"", Width::NONE}, {"b", Width::B}, {"w", Width::W}, {"l", Width::L}, {"s", Width::S} };
 
@@ -351,7 +354,72 @@ void ParseDefinesInto(const std::string& inc_file, const std::filesystem::path& 
 	}
 }
 
+// Collects every include reachable from inc_file, depth first, as paths relative to
+// base_path. Mirrors ParseDefinesInto's resolution rules and cycle guard.
+void CollectIncludesInto(const std::filesystem::path& rel_file, const std::filesystem::path& base_path,
+	std::vector<std::filesystem::path>& includes, std::set<std::filesystem::path>& visited)
+{
+	const auto full = base_path.empty() ? rel_file : base_path / rel_file;
+	std::error_code ec;
+	auto canonical = std::filesystem::weakly_canonical(full, ec);
+	if (ec)
+	{
+		canonical = full;
+	}
+	if (!visited.insert(canonical).second)
+	{
+		return;
+	}
+	std::ifstream ifs(full);
+	std::string line;
+	static const std::regex inc_re("^\\s*include\\s+\"([^\"]+)\"", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	std::smatch matches;
+	while (ifs.good() && std::getline(ifs, line))
+	{
+		if (std::regex_search(line, matches, inc_re))
+		{
+			std::filesystem::path rel = ReformatPath(matches[1].str());
+			std::filesystem::path child = base_path.empty()
+				? full.parent_path() / rel
+				: rel;
+			includes.push_back(child);
+			CollectIncludesInto(child, base_path, includes, visited);
+		}
+	}
+}
+
 } // namespace
+
+std::filesystem::path AsmFile::FindDefineInclude(const std::filesystem::path& main_asm,
+	const std::filesystem::path& base_path, const std::string& defines_label,
+	const std::string& filename)
+{
+	auto lower = [](std::string s)
+	{
+		std::transform(s.begin(), s.end(), s.begin(), [](const unsigned char c)
+		{
+			return static_cast<char>(std::tolower(c));
+		});
+		return s;
+	};
+	const auto target = lower(std::filesystem::path(ReformatPath(filename)).filename().string());
+
+	std::vector<std::filesystem::path> includes;
+	std::set<std::filesystem::path> visited;
+	for (const auto& inc : CollectDefineIncludes(main_asm, defines_label))
+	{
+		includes.push_back(inc);
+		CollectIncludesInto(inc, base_path, includes, visited);
+	}
+	for (const auto& inc : includes)
+	{
+		if (lower(inc.filename().string()) == target)
+		{
+			return inc;
+		}
+	}
+	return {};
+}
 
 std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_file)
 {
@@ -748,6 +816,24 @@ bool AsmFile::Read(IncludeFile& value)
 	return ret;
 }
 
+bool AsmFile::Read(Define& value)
+{
+	bool ret = false;
+	if (m_readptr != m_data.end())
+	{
+		try
+		{
+			value = std::get<Define>(*m_readptr++);
+			ret = true;
+		}
+		catch (const std::bad_variant_access&)
+		{
+			return false;
+		}
+	}
+	return ret;
+}
+
 bool AsmFile::Read(Label& value)
 {
 	std::size_t pos = m_readptr - m_data.begin();
@@ -851,6 +937,27 @@ bool AsmFile::Write(const IncludeFile& file)
 	m_nextline.operand = "\"";
 	m_nextline.operand += file.path.string();
 	m_nextline.operand += "\"";
+	return true;
+}
+
+bool AsmFile::Write(const Define& define)
+{
+	// The name is emitted as the line's label, so this always starts a fresh line.
+	PushNextLine();
+	m_nextline.label = define.name;
+	m_nextline.instruction = FindMapKey(INSTRUCTIONS, Inst::EQU)->first;
+	switch (define.width)
+	{
+	case Width::B:
+		m_nextline.operand = ToAsmValue(static_cast<uint8_t>(define.value), AsmFile::Base::HEX);
+		break;
+	case Width::W:
+		m_nextline.operand = ToAsmValue(static_cast<uint16_t>(define.value), AsmFile::Base::HEX);
+		break;
+	default:
+		m_nextline.operand = ToAsmValue(static_cast<uint32_t>(define.value), AsmFile::Base::HEX);
+		break;
+	}
 	return true;
 }
 
@@ -1269,6 +1376,25 @@ bool AsmFile::ProcessInst<AsmFile::Inst::SCRIPTJUMP>(const AsmFile::AsmLine& lin
 }
 
 template<>
+bool AsmFile::ProcessInst<AsmFile::Inst::EQU>(const AsmFile::AsmLine& line)
+{
+	// The symbol being defined is this line's label. A bodyless `equ` is malformed, and
+	// a value that will not resolve (a forward reference, an expression referring to a
+	// symbol from another file) is left out rather than stored as a bogus number.
+	if (line.label.empty())
+	{
+		return false;
+	}
+	const int64_t value = ParseValue(line.operand);
+	if (value < 0)
+	{
+		return false;
+	}
+	m_data.push_back(Define(line.label, value));
+	return true;
+}
+
+template<>
 bool AsmFile::ProcessInst<AsmFile::Inst::GENERIC>(const AsmFile::AsmLine& line)
 {
 	auto ins = Instruction::FromAsmLine(line);
@@ -1297,6 +1423,7 @@ bool AsmFile::ProcessLine(const AsmFile::AsmLine& line)
 	case Inst::ALIGN:      return ProcessInst<Inst::ALIGN>(line);
 	case Inst::SCRIPTID:   return ProcessInst<Inst::SCRIPTID>(line);
 	case Inst::SCRIPTJUMP: return ProcessInst<Inst::SCRIPTJUMP>(line);
+	case Inst::EQU:        return ProcessInst<Inst::EQU>(line);
 	default:			   return false;
 	}
 }
@@ -1430,6 +1557,19 @@ void AsmFile::AsmLine::Clear()
 std::ostream& operator<<(std::ostream& stream, AsmFile& file)
 {
 	return file.PrintFile(stream);
+}
+
+bool AsmFile::Define::operator==(const Define& rhs) const
+{
+	// Width is a formatting hint rather than part of the symbol, and reading always
+	// yields Width::L, so comparing it would make a written Define differ from the same
+	// Define read back.
+	return this->name == rhs.name && this->value == rhs.value;
+}
+
+bool AsmFile::Define::operator!=(const Define& rhs) const
+{
+	return !(*this == rhs);
 }
 
 bool AsmFile::ScriptId::operator==(const ScriptId& rhs) const

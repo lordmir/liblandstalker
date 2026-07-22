@@ -137,6 +137,12 @@ bool Chests::GetRoomNoChestsFlag(uint16_t room) const
 	return m_enabled.count(room) != 0;
 }
 
+void Chests::RemapRooms(const RoomIndexMap& mapping)
+{
+	RemapRoomKeys(mapping, m_chests);
+	RemapRoomValues(mapping, m_enabled);
+}
+
 bool Chests::CleanupRoomChests(const GameData& gd)
 {
 	std::size_t chest_count = 0;

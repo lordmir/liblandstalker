@@ -105,6 +105,11 @@ void Doors::SetRoomDoors(uint16_t room, const std::vector<Door>& swaps)
 	}
 }
 
+void Doors::RemapRooms(const RoomIndexMap& mapping)
+{
+	RemapRoomKeys(mapping, m_doors);
+}
+
 Door::Door(uint8_t b1, uint8_t b2)
 {
 	y = (b1 & 0x3F) - 12;

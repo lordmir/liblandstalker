@@ -209,6 +209,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\Flags.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\Room.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\RoomDialogueTable.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\RoomIndexMap.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\WarpList.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ProgressFlags.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\Script.cpp" />
@@ -277,6 +278,7 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\Flags.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\Room.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\RoomDialogueTable.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\RoomIndexMap.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\WarpList.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ProgressFlags.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\Script.h" />

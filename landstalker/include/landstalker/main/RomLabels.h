@@ -549,6 +549,10 @@ namespace RomLabels
 		extern const std::string ROOM_VISIT_FLAGS_FILE;
 		extern const std::string CHEST_CONTENTS_FILENAME;
 		extern const std::string CHEST_OFFSETS_FILENAME;
+		// Room index equ constants, included indirectly via landstalker.inc rather than
+		// listed under the Defines label, so the path is resolved by filename.
+		extern const std::string ROOM_CONSTANTS_FILE;
+		extern const std::string ROOM_CONSTANTS_PREFIX;
 	}
 }
 

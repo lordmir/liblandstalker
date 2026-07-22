@@ -6,6 +6,8 @@
 #include <set>
 #include <map>
 
+#include <landstalker/rooms/RoomIndexMap.h>
+
 namespace Landstalker {
 	
 typedef uint8_t ChestItem;
@@ -14,6 +16,7 @@ class GameData;
 class Chests
 {
 public:
+	void RemapRooms(const RoomIndexMap& mapping);
 	Chests(const std::vector<uint8_t>& offsets, const std::vector<uint8_t>& contents);
 	Chests();
 

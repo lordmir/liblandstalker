@@ -546,6 +546,8 @@ namespace RomLabels
 		const std::string ROOM_VISIT_FLAGS_FILE("assets_packed/roomdata/flagactions/roomvisitflags.bin");
 		const std::string CHEST_CONTENTS_FILENAME("assets_packed/roomdata/chests/chestcontents.bin");
 		const std::string CHEST_OFFSETS_FILENAME("assets_packed/roomdata/chests/chestoffsets.bin");
+		const std::string ROOM_CONSTANTS_FILE("code/include/constants/rooms.inc");
+		const std::string ROOM_CONSTANTS_PREFIX("ROOM_");
 	}
 
 } // namespace RomOffsets

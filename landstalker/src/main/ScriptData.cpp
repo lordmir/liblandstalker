@@ -248,6 +248,16 @@ std::shared_ptr<std::vector<ScriptTable::Shop>> ScriptData::GetShopTable()
 	return m_shoptable;
 }
 
+void ScriptData::RemapRooms(const RoomIndexMap& mapping)
+{
+	if (!IsValidRoomRenumbering(mapping) || !m_shoptable)
+	{
+		return;
+	}
+	// A shop in a deleted room goes with it.
+	RemapRoomRecords(mapping, *m_shoptable, { &ScriptTable::Shop::room });
+}
+
 std::shared_ptr<const std::vector<ScriptTable::Item>> ScriptData::GetItemTable() const
 {
 	return m_itemtable;

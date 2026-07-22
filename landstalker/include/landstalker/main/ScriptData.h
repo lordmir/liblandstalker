@@ -6,6 +6,7 @@
 #include <landstalker/script/Script.h>
 #include <landstalker/script/ScriptFunctionTable.h>
 #include <landstalker/script/ScriptTable.h>
+#include <landstalker/rooms/RoomIndexMap.h>
 
 namespace Landstalker {
 
@@ -40,6 +41,9 @@ public:
     std::shared_ptr<std::vector<ScriptTable::Action>> GetCutsceneTable();
     std::shared_ptr<const std::vector<ScriptTable::Shop>> GetShopTable() const;
     std::shared_ptr<std::vector<ScriptTable::Shop>> GetShopTable();
+    // The shop table names the room each shop sits in. Go through GameData::MoveRoom
+    // rather than calling this directly.
+    void RemapRooms(const RoomIndexMap& mapping);
     std::shared_ptr<const std::vector<ScriptTable::Item>> GetItemTable() const;
     std::shared_ptr<std::vector<ScriptTable::Item>> GetItemTable();
 

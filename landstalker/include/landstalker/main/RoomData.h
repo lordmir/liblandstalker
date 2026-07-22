@@ -2,6 +2,7 @@
 #define _ROOM_DATA_H_
 
 #include <map>
+#include <optional>
 #include <vector>
 #include <memory>
 
@@ -75,12 +76,54 @@ public:
     std::shared_ptr<BlocksetEntry> GetBlockset(uint8_t tileset, uint8_t pri, uint8_t sec) const;
     std::shared_ptr<BlocksetEntry> GetBlockset(const std::string& tileset, uint8_t pri, uint8_t sec) const;
 
+    // The warp table packs the room number into 10 bits (WarpList::Warp::GetRaw masks
+    // the high byte with 0x03), so 1024 is the hard ceiling regardless of how much
+    // space the other tables have. The room dialogue table allows 11 bits, but a room
+    // that no warp can reference is not much use.
+    static constexpr std::size_t MAX_ROOMS = 0x400;
+
     const std::vector<std::shared_ptr<Room>>& GetRoomlist() const;
     std::size_t GetRoomCount() const;
     std::shared_ptr<Room> GetRoom(uint16_t index) const;
+    // nullptr if no room carries that internal name.
     std::shared_ptr<Room> GetRoom(const std::string& name) const;
     static bool IsValidRoomName(const std::string& name);
     bool RenameRoom(uint16_t index, const std::string& name);
+    // Appends a room to the end of the room list. Rooms can only be added at the end,
+    // and existing rooms must never be moved or removed: every other room-indexed table
+    // in the game (chests, doors, tile swaps, entities, visit flags, script and warp
+    // references) keys off the room number, and the disassembly hardcodes ~60 room
+    // indices as equ constants in code/include/constants/rooms.inc, which the editor
+    // does not parse. Inserting or reordering would silently repoint all of those.
+    // Prefer GameData::AddRoom, which also extends the tables owned by the other data
+    // managers. Returns nullptr if any argument is out of range or the name is taken.
+    std::shared_ptr<Room> AddRoom(const std::string& map, const std::string& name,
+        const std::wstring& display_name, uint8_t tileset, uint8_t room_palette,
+        uint8_t pri_blockset, uint8_t sec_blockset, uint8_t room_z_begin,
+        uint8_t room_z_end, uint8_t bgm);
+    // Renumbers every room reference this manager owns. Only rewrites what RoomData
+    // stores - the entity, flag, visit-flag and shop tables live in the other managers,
+    // so a reorder has to go through GameData::MoveRoom to stay consistent.
+    void RemapRooms(const RoomIndexMap& mapping);
+    // Room numbers are dense by contract: slots 0..N-1 are all occupied, and each room's
+    // stored index equals its position. The game indexes the room table directly, so a
+    // gap would be read as a real room. Rooms can therefore only be appended or moved,
+    // never inserted at a number that does not exist yet or left unnumbered.
+    bool IsRoomListSequential() const;
+    // Room index constants from the disassembly's rooms.inc (ROOM_MERCATOR_CENTRE and
+    // friends), which game code references by name. They are plain `equ` defines, so
+    // they are not renumbered when the room list changes - appending is safe, but
+    // inserting or reordering rooms would leave every one of these pointing at the
+    // wrong room. Empty for ROM-loaded projects, which have no include file.
+    const std::map<std::string, uint16_t>& GetRoomConstants() const;
+    std::optional<uint16_t> GetRoomConstant(const std::string& name) const;
+    std::vector<std::string> GetRoomConstantsForRoom(uint16_t room) const;
+    static bool IsValidRoomConstantName(const std::string& name);
+    // Adds the constant, or repoints it if the name is already in use.
+    bool SetRoomConstant(const std::string& name, uint16_t room);
+    bool RenameRoomConstant(const std::string& old_name, const std::string& new_name);
+    bool DeleteRoomConstant(const std::string& name);
+
     const std::map<std::string, std::shared_ptr<Tilemap3DEntry>>& GetMaps() const;
     const std::vector<std::string>& GetMapOrder() const;
     std::shared_ptr<Tilemap3DEntry> GetMap(const std::string& name) const;
@@ -164,6 +207,7 @@ private:
     bool CreateDirectoryStructure(const std::filesystem::path& dir);
 
     bool AsmLoadRoomTable();
+    bool AsmLoadRoomConstants();
     bool AsmLoadMaps();
     bool AsmLoadRoomPalettes();
     bool AsmLoadWarpData();
@@ -191,6 +235,7 @@ private:
 
     bool AsmSaveMaps(const std::filesystem::path& dir);
     bool AsmSaveRoomData(const std::filesystem::path& dir);
+    bool AsmSaveRoomConstants(const std::filesystem::path& dir);
     bool AsmSaveWarpData(const std::filesystem::path& dir);
     bool AsmSaveRoomPalettes(const std::filesystem::path& dir);
     bool AsmSaveMiscPaletteData(const std::filesystem::path& dir);
@@ -219,6 +264,7 @@ private:
     void ResetTilesetDefaultPalettes();
 
     std::filesystem::path m_room_data_filename;
+    std::filesystem::path m_room_constants_filename;
     std::filesystem::path m_map_data_filename;
     std::filesystem::path m_warp_data_filename;
     std::filesystem::path m_fall_data_filename;
@@ -272,6 +318,9 @@ private:
     std::vector<std::shared_ptr<Room>> m_roomlist;
     std::vector<std::shared_ptr<Room>> m_roomlist_orig;
     std::map<std::string, std::shared_ptr<Room>> m_roomlist_by_name;
+
+    std::map<std::string, uint16_t> m_room_constants;
+    std::map<std::string, uint16_t> m_room_constants_orig;
 
     std::map<std::string, std::shared_ptr<Tilemap3DEntry>> m_maps;
     std::map<std::string, std::shared_ptr<Tilemap3DEntry>> m_maps_orig;

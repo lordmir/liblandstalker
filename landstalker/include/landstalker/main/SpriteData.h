@@ -206,6 +206,13 @@ public:
 
 	std::vector<Entity> GetRoomEntities(uint16_t room) const;
 	void SetRoomEntities(uint16_t room, const std::vector<Entity>& entities);
+	// The game indexes the room entity offset table by room number with no bounds check,
+	// so the table has to cover every room even when the trailing ones have no entities.
+	std::size_t GetRoomEntityTableSize() const;
+	void SetRoomEntityTableSize(std::size_t rooms);
+	// Renumbers the room-keyed entity and flag tables this manager owns. Go through
+	// GameData::MoveRoom rather than calling this directly.
+	void RemapRooms(const RoomIndexMap& mapping);
 	std::vector<EntityFlag> GetEntityVisibilityFlagsForRoom(uint16_t room);
 	void SetEntityVisibilityFlagsForRoom(uint16_t room, const std::vector<EntityFlag>& data);
 	std::vector<OneTimeEventFlag> GetOneTimeEventFlagsForRoom(uint16_t room);
@@ -357,6 +364,8 @@ private:
 
 	std::map<uint16_t, std::vector<Entity>> m_room_entities;
 	std::map<uint16_t, std::vector<Entity>> m_room_entities_orig;
+	std::size_t m_room_entity_table_size = 0;
+	std::size_t m_room_entity_table_size_orig = 0;
 
 	std::map<int, std::pair<std::string, std::vector<Behaviours::Command>>> m_sprite_behaviours;
 	std::map<int, std::pair<std::string, std::vector<Behaviours::Command>>> m_sprite_behaviours_orig;

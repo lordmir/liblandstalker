@@ -127,6 +127,9 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\RoomDialogueTable.cpp">
       <Filter>Source Files\Rooms</Filter>
     </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\RoomIndexMap.cpp">
+      <Filter>Source Files\Rooms</Filter>
+    </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\WarpList.cpp">
       <Filter>Source Files\Rooms</Filter>
     </ClCompile>
@@ -344,6 +347,9 @@
       <Filter>Header Files\Rooms</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\RoomDialogueTable.h">
+      <Filter>Header Files\Rooms</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\RoomIndexMap.h">
       <Filter>Header Files\Rooms</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\WarpList.h">

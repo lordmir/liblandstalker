@@ -6,6 +6,7 @@
 #include <list>
 #include <map>
 #include <landstalker/main/Rom.h>
+#include <landstalker/rooms/RoomIndexMap.h>
 #include <filesystem>
 
 namespace Landstalker {
@@ -86,6 +87,8 @@ public:
 	void SetFallDestination(uint16_t room, uint16_t dest);
 	void SetHasClimbDestination(uint16_t room, bool enabled);
 	void SetClimbDestination(uint16_t room, uint16_t dest);
+
+	void RemapRooms(const RoomIndexMap& mapping);
 
 	std::vector<uint8_t> GetWarpBytes() const;
 	std::vector<uint8_t> GetFallBytes() const;

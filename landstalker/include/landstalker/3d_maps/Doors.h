@@ -8,6 +8,7 @@
 #include <memory>
 #include <landstalker/misc/Literals.h>
 #include <landstalker/3d_maps/Tilemap3D.h>
+#include <landstalker/rooms/RoomIndexMap.h>
 
 namespace Landstalker {
 
@@ -67,6 +68,7 @@ public:
 	std::vector<Door> GetDoorsForRoom(uint16_t room) const;
 	bool RoomHasDoors(uint16_t room) const;
 	void SetRoomDoors(uint16_t room, const std::vector<Door>& swaps);
+	void RemapRooms(const RoomIndexMap& mapping);
 private:
 	std::map<uint16_t, std::vector<Door>> m_doors;
 };

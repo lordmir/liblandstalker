@@ -4,6 +4,8 @@
 #include <cassert>
 #include <algorithm>
 #include <cctype>
+#include <sstream>
+#include <tuple>
 
 #include <landstalker/misc/Utils.h>
 #include <landstalker/main/AsmUtils.h>
@@ -150,6 +152,10 @@ RoomData::RoomData(const std::filesystem::path& asm_file)
     {
         throw std::runtime_error(std::string("Unable to load room data from \'") + m_room_data_filename.string() + '\'');
     }
+    if (!AsmLoadRoomConstants())
+    {
+        throw std::runtime_error(std::string("Unable to load room constants from \'") + m_room_constants_filename.string() + '\'');
+    }
     if (!AsmLoadMaps())
     {
         throw std::runtime_error(std::string("Unable to load map data from \'") + m_map_data_filename.string() + '\'');
@@ -268,6 +274,10 @@ bool RoomData::Save(const std::filesystem::path& dir)
     if (!AsmSaveRoomData(dir))
     {
         throw std::runtime_error(std::string("Unable to save room data to \'") + m_room_data_filename.string() + '\'');
+    }
+    if (!AsmSaveRoomConstants(dir))
+    {
+        throw std::runtime_error(std::string("Unable to save room constants to \'") + m_room_constants_filename.string() + '\'');
     }
     if (!AsmSaveWarpData(dir))
     {
@@ -402,6 +412,10 @@ bool RoomData::HasBeenModified() const
     {
         return true;
     }
+    if (m_roomlist.size() != m_roomlist_orig.size())
+    {
+        return true;
+    }
     for (std::size_t i = 0; i < m_roomlist.size(); ++i)
     {
         if (m_roomlist[i]->name != m_roomlist_orig[i]->name ||
@@ -409,6 +423,10 @@ bool RoomData::HasBeenModified() const
         {
             return true;
         }
+    }
+    if (m_room_constants != m_room_constants_orig)
+    {
+        return true;
     }
     if (m_warps != m_warps_orig)
     {
@@ -785,8 +803,10 @@ std::shared_ptr<Room> RoomData::GetRoom(uint16_t index) const
 
 std::shared_ptr<Room> RoomData::GetRoom(const std::string& name) const
 {
-    assert(m_roomlist_by_name.find(name) != m_roomlist_by_name.cend());
-    return m_roomlist_by_name.find(name)->second;
+    // Returns nullptr rather than dereferencing an end iterator, so this doubles as the
+    // "is this name taken?" check when adding or renaming a room.
+    const auto room = m_roomlist_by_name.find(name);
+    return room == m_roomlist_by_name.cend() ? nullptr : room->second;
 }
 
 bool RoomData::IsValidRoomName(const std::string& name)
@@ -827,6 +847,185 @@ bool RoomData::RenameRoom(uint16_t index, const std::string& name)
     room->name = name;
     m_roomlist_by_name[name] = room;
     return true;
+}
+
+std::shared_ptr<Room> RoomData::AddRoom(const std::string& map, const std::string& name,
+    const std::wstring& display_name, uint8_t tileset, uint8_t room_palette,
+    uint8_t pri_blockset, uint8_t sec_blockset, uint8_t room_z_begin,
+    uint8_t room_z_end, uint8_t bgm)
+{
+    if (m_roomlist.size() >= MAX_ROOMS ||
+        !IsValidRoomName(name) || m_roomlist_by_name.count(name) != 0 ||
+        m_maps.count(map) == 0 ||
+        m_tilesets.count(tileset) == 0 ||
+        room_palette >= m_room_pals.size() ||
+        pri_blockset > 1 || sec_blockset > 7 ||
+        room_z_begin > 15 || room_z_end > 15 || bgm > 31)
+    {
+        return nullptr;
+    }
+    // A room resolves its blocksets as (primary, 0) and (primary, secondary + 1) - see
+    // GetBlocksetsForRoom. Both have to exist, or drawing the room dereferences a null.
+    const auto blockset_id = static_cast<uint8_t>(pri_blockset << 5 | tileset);
+    if (GetBlockset(blockset_id, 0) == nullptr ||
+        GetBlockset(blockset_id, static_cast<uint8_t>(sec_blockset + 1)) == nullptr)
+    {
+        return nullptr;
+    }
+
+    const auto index = static_cast<uint16_t>(m_roomlist.size());
+    if (!display_name.empty() && !Labels::Update(Labels::C_ROOMS, index, display_name))
+    {
+        return nullptr;
+    }
+    auto room = std::make_shared<Room>(name, map, index, tileset, room_palette,
+        pri_blockset, sec_blockset, room_z_begin, room_z_end, bgm);
+    m_roomlist.push_back(room);
+    m_roomlist_by_name.insert({ name, room });
+    return room;
+}
+
+bool RoomData::IsRoomListSequential() const
+{
+    for (std::size_t i = 0; i < m_roomlist.size(); ++i)
+    {
+        if (m_roomlist[i] == nullptr || m_roomlist[i]->index != i)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void RoomData::RemapRooms(const RoomIndexMap& mapping)
+{
+    if (!IsValidRoomRenumbering(mapping) || mapping.size() != m_roomlist.size())
+    {
+        return;
+    }
+
+    // Reposition the surviving rooms, then repoint every table that names a room. The
+    // mapping is validated, so the survivors land on a contiguous 0..M-1 - no gaps, no
+    // collisions.
+    std::vector<std::shared_ptr<Room>> reordered(mapping.size() - CountDeletedRooms(mapping));
+    for (std::size_t old_index = 0; old_index < m_roomlist.size(); ++old_index)
+    {
+        if (IsRoomDeleted(mapping, static_cast<uint16_t>(old_index)))
+        {
+            m_roomlist_by_name.erase(m_roomlist[old_index]->name);
+            continue;
+        }
+        const auto new_index = mapping[old_index];
+        reordered[new_index] = m_roomlist[old_index];
+        reordered[new_index]->index = new_index;
+    }
+    m_roomlist.swap(reordered);
+    assert(IsRoomListSequential());
+
+    // A constant naming a deleted room is reset to 0 rather than removed. Game code
+    // refers to these by name, so dropping the symbol would break the build; pointing it
+    // at room 0 keeps the disassembly assembling and leaves an obvious wrong value for
+    // the user to fix up.
+    for (auto& constant : m_room_constants)
+    {
+        constant.second = IsRoomDeleted(mapping, constant.second) ? 0 : RemapRoom(mapping, constant.second);
+    }
+    m_warps.RemapRooms(mapping);
+    m_chests.RemapRooms(mapping);
+    m_doors.RemapRooms(mapping);
+    m_gfxswaps.RemapRooms(mapping);
+    // The tile swap and tree warp flag tables key on the room and repeat it inside each
+    // record, so both have to move.
+    for (auto* flags : { &m_gfxswap_flags, &m_gfxswap_locked_door_flags })
+    {
+        for (auto& room : *flags)
+        {
+            RemapRoomRecords(mapping, room.second, { &TileSwapFlag::room });
+        }
+        RemapRoomKeys(mapping, *flags);
+    }
+    RemapRoomRecords(mapping, m_gfxswap_big_tree_flags, { &TreeWarpFlag::room1, &TreeWarpFlag::room2 });
+    RemapRoomValues(mapping, m_shop_list);
+    RemapRoomValues(mapping, m_big_tree_list);
+    RemapRoomKeys(mapping, m_lifestock_sold_flags);
+    RemapRoomKeys(mapping, m_lantern_flag_list);
+}
+
+const std::map<std::string, uint16_t>& RoomData::GetRoomConstants() const
+{
+    return m_room_constants;
+}
+
+std::optional<uint16_t> RoomData::GetRoomConstant(const std::string& name) const
+{
+    const auto it = m_room_constants.find(name);
+    if (it == m_room_constants.cend())
+    {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+std::vector<std::string> RoomData::GetRoomConstantsForRoom(uint16_t room) const
+{
+    std::vector<std::string> names;
+    for (const auto& c : m_room_constants)
+    {
+        if (c.second == room)
+        {
+            names.push_back(c.first);
+        }
+    }
+    return names;
+}
+
+bool RoomData::IsValidRoomConstantName(const std::string& name)
+{
+    // Assembler symbol rules: no leading digit, alphanumerics and underscores only.
+    if (name.empty() || std::isdigit(static_cast<unsigned char>(name.front())))
+    {
+        return false;
+    }
+    return std::all_of(name.cbegin(), name.cend(), [](const unsigned char c)
+    {
+        return std::isalnum(c) || c == '_';
+    });
+}
+
+bool RoomData::SetRoomConstant(const std::string& name, uint16_t room)
+{
+    if (!IsValidRoomConstantName(name) || room >= m_roomlist.size())
+    {
+        return false;
+    }
+    m_room_constants[name] = room;
+    return true;
+}
+
+bool RoomData::RenameRoomConstant(const std::string& old_name, const std::string& new_name)
+{
+    const auto existing = m_room_constants.find(old_name);
+    if (existing == m_room_constants.cend() || !IsValidRoomConstantName(new_name))
+    {
+        return false;
+    }
+    if (old_name == new_name)
+    {
+        return true;
+    }
+    if (m_room_constants.count(new_name) != 0)
+    {
+        return false;
+    }
+    const auto room = existing->second;
+    m_room_constants.erase(existing);
+    m_room_constants[new_name] = room;
+    return true;
+}
+
+bool RoomData::DeleteRoomConstant(const std::string& name)
+{
+    return m_room_constants.erase(name) > 0;
 }
 
 const std::map<std::string, std::shared_ptr<Tilemap3DEntry>>& RoomData::GetMaps() const
@@ -1443,6 +1642,7 @@ void RoomData::CommitAllChanges()
     {
         m_roomlist_orig.push_back(std::make_shared<Room>(*m_roomlist[i]));
     }
+    m_room_constants_orig = m_room_constants;
     m_warps_orig = m_warps;
     m_animated_ts_orig = m_animated_ts;
     m_animated_ts_by_name_orig = m_animated_ts_by_name;
@@ -1501,6 +1701,11 @@ bool RoomData::LoadAsmFilenames()
         retval = retval && GetFilenameFromAsm(f, RomLabels::Rooms::LIFESTOCK_SOLD_FLAGS, m_lifestock_sold_flag_data_filename);
         retval = retval && GetFilenameFromAsm(f, RomLabels::Rooms::BIG_TREE_LOCATIONS, m_bigtree_data_filename);
         retval = retval && GetFilenameFromAsm(f, RomLabels::Rooms::LANTERN_ROOM_FLAGS, m_lantern_flag_data_filename);
+        // Not a labelled data include, so it has no entry in the main asm to look up.
+        // Resolve it by walking the Defines include tree, and do not fail the load if
+        // the project does not have one.
+        m_room_constants_filename = AsmFile::FindDefineInclude(GetAsmFilename(), GetBasePath(),
+            RomLabels::DEFINES_SECTION, RomLabels::Rooms::ROOM_CONSTANTS_FILE);
         return retval;
     }
     catch (...)
@@ -1539,6 +1744,7 @@ void RoomData::SetDefaultFilenames()
     if (m_lifestock_sold_flag_data_filename.empty())      m_lifestock_sold_flag_data_filename      = RomLabels::Rooms::LIFESTOCK_SOLD_FLAGS_FILE;
     if (m_bigtree_data_filename.empty())                  m_bigtree_data_filename                  = RomLabels::Rooms::BIG_TREE_LOCATIONS_FILE;
     if (m_lantern_flag_data_filename.empty())             m_lantern_flag_data_filename             = RomLabels::Rooms::LANTERN_ROOM_FILE;
+    if (m_room_constants_filename.empty())                m_room_constants_filename                = RomLabels::Rooms::ROOM_CONSTANTS_FILE;
 }
 
 bool RoomData::CreateDirectoryStructure(const std::filesystem::path& dir)
@@ -1573,6 +1779,7 @@ bool RoomData::CreateDirectoryStructure(const std::filesystem::path& dir)
     retval = retval && CreateDirectoryTree(dir / m_lifestock_sold_flag_data_filename);
     retval = retval && CreateDirectoryTree(dir / m_bigtree_data_filename);
     retval = retval && CreateDirectoryTree(dir / m_lantern_flag_data_filename);
+    retval = retval && CreateDirectoryTree(dir / m_room_constants_filename);
 
     for (const auto& m : m_maps)
     {
@@ -1611,6 +1818,41 @@ bool RoomData::AsmLoadRoomTable()
     {
     }
     return false;
+}
+
+bool RoomData::AsmLoadRoomConstants()
+{
+    m_room_constants.clear();
+    if (m_room_constants_filename.empty())
+    {
+        return true;
+    }
+    const auto path = GetBasePath() / m_room_constants_filename;
+    if (!std::filesystem::exists(path))
+    {
+        return true;
+    }
+    try
+    {
+        // The file holds nothing but room constants, so take every define it declares
+        // rather than filtering on the ROOM_ prefix - a project is free to rename them.
+        AsmFile file(path);
+        AsmFile::Define define;
+        while (file.IsGood())
+        {
+            file >> define;
+            if (define.value >= 0 && define.value < static_cast<int64_t>(MAX_ROOMS))
+            {
+                m_room_constants[define.name] = static_cast<uint16_t>(define.value);
+            }
+        }
+    }
+    catch (const std::exception&)
+    {
+        // A malformed or unexpected line ends the read; keep whatever parsed cleanly.
+    }
+    m_room_constants_orig = m_room_constants;
+    return true;
 }
 
 bool RoomData::AsmLoadMaps()
@@ -2384,6 +2626,37 @@ bool RoomData::AsmSaveRoomData(const std::filesystem::path& dir)
         auto f = dir / m_room_data_filename;
         file.WriteFile(f);
         return true;
+    }
+    catch (const std::exception&)
+    {
+    }
+    return false;
+}
+
+bool RoomData::AsmSaveRoomConstants(const std::filesystem::path& dir)
+{
+    // Nothing to write for ROM-loaded projects, which never had an include file. Do not
+    // create an empty one - the disassembly's copy is the authority in that case.
+    if (m_room_constants.empty() || m_room_constants_filename.empty())
+    {
+        return true;
+    }
+    try
+    {
+        // Emitted in room order so the file reads as a map of the game, matching how the
+        // disassembly maintains it by hand.
+        std::vector<std::pair<std::string, uint16_t>> sorted(m_room_constants.cbegin(), m_room_constants.cend());
+        std::sort(sorted.begin(), sorted.end(), [](const auto& lhs, const auto& rhs)
+        {
+            return std::tie(lhs.second, lhs.first) < std::tie(rhs.second, rhs.first);
+        });
+        AsmFile file;
+        file.WriteFileHeader(m_room_constants_filename, "Room index constants");
+        for (const auto& c : sorted)
+        {
+            file << AsmFile::Define(c.first, c.second);
+        }
+        return file.WriteFile(dir / m_room_constants_filename);
     }
     catch (const std::exception&)
     {

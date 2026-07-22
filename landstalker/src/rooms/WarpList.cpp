@@ -309,6 +309,28 @@ void WarpList::SetClimbDestination(uint16_t room, uint16_t dest)
 	m_climb_dests[room] = dest;
 }
 
+void WarpList::RemapRooms(const RoomIndexMap& mapping)
+{
+	// A warp joins two rooms, so it goes if either end is deleted. An unused warp slot
+	// parks its rooms at 0xFFFF, which is out of range and so never counts as deleted.
+	RemapRoomRecords(mapping, m_warps, { &Warp::room1, &Warp::room2 });
+	// Fall and climb destinations are keyed by the source room AND hold a destination
+	// room, so both halves need rewriting - and either being deleted drops the route.
+	for (auto* routes : { &m_fall_dests, &m_climb_dests })
+	{
+		std::map<uint16_t, uint16_t> remapped;
+		for (const auto& route : *routes)
+		{
+			if (!IsRoomDeleted(mapping, route.first) && !IsRoomDeleted(mapping, route.second))
+			{
+				remapped.emplace(RemapRoom(mapping, route.first), RemapRoom(mapping, route.second));
+			}
+		}
+		routes->swap(remapped);
+	}
+	RemapRoomRecords(mapping, m_transitions, { &Transition::src_rm, &Transition::dst_rm });
+}
+
 std::vector<uint8_t> WarpList::GetWarpBytes() const
 {
 	std::vector<uint8_t> retval;
