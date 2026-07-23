@@ -96,6 +96,13 @@ public:
     };
     RoomReferences CountRoomReferences(uint16_t room) const;
 
+    // The lookups below are served from caches built when the project is opened, merging
+    // entries owned by several managers. Anything that adds, renames or removes a palette,
+    // tileset, animated tileset or tilemap has to call this afterwards, or the caches will
+    // still describe the project as it was loaded - a new entry would not be found at all,
+    // and a renamed one would answer to its old name.
+    void RefreshCaches();
+
     const std::map<std::string, std::shared_ptr<PaletteEntry>>& GetAllPalettes() const;
     const std::map<std::string, std::shared_ptr<TilesetEntry>>& GetAllTilesets() const;
     const std::map<std::string, std::shared_ptr<AnimatedTilesetEntry>>& GetAllAnimatedTilesets() const;

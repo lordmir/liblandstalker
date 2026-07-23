@@ -295,7 +295,11 @@ void Tileset::Reset(int size)
 
 void Tileset::Resize(int size)
 {
-    m_tiles.resize(size);
+    // Grow with properly sized, zeroed tiles rather than empty vectors. A bare
+    // m_tiles.resize() leaves each new tile's pixel buffer empty, so anything that later
+    // reads the tile - GetBits when a sprite frame is serialised for save or export - runs
+    // off the end of it. Matches how InsertTilesBefore and SetBits size their tiles.
+    m_tiles.resize(size, std::vector<uint8_t>(m_width * m_height));
 }
 
 std::vector<uint8_t> Tileset::GetTileRGB(const Tile& tile, const Palette& palette) const

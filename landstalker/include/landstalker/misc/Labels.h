@@ -25,6 +25,12 @@ public:
     static bool Reorder(const std::wstring& category, std::size_t old_index,
         std::size_t new_index, std::size_t count);
     static bool Erase(const std::wstring& category, std::size_t index, std::size_t count);
+    // Moves labels between ids within a category, for index spaces Reorder and Erase
+    // cannot express. Animated tilesets and blocksets key off composite ids that embed
+    // the tileset number - (tileset << 8 | index) and (tileset << 16 | pri << 8 | sec) -
+    // so renumbering one tileset rewrites scattered keys rather than a contiguous run.
+    // Ids absent from the mapping keep their labels; ids mapped to -1 are dropped.
+    static bool Remap(const std::wstring& category, const std::map<int, int>& mapping);
 
     static const std::wstring C_ROOMS;
     static const std::wstring C_BGMS;

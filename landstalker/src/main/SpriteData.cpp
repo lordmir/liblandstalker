@@ -3,6 +3,7 @@
 #include <set>
 #include <numeric>
 #include <queue>
+#include <cmath>
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
 #include <landstalker/misc/Literals.h>
@@ -712,6 +713,132 @@ std::vector<uint8_t> SpriteData::GetEntitiesFromSprite(uint8_t id) const
 	return results;
 }
 
+std::size_t SpriteData::GetEntityCount() const
+{
+	return m_sprite_to_entity_lookup.size();
+}
+
+std::vector<uint8_t> SpriteData::GetEntityIds() const
+{
+	std::vector<uint8_t> result;
+	result.reserve(m_sprite_to_entity_lookup.size());
+	// m_sprite_to_entity_lookup is keyed by entity id, so it iterates in ascending id order.
+	for (const auto& e : m_sprite_to_entity_lookup)
+	{
+		result.push_back(e.first);
+	}
+	return result;
+}
+
+std::optional<uint8_t> SpriteData::GetFreeEntityId() const
+{
+	for (int id = 0; id < FIRST_ITEM_ENTITY; ++id)
+	{
+		if (m_sprite_to_entity_lookup.find(static_cast<uint8_t>(id)) == m_sprite_to_entity_lookup.cend())
+		{
+			return static_cast<uint8_t>(id);
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<uint8_t> SpriteData::AddEntity(uint8_t sprite_id, int lo_palette, int hi_palette)
+{
+	if (!IsSprite(sprite_id))
+	{
+		return std::nullopt;
+	}
+	const auto id = GetFreeEntityId();
+	if (!id)
+	{
+		return std::nullopt;
+	}
+	m_sprite_to_entity_lookup[*id] = sprite_id;
+	SetEntityPalette(*id, lo_palette, hi_palette);
+	return id;
+}
+
+bool SpriteData::IsEntityUsedInRooms(uint8_t id) const
+{
+	return std::any_of(m_room_entities.cbegin(), m_room_entities.cend(),
+		[id](const auto& room)
+		{
+			return std::any_of(room.second.cbegin(), room.second.cend(),
+				[id](const Entity& e) { return e.GetType() == id; });
+		});
+}
+
+std::vector<uint16_t> SpriteData::GetRoomsUsingEntity(uint8_t id) const
+{
+	std::vector<uint16_t> result;
+	for (const auto& room : m_room_entities)
+	{
+		if (std::any_of(room.second.cbegin(), room.second.cend(),
+			[id](const Entity& e) { return e.GetType() == id; }))
+		{
+			result.push_back(room.first);
+		}
+	}
+	return result;
+}
+
+bool SpriteData::DeleteEntity(uint8_t id, const std::shared_ptr<StringData>& strings)
+{
+	if (IsEntityItem(id) || !IsEntity(id) || IsEntityUsedInRooms(id))
+	{
+		return false;
+	}
+	m_sprite_to_entity_lookup.erase(id);
+	m_lo_palette_lookup.erase(id);
+	m_hi_palette_lookup.erase(id);
+	m_enemy_stats.erase(id);
+	if (strings)
+	{
+		// Zero clears the entry rather than storing a real sound.
+		strings->SetEntityTalkSound(id, 0);
+	}
+	Labels::Remap(Labels::C_ENTITIES, { { id, -1 } });
+	return true;
+}
+
+bool SpriteData::SwapEntities(uint8_t a, uint8_t b, const std::shared_ptr<StringData>& strings)
+{
+	if (a == b || IsEntityItem(a) || IsEntityItem(b) || !IsEntity(a) || !IsEntity(b))
+	{
+		return false;
+	}
+	// Presence-aware swap for an id-keyed map: afterwards a holds what b held and vice versa,
+	// "absent" included, so an entity with no palette/stats override stays without one.
+	const auto swap_in = [a, b](auto& table)
+	{
+		const auto ia = table.find(a);
+		const auto ib = table.find(b);
+		const bool has_a = ia != table.end();
+		const bool has_b = ib != table.end();
+		typename std::decay_t<decltype(table)>::mapped_type va{}, vb{};
+		if (has_a) va = ia->second;
+		if (has_b) vb = ib->second;
+		table.erase(a);
+		table.erase(b);
+		if (has_b) table[a] = vb;
+		if (has_a) table[b] = va;
+	};
+	swap_in(m_sprite_to_entity_lookup);
+	swap_in(m_lo_palette_lookup);
+	swap_in(m_hi_palette_lookup);
+	swap_in(m_enemy_stats);
+	if (strings)
+	{
+		const uint8_t sa = strings->GetEntityTalkSound(a);
+		const uint8_t sb = strings->GetEntityTalkSound(b);
+		strings->SetEntityTalkSound(a, sb);
+		strings->SetEntityTalkSound(b, sa);
+	}
+	// Remap reads all sources before writing, so the two labels cross over in one call.
+	Labels::Remap(Labels::C_ENTITIES, { { a, b }, { b, a } });
+	return true;
+}
+
 SpriteData::Hitbox SpriteData::GetSpriteHitbox(uint8_t id) const
 {
 	assert(m_sprite_dimensions.find(id) != m_sprite_dimensions.cend());
@@ -773,7 +900,12 @@ void SpriteData::AddSpriteFrame(uint8_t sprite_id, const std::string& name)
 	{
 		std::shared_ptr<SpriteFrameEntry> entry = SpriteFrameEntry::Create(this, name, std::filesystem::path(RomLabels::Sprites::SPRITE_FRAME_FILE).parent_path() / (name + ".frm"));
 		entry->SetSprite(sprite_id);
-		entry->GetData()->AddSubSpriteBefore(0);
+		auto& subsprite = entry->GetData()->AddSubSpriteBefore(0);
+		// The default subsprite sits with its top-left on the origin, so it hangs down and to
+		// the right of it. Lift it up by its own height so its bottom-left rests on the origin
+		// instead - the origin is a sprite's ground anchor, and a sprite should stand on it
+		// rather than dangle below.
+		subsprite.y = -static_cast<int>(subsprite.h * entry->GetData()->GetTileHeight());
 		entry->GetData()->PrepareSubSprites();
 
 		m_frames[name] = entry;
@@ -868,6 +1000,427 @@ void SpriteData::MoveSpriteAnimationFrame(const std::string& animation_name, int
 	{
 		std::iter_swap(m_animation_frames.at(animation_name).begin() + old_pos, m_animation_frames.at(animation_name).begin() + new_pos);
 	}
+}
+
+bool SpriteData::IsValidSpriteName(const std::string& name)
+{
+	// The sprite name becomes an assembly label: at most 30 characters, starting with a
+	// letter, then letters, digits and underscores. The same rule the map and tileset names
+	// use, inlined rather than reaching into RoomData for one predicate.
+	if (name.empty() || name.size() > 30 ||
+		!((name.front() >= 'A' && name.front() <= 'Z') ||
+		  (name.front() >= 'a' && name.front() <= 'z')))
+	{
+		return false;
+	}
+	return std::all_of(std::next(name.cbegin()), name.cend(), [](const char c)
+	{
+		return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+			(c >= '0' && c <= '9') || c == '_';
+	});
+}
+
+bool SpriteData::IsSpriteNameInUse(const std::string& name) const
+{
+	// Sprites, animations and frames all share one label namespace.
+	return m_ids.count(name) != 0 || SpriteAnimationExists(name) || SpriteFrameExists(name);
+}
+
+std::optional<uint8_t> SpriteData::AddSprite(const std::string& name)
+{
+	if (!IsValidSpriteName(name) || IsSpriteNameInUse(name) || m_animations.size() >= MAX_SPRITES)
+	{
+		return std::nullopt;
+	}
+	// Ids are dense by contract - the game indexes the animation offset table directly - so
+	// the next free id is one past the last, and a new sprite is appended there.
+	const auto id = static_cast<uint8_t>(m_animations.size());
+
+	// Seed every id-keyed table the sprite needs to exist. AddSpriteFrame and
+	// AddSpriteAnimation assume these are already present, and GetSpriteHitbox asserts on the
+	// dimensions entry, so a sprite that skipped it would trip the metadata export.
+	m_names[id] = name;
+	m_ids[name] = id;
+	m_animations[id] = {};
+	m_sprite_frames[id] = {};
+	m_sprite_dimensions[id] = { 0, 0 };
+	m_sprite_volume[id] = 0;
+
+	// One empty frame with a single 1x1 subsprite - AddSpriteFrame's default subsprite is
+	// exactly that. The names are derived from the sprite name, which is unique, rather than
+	// the id, which a later delete or move could hand to a different sprite.
+	std::string frame_name = name + "Frame00";
+	for (unsigned int suffix = 1; SpriteFrameExists(frame_name); ++suffix)
+	{
+		frame_name = StrPrintf("%sFrame00_%u", name.c_str(), suffix);
+	}
+	AddSpriteFrame(id, frame_name);
+
+	std::string anim_name = name + "Anim00";
+	for (unsigned int suffix = 1; SpriteAnimationExists(anim_name); ++suffix)
+	{
+		anim_name = StrPrintf("%sAnim00_%u", name.c_str(), suffix);
+	}
+	AddSpriteAnimation(id, anim_name);
+
+	// Reserve enough VRAM for what the frame actually holds - a single tile - rather than
+	// leaving the volume at zero, which would allocate nothing.
+	const auto frame = m_frames.find(frame_name);
+	const auto tiles = frame != m_frames.cend() && frame->second->GetData()
+		? frame->second->GetData()->GetTileCount() : 1;
+	m_sprite_volume[id] = static_cast<uint16_t>(std::max<std::size_t>(1, tiles));
+	return id;
+}
+
+bool SpriteData::RenameSprite(uint8_t id, const std::string& new_name)
+{
+	if (!IsSprite(id) || !IsValidSpriteName(new_name))
+	{
+		return false;
+	}
+	const auto old_name = m_names.at(id);
+	if (old_name == new_name)
+	{
+		return true;
+	}
+	if (IsSpriteNameInUse(new_name))
+	{
+		return false;
+	}
+	// Only the sprite's own label moves; its frames and animations keep their names, which
+	// are independent labels the pointer tables reference directly.
+	m_ids.erase(old_name);
+	m_names[id] = new_name;
+	m_ids[new_name] = id;
+	return true;
+}
+
+bool SpriteData::IsSpriteUsedByEntities(uint8_t id) const
+{
+	return std::any_of(m_sprite_to_entity_lookup.cbegin(), m_sprite_to_entity_lookup.cend(),
+		[&](const auto& lookup) { return lookup.second == id; });
+}
+
+void SpriteData::RemapSprites(const std::map<uint8_t, int>& mapping, bool remap_entity_references)
+{
+	const auto remapped = [&](uint8_t id)
+	{
+		const auto entry = mapping.find(id);
+		return entry == mapping.cend() ? static_cast<int>(id) : entry->second;
+	};
+
+	// The animation and frame counts are needed to renumber the composite label ids, and
+	// they have to be read before the tables are rebuilt - including for an id being deleted,
+	// whose entries are dropped below.
+	std::map<uint8_t, std::size_t> anim_counts;
+	std::map<uint8_t, std::size_t> frame_counts;
+	for (const auto& entry : mapping)
+	{
+		anim_counts[entry.first] = m_animations.count(entry.first) ? m_animations.at(entry.first).size() : 0;
+		frame_counts[entry.first] = m_sprite_frames.count(entry.first) ? m_sprite_frames.at(entry.first).size() : 0;
+	}
+
+	// Drop the animations and frames of every sprite being deleted before the id-keyed
+	// tables are rebuilt, so nothing is left pointing at graphics that have gone.
+	for (const auto& entry : mapping)
+	{
+		if (entry.second >= 0)
+		{
+			continue;
+		}
+		if (m_animations.count(entry.first))
+		{
+			for (const auto& anim : m_animations.at(entry.first))
+			{
+				m_animation_frames.erase(anim);
+			}
+		}
+		if (m_sprite_frames.count(entry.first))
+		{
+			for (const auto& frame : m_sprite_frames.at(entry.first))
+			{
+				m_frames.erase(frame);
+			}
+		}
+	}
+
+	// Every id-keyed table is rebuilt wholesale rather than edited in place: the mapping is a
+	// permutation, so an in-place pass would collide with keys it has not visited yet.
+	const auto remap_map = [&](auto& table)
+	{
+		std::remove_reference_t<decltype(table)> rebuilt;
+		for (auto& item : table)
+		{
+			const auto updated = remapped(item.first);
+			if (updated >= 0)
+			{
+				rebuilt.emplace(static_cast<uint8_t>(updated), std::move(item.second));
+			}
+		}
+		table = std::move(rebuilt);
+	};
+	remap_map(m_names);
+	remap_map(m_animations);
+	remap_map(m_animations_orig);
+	remap_map(m_sprite_frames);
+	remap_map(m_sprite_volume);
+	remap_map(m_sprite_volume_orig);
+	remap_map(m_sprite_dimensions);
+	remap_map(m_sprite_dimensions_orig);
+	remap_map(m_sprite_animation_flags);
+	remap_map(m_sprite_animation_flags_orig);
+
+	// m_ids is just the inverse of m_names, so rebuild it rather than remap it.
+	m_ids.clear();
+	for (const auto& name : m_names)
+	{
+		m_ids.emplace(name.second, name.first);
+	}
+
+	// Each frame entry carries the id of the sprite that owns it; refresh from the rebuilt
+	// ownership rather than tracking every frame through the permutation.
+	for (const auto& sprite : m_sprite_frames)
+	{
+		for (const auto& frame_name : sprite.second)
+		{
+			const auto frame = m_frames.find(frame_name);
+			if (frame != m_frames.cend())
+			{
+				frame->second->SetSprite(sprite.first);
+			}
+		}
+	}
+
+	// Entities reference sprites by id, so the values of the entity -> sprite lookup follow
+	// the move. A sprite being deleted has no entities (DeleteSprite refuses otherwise), so
+	// a -1 here would only arise from misuse; drop the entry rather than store a bad id.
+	// A content swap skips this: leaving the references put is what makes the two sprites
+	// change places in the entities that draw them.
+	if (remap_entity_references)
+	{
+		for (auto it = m_sprite_to_entity_lookup.begin(); it != m_sprite_to_entity_lookup.end();)
+		{
+			const auto updated = remapped(it->second);
+			if (updated < 0)
+			{
+				it = m_sprite_to_entity_lookup.erase(it);
+			}
+			else
+			{
+				it->second = static_cast<uint8_t>(updated);
+				++it;
+			}
+		}
+	}
+
+	// The display-name categories key off the same ids, animations and frames through
+	// composite ids that embed the sprite in their high byte.
+	std::map<int, int> sprite_labels;
+	std::map<int, int> anim_labels;
+	std::map<int, int> frame_labels;
+	for (const auto& entry : mapping)
+	{
+		sprite_labels.emplace(entry.first, entry.second);
+		for (std::size_t anim = 0; anim < anim_counts[entry.first]; ++anim)
+		{
+			anim_labels.emplace((entry.first << 8) | static_cast<int>(anim),
+				entry.second < 0 ? -1 : ((entry.second << 8) | static_cast<int>(anim)));
+		}
+		for (std::size_t frame = 0; frame < frame_counts[entry.first]; ++frame)
+		{
+			frame_labels.emplace((entry.first << 8) | static_cast<int>(frame),
+				entry.second < 0 ? -1 : ((entry.second << 8) | static_cast<int>(frame)));
+		}
+	}
+	Labels::Remap(Labels::C_SPRITES, sprite_labels);
+	Labels::Remap(Labels::C_SPRITE_ANIMATIONS, anim_labels);
+	Labels::Remap(Labels::C_SPRITE_FRAMES, frame_labels);
+}
+
+bool SpriteData::SwapSprites(uint8_t a, uint8_t b)
+{
+	if (!IsSprite(a) || !IsSprite(b))
+	{
+		return false;
+	}
+	if (a == b)
+	{
+		return true;
+	}
+	// A two-way mapping swaps the two sprites' content; with entity references left alone the
+	// entities keep the ids they point at, so the two sprites change places in the entities that
+	// draw them.
+	std::map<uint8_t, int> mapping;
+	mapping.emplace(a, static_cast<int>(b));
+	mapping.emplace(b, static_cast<int>(a));
+	RemapSprites(mapping, false);
+	return true;
+}
+
+bool SpriteData::DeleteSprite(uint8_t id)
+{
+	if (!IsSprite(id) || m_animations.size() <= 1 || IsSpriteUsedByEntities(id))
+	{
+		return false;
+	}
+	// Pull every higher id down so the numbering stays dense: the game reads the animation
+	// offset table by id, so a hole would be loaded as a real sprite. RemapSprites drops the
+	// deleted sprite's own frames and animations.
+	const auto count = static_cast<int>(m_animations.size());
+	std::map<uint8_t, int> mapping;
+	mapping.emplace(id, -1);
+	for (int slot = id + 1; slot < count; ++slot)
+	{
+		mapping.emplace(static_cast<uint8_t>(slot), slot - 1);
+	}
+	RemapSprites(mapping);
+	return true;
+}
+
+std::optional<uint8_t> SpriteData::ImportSprite(const std::string& new_name, const std::string& yaml_data,
+	const std::filesystem::path& frame_dir)
+{
+	if (!IsValidSpriteName(new_name) || IsSpriteNameInUse(new_name))
+	{
+		return std::nullopt;
+	}
+	try
+	{
+		const auto root = YAML::Load(yaml_data);
+		if (!root.IsMap() || root.size() != 1)
+		{
+			return std::nullopt;
+		}
+		// The single top-level key is the sprite's original name, which is also the stem the
+		// matching export uses for its frame files.
+		const auto entry = *root.begin();
+		const auto stem = entry.first.as<std::string>();
+		const auto body = entry.second;
+		const auto frame_count = body["frame_count"].as<unsigned int>(0u);
+		if (frame_count == 0)
+		{
+			return std::nullopt;
+		}
+
+		// Read every frame binary up front, so a missing file aborts before anything is
+		// added rather than leaving a half-built sprite behind.
+		std::vector<ByteVector> frame_bytes;
+		for (unsigned int i = 0; i < frame_count; ++i)
+		{
+			const auto path = frame_dir / StrPrintf("%s_frm%02u.frm", stem.c_str(), i);
+			if (!std::filesystem::exists(path))
+			{
+				return std::nullopt;
+			}
+			frame_bytes.push_back(ReadBytes(path));
+		}
+
+		const auto new_sprite = static_cast<uint8_t>(m_animations.size());
+		if (m_animations.size() >= MAX_SPRITES)
+		{
+			return std::nullopt;
+		}
+		m_names[new_sprite] = new_name;
+		m_ids[new_name] = new_sprite;
+		m_animations[new_sprite] = {};
+		m_sprite_frames[new_sprite] = {};
+
+		// Frames first, in the order the export listed them, so the animation frame indices
+		// below line up. Named after the new sprite to keep the label namespace clean.
+		std::vector<std::string> frame_names;
+		for (unsigned int i = 0; i < frame_count; ++i)
+		{
+			std::string frame_name = StrPrintf("%sFrame%02u", new_name.c_str(), i);
+			for (unsigned int suffix = 1; SpriteFrameExists(frame_name); ++suffix)
+			{
+				frame_name = StrPrintf("%sFrame%02u_%u", new_name.c_str(), i, suffix);
+			}
+			auto frame = SpriteFrameEntry::Create(this, frame_bytes[i], frame_name,
+				std::filesystem::path(RomLabels::Sprites::SPRITE_FRAME_FILE).parent_path() / (frame_name + ".frm"));
+			frame->SetSprite(new_sprite);
+			m_frames[frame_name] = frame;
+			m_sprite_frames[new_sprite].insert(frame_name);
+			frame_names.push_back(frame_name);
+		}
+
+		// Then the animations, each a list of frame indices into the frames just created.
+		unsigned int anim_index = 0;
+		for (const auto& anim : body["animations"])
+		{
+			std::string anim_name = StrPrintf("%sAnim%02u", new_name.c_str(), anim_index++);
+			for (unsigned int suffix = 1; SpriteAnimationExists(anim_name); ++suffix)
+			{
+				anim_name = StrPrintf("%sAnim%02u_%u", new_name.c_str(), anim_index - 1, suffix);
+			}
+			std::vector<std::string> frames;
+			for (const auto& idx : anim.second)
+			{
+				const auto frame_index = idx.as<unsigned int>();
+				if (frame_index < frame_names.size())
+				{
+					frames.push_back(frame_names[frame_index]);
+				}
+			}
+			if (frames.empty())
+			{
+				frames.push_back(frame_names.front());
+			}
+			m_animation_frames[anim_name] = frames;
+			m_animations[new_sprite].push_back(anim_name);
+		}
+		if (m_animations[new_sprite].empty())
+		{
+			// A sprite has to have at least one animation to be drawable.
+			const auto anim_name = new_name + "Anim00";
+			m_animation_frames[anim_name] = { frame_names.front() };
+			m_animations[new_sprite].push_back(anim_name);
+		}
+
+		// Metadata: volume, hitbox and animation flags. Defaults keep a sprite valid when the
+		// YAML omits them.
+		m_sprite_volume[new_sprite] = static_cast<uint16_t>(std::lround(body["volume"].as<double>(1.0) * 16.0));
+		const auto hitbox = body["hitbox"];
+		m_sprite_dimensions[new_sprite] = {
+			static_cast<uint8_t>(std::lround(hitbox["base"].as<double>(0.0) * 8.0)),
+			static_cast<uint8_t>(std::lround(hitbox["height"].as<double>(0.0) * 16.0)) };
+
+		const auto flags = body["animation_flags"];
+		if (flags && flags.IsMap())
+		{
+			AnimationFlags af;
+			af.idle_animation_frames = flags["idle_frame_count"].as<int>(2) == 1
+				? AnimationFlags::IdleAnimationFrameCount::ONE_FRAME : AnimationFlags::IdleAnimationFrameCount::TWO_FRAMES;
+			af.idle_animation_source = flags["dedicated_idle_frames"].as<bool>(false)
+				? AnimationFlags::IdleAnimationSource::DEDICATED : AnimationFlags::IdleAnimationSource::USE_WALK_FRAMES;
+			af.jump_animation_source = flags["dedicated_jump_frames"].as<bool>(false)
+				? AnimationFlags::JumpAnimationSource::DEDICATED : AnimationFlags::JumpAnimationSource::USE_IDLE_FRAMES;
+			af.walk_animation_frame_count = flags["walk_frame_count"].as<int>(4) == 2
+				? AnimationFlags::WalkAnimationFrameCount::TWO_FRAMES : AnimationFlags::WalkAnimationFrameCount::FOUR_FRAMES;
+			af.take_damage_animation_source = flags["dedicated_damage_frames"].as<bool>(false)
+				? AnimationFlags::TakeDamageAnimationSource::DEDICATED : AnimationFlags::TakeDamageAnimationSource::USE_IDLE_FRAMES;
+			af.do_not_rotate = flags["no_rotate"].as<bool>(false);
+			af.has_full_animations = flags["full_animations"].as<bool>(false);
+			if (!af.IsDefault())
+			{
+				m_sprite_animation_flags[new_sprite] = af;
+			}
+		}
+
+		// Restore which frames were stored compressed.
+		for (const auto& idx : body["compressed_frames"])
+		{
+			const auto frame_index = idx.as<unsigned int>();
+			if (frame_index < frame_names.size())
+			{
+				m_frames[frame_names[frame_index]]->GetData()->SetCompressed(true);
+			}
+		}
+		return new_sprite;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return std::nullopt;
 }
 
 bool SpriteData::IsEntity(uint8_t id) const
@@ -1387,6 +1940,148 @@ std::shared_ptr<PaletteEntry> SpriteData::GetHiPalette(uint8_t idx) const
 {
 	assert(idx < m_hi_palettes.size());
 	return m_hi_palettes[idx];
+}
+
+bool SpriteData::IsLoPaletteUsed(uint8_t index) const
+{
+	return std::any_of(m_lo_palette_lookup.cbegin(), m_lo_palette_lookup.cend(),
+		[index](const auto& e) { return e.second && e.second->GetIndex() == index; });
+}
+
+bool SpriteData::IsHiPaletteUsed(uint8_t index) const
+{
+	return std::any_of(m_hi_palette_lookup.cbegin(), m_hi_palette_lookup.cend(),
+		[index](const auto& e) { return e.second && e.second->GetIndex() == index; });
+}
+
+std::vector<uint8_t> SpriteData::GetEntitiesUsingLoPalette(uint8_t index) const
+{
+	std::vector<uint8_t> result;
+	for (const auto& e : m_lo_palette_lookup)
+	{
+		if (e.second && e.second->GetIndex() == index)
+		{
+			result.push_back(e.first);
+		}
+	}
+	return result;
+}
+
+std::vector<uint8_t> SpriteData::GetEntitiesUsingHiPalette(uint8_t index) const
+{
+	std::vector<uint8_t> result;
+	for (const auto& e : m_hi_palette_lookup)
+	{
+		if (e.second && e.second->GetIndex() == index)
+		{
+			result.push_back(e.first);
+		}
+	}
+	return result;
+}
+
+std::optional<uint8_t> SpriteData::AddSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+	Palette::Type type, const std::string& name_format)
+{
+	if (pals.size() >= MAX_SPRITE_PALETTES)
+	{
+		return std::nullopt;
+	}
+	std::string name = StrPrintf(name_format, pals.size() + 1);
+	for (unsigned int suffix = 1; m_palettes_by_name.count(name) != 0; ++suffix)
+	{
+		name = StrPrintf(name_format, pals.size() + 1) + "_" + std::to_string(suffix);
+	}
+	// Put the new file beside an existing sprite palette so it follows the project's layout.
+	std::filesystem::path fpath;
+	if (!pals.empty())
+	{
+		const std::filesystem::path sibling(pals.front()->GetFilename());
+		fpath = (sibling.parent_path() / (name + sibling.extension().string()));
+		fpath = std::filesystem::path(fpath.generic_string());
+	}
+	else
+	{
+		fpath = "assets_packed/sprites/palettes/" + name + ".bin";
+	}
+	const auto bytes = Palette(name, type).GetBytes();
+	const auto entry = PaletteEntry::Create(this, bytes, name, fpath, type);
+	const auto index = static_cast<uint8_t>(pals.size());
+	entry->SetIndex(index);
+	pals.push_back(entry);
+	m_palettes_by_name.insert({ name, entry });
+	return index;
+}
+
+bool SpriteData::DeleteSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+	const std::wstring& label_category, uint8_t index, bool used)
+{
+	if (index >= pals.size() || pals.size() <= 1 || used)
+	{
+		return false;
+	}
+	m_palettes_by_name.erase(pals[index]->GetName());
+	pals.erase(pals.begin() + index);
+	// Re-index the entries above the hole; the entity lookups hold pointers to these entries and
+	// read their index through GetIndex(), so they follow the shift without being touched here.
+	std::map<int, int> label_map;
+	label_map.emplace(index, -1);
+	for (std::size_t slot = index; slot < pals.size(); ++slot)
+	{
+		pals[slot]->SetIndex(static_cast<int>(slot));
+		label_map.emplace(static_cast<int>(slot) + 1, static_cast<int>(slot));
+	}
+	Labels::Remap(label_category, label_map);
+	return true;
+}
+
+bool SpriteData::SwapSpritePalettes(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+	const std::wstring& label_category, uint8_t a, uint8_t b)
+{
+	if (a >= pals.size() || b >= pals.size())
+	{
+		return false;
+	}
+	if (a == b)
+	{
+		return true;
+	}
+	// Swap the colours in place so both entries keep their index - every entity lookup still
+	// resolves to the same slot - then swap the display labels so the moved palette's name
+	// follows it.
+	std::swap(*pals[a]->GetData(), *pals[b]->GetData());
+	Labels::Remap(label_category, { { a, b }, { b, a } });
+	return true;
+}
+
+std::optional<uint8_t> SpriteData::AddLoPalette()
+{
+	return AddSpritePalette(m_lo_palettes, Palette::Type::SPRITE_LOW, RomLabels::Sprites::PALETTE_LO);
+}
+
+std::optional<uint8_t> SpriteData::AddHiPalette()
+{
+	return AddSpritePalette(m_hi_palettes, Palette::Type::SPRITE_HIGH, RomLabels::Sprites::PALETTE_HI);
+}
+
+bool SpriteData::DeleteLoPalette(uint8_t index)
+{
+	return DeleteSpritePalette(m_lo_palettes, Labels::C_LOW_PALETTES, index, IsLoPaletteUsed(index));
+}
+
+bool SpriteData::DeleteHiPalette(uint8_t index)
+{
+	return DeleteSpritePalette(m_hi_palettes, Labels::C_HIGH_PALETTES, index, IsHiPaletteUsed(index));
+}
+
+bool SpriteData::SwapLoPalettes(uint8_t a, uint8_t b)
+{
+	return SwapSpritePalettes(m_lo_palettes, Labels::C_LOW_PALETTES, a, b);
+}
+
+bool SpriteData::SwapHiPalettes(uint8_t a, uint8_t b)
+{
+	return SwapSpritePalettes(m_hi_palettes, Labels::C_HIGH_PALETTES, a, b);
 }
 
 uint8_t SpriteData::GetProjectile1PaletteCount() const

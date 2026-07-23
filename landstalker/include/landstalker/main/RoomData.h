@@ -54,14 +54,86 @@ public:
     std::shared_ptr<TilesetEntry> GetTileset(uint8_t index) const;
     std::shared_ptr<TilesetEntry> GetTileset(const std::string& name) const;
     std::map<std::string, std::shared_ptr<TilesetEntry>> GetAllTilesets() const;
+    // Both return nullptr when there is no such animation, so they double as existence checks.
     std::shared_ptr<AnimatedTilesetEntry> GetAnimatedTileset(uint8_t tileset, uint8_t idx) const;
     std::shared_ptr<AnimatedTilesetEntry> GetAnimatedTileset(const std::string& name) const;
     std::map<std::string, std::shared_ptr<AnimatedTilesetEntry>> GetAllAnimatedTilesets() const;
     std::shared_ptr<TilesetEntry> GetIntroFont() const;
 
+    // The tileset index is five bits wide. It is packed into the blockset primary key as
+    // (primary << 5 | tileset) - see GetBlockset - and both of the pointer tables the game
+    // indexes directly are sized to match: 32 tileset slots and 64 blockset primaries.
+    // Slots past the last real tileset are padded with a dummy pointer on save.
+    static constexpr std::size_t MAX_TILESETS = 32;
+    // A tileset's graphics are DMAd into VRAM, which holds 2048 four-bit tiles in total.
+    static constexpr std::size_t MAX_TILESET_TILES = 2048;
+    // LoadAnimTiles fills two animation slots per room, so a third entry for the same
+    // tileset would never be read - see code/maps/animtilesets.asm in the disassembly.
+    static constexpr std::size_t MAX_ANIMS_PER_TILESET = 2;
+
+    // Tileset, animated tileset and blockset names all become asm labels in one global
+    // namespace, so a name is only usable if no asset of any of those kinds has it.
+    static bool IsValidTilesetName(const std::string& name);
+    bool IsAssetNameInUse(const std::string& name) const;
+    // Appends a tileset in the next free slot, sized to tile_count blank tiles, together
+    // with the primary and secondary blockset a room needs to be able to use it (see
+    // GetBlocksetsForRoom). Returns nullptr if the name is unusable, the tile count is out
+    // of range, or all MAX_TILESETS slots are taken.
+    std::shared_ptr<TilesetEntry> AddTileset(const std::string& name, std::size_t tile_count);
+    bool RenameTileset(const std::string& old_name, const std::string& new_name);
+    // Exchanges the whole ecosystem of two tileset slots - the tileset graphics, its animated
+    // tilesets, its blocksets and every display label - while leaving room references untouched.
+    // A room keeps its tileset/pri/sec fields, so the two tilesets (with their blocksets) simply
+    // swap places in every room that used them. This "move by content" is deliberately unlike
+    // ReorderTileset, which renumbers references so no room changes; the asset managers use it so
+    // moving a tileset is a self-contained edit that never rewrites room data.
+    bool SwapTilesets(uint8_t a, uint8_t b);
+    // What a DeleteTileset would destroy or refuse over. Rooms are the blocking count -
+    // a room cannot be left pointing at a slot that no longer exists - while the
+    // blocksets and animated tilesets belonging to the tileset are removed with it.
+    struct TilesetReferences
+    {
+        std::size_t rooms = 0;
+        std::size_t blocksets = 0;
+        std::size_t animated_tilesets = 0;
+        std::size_t Total() const;
+    };
+    TilesetReferences CountTilesetReferences(uint8_t index) const;
+    bool IsTilesetUsedByRooms(uint8_t index) const;
+    // Removes a tileset along with its blocksets and animated tilesets, pulling every
+    // higher slot down by one and renumbering their references. Refuses while any room
+    // still uses it, and refuses to remove the last remaining tileset. Not undoable.
+    bool DeleteTileset(uint8_t index);
+
+    // Adds an animation to a tileset. base is the VRAM address the frame is DMAd to and
+    // frame_size_bytes the length of one frame, both as the game stores them; speed is the
+    // delay in frames between steps. Returns nullptr if the tileset already has
+    // MAX_ANIMS_PER_TILESET animations, or the name is unusable.
+    std::shared_ptr<AnimatedTilesetEntry> AddAnimatedTileset(uint8_t tileset, const std::string& name,
+        uint16_t base, uint16_t frame_size_bytes, uint8_t speed, uint8_t frames);
+    bool RenameAnimatedTileset(const std::string& old_name, const std::string& new_name);
+    bool DeleteAnimatedTileset(uint8_t tileset, uint8_t index);
+
     std::shared_ptr<PaletteEntry> GetRoomPalette(const std::string& name) const;
     std::shared_ptr<PaletteEntry> GetRoomPalette(uint8_t index) const;
     const std::vector<std::shared_ptr<PaletteEntry>>& GetRoomPalettes() const;
+
+    // Room palettes are a flat list the game indexes by a room's room_palette byte, so at most
+    // 256 fit. These edit the list the way the string editor edits strings.
+    static constexpr std::size_t MAX_ROOM_PALETTES = 256;
+    // Rooms drawn with this palette, so a delete can refuse and name them.
+    bool IsRoomPaletteUsed(uint8_t index) const;
+    std::vector<uint16_t> GetRoomsUsingRoomPalette(uint8_t index) const;
+    // Appends a new blank room palette at the end. Nothing references the new slot yet, so this
+    // is always safe. Returns its index, or nullopt if the list is full.
+    std::optional<uint8_t> AddRoomPalette();
+    // Removes a room palette and pulls the higher slots down, renumbering the room_palette of
+    // every room that pointed above it. Refuses while any room draws the palette itself.
+    bool DeleteRoomPalette(uint8_t index);
+    // Exchanges the colours (and display labels) of two palettes in place, leaving every room's
+    // room_palette byte alone: the two palettes swap places in the rooms that use them, matching
+    // the content-swap the asset managers use.
+    bool SwapRoomPalettes(uint8_t a, uint8_t b);
     std::vector<std::shared_ptr<PaletteEntry>> GetMiscPalette(const MiscPaletteType& type) const;
     std::map<std::string, std::shared_ptr<PaletteEntry>> GetAllPalettes() const;
     std::shared_ptr<PaletteEntry> GetDefaultTilesetPalette(const std::string& name) const;
@@ -75,6 +147,47 @@ public:
     std::shared_ptr<BlocksetEntry> GetBlockset(uint8_t pri, uint8_t sec) const;
     std::shared_ptr<BlocksetEntry> GetBlockset(uint8_t tileset, uint8_t pri, uint8_t sec) const;
     std::shared_ptr<BlocksetEntry> GetBlockset(const std::string& tileset, uint8_t pri, uint8_t sec) const;
+
+    // Blocksets are grouped by (tileset, primary set). Within a group, entry 0 is the base
+    // that every room in the group draws, and entries 1 upwards are the alternates a room
+    // chooses between with its sec_blockset field - see GetBlocksetsForRoom, which
+    // concatenates the base with the chosen alternate.
+    //
+    // Room::sec_blockset is three bits, so a group holds one base plus eight alternates.
+    static constexpr std::size_t MAX_BLOCKSETS_PER_GROUP = 9;
+    // Room::pri_blockset is a single bit, so a tileset has at most two groups.
+    static constexpr std::size_t MAX_PRIMARY_SETS = 2;
+    // Tilemap3D masks its block values to ten bits, so a room can address no more than this
+    // many blocks in total across its base and alternate.
+    static constexpr std::size_t MAX_COMBINED_BLOCKS = 0x400;
+
+    bool HasBlocksetGroup(uint8_t tileset, uint8_t primary) const;
+    // The group's entries in slot order, base first. Empty when the group does not exist.
+    std::vector<std::shared_ptr<BlocksetEntry>> GetBlocksetGroup(uint8_t tileset, uint8_t primary) const;
+    // Creates a group by adding its base blockset. A tileset needs a group before any room
+    // can draw with it, and a second group is what lets rooms pick a different base through
+    // pri_blockset. Returns nullptr if the group already exists or the name is unusable.
+    std::shared_ptr<BlocksetEntry> AddBlocksetGroup(uint8_t tileset, uint8_t primary,
+        const std::string& name, std::size_t block_count);
+    // Removes a group and every blockset in it. Refuses while any room selects that group.
+    bool DeleteBlocksetGroup(uint8_t tileset, uint8_t primary);
+    // Appends an alternate to an existing group. Returns nullptr if the group is full, does
+    // not exist, or the name is unusable.
+    std::shared_ptr<BlocksetEntry> AddBlockset(uint8_t tileset, uint8_t primary,
+        const std::string& name, std::size_t block_count);
+    bool RenameBlockset(const std::string& old_name, const std::string& new_name);
+    // Exchanges the content of two alternates within a group while leaving room references
+    // untouched: a room keeps its sec_blockset, so the two alternates swap places in the rooms
+    // that select them. The base (sec 0) is not one of the choices and cannot be swapped. This
+    // "move by content" is deliberately unlike a reference-renumbering reorder.
+    bool SwapBlockset(uint8_t tileset, uint8_t primary, uint8_t sec_a, uint8_t sec_b);
+    // Removes an alternate and pulls the higher slots down, renumbering the rooms that
+    // select them. Refuses while any room selects this slot, and refuses on the base -
+    // use DeleteBlocksetGroup for that. Not undoable.
+    bool DeleteBlockset(uint8_t tileset, uint8_t primary, uint8_t sec);
+    // Rooms that would be affected by removing this blockset. For the base that is every
+    // room in the group; for an alternate, the rooms whose sec_blockset selects it.
+    std::vector<uint16_t> GetRoomsUsingBlockset(uint8_t tileset, uint8_t primary, uint8_t sec) const;
 
     // The warp table packs the room number into 10 bits (WarpList::Warp::GetRaw masks
     // the high byte with 0x03), so 1024 is the hard ceiling regardless of how much
@@ -262,6 +375,28 @@ private:
 
     void UpdateTilesetRecommendedPalettes();
     void ResetTilesetDefaultPalettes();
+
+    // Rewrites every tileset slot number in the project to follow the given old -> new
+    // mapping, which must cover each affected slot exactly once. A slot mapped to -1 is
+    // being deleted and its dependants must already have been removed. Shared by
+    // SwapTilesets and DeleteTileset, which differ only in the mapping they build.
+    // remap_room_tilesets false leaves each room's tileset field alone, so the content moves
+    // between slots but the references do not follow it - the content-swap SwapTilesets relies
+    // on this, where preserving room references is the whole point.
+    void RemapTilesets(const std::map<uint8_t, int>& mapping, bool remap_room_tilesets = true);
+    // Rewrites the slot numbers within one blockset group to follow the given old -> new
+    // mapping, and renumbers the sec_blockset of every room selecting an affected slot. A
+    // slot mapped to -1 is being deleted. Shared by SwapBlockset and DeleteBlockset.
+    // remap_room_blocksets false leaves each room's sec_blockset alone, so the content moves
+    // between slots but the references do not follow it - SwapBlockset relies on this.
+    void RemapBlocksets(uint8_t tileset, uint8_t primary, const std::map<uint8_t, int>& mapping,
+        bool remap_room_blocksets = true);
+    // Blank blockset bytes in the stored (compressed) form, or empty if they will not encode.
+    ByteVector MakeBlankBlockset(std::size_t block_count) const;
+    // Picks an unused file path for a new asset, starting from the directory and
+    // extension its siblings use and falling back to the stock layout when there are none.
+    std::filesystem::path AllocateAssetFilename(const std::string& stem,
+        const std::filesystem::path& sibling, const std::string& fallback_format) const;
 
     std::filesystem::path m_room_data_filename;
     std::filesystem::path m_room_constants_filename;

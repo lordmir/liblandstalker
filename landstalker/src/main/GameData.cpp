@@ -428,7 +428,11 @@ std::shared_ptr<TilesetEntry> GameData::GetTileset(const std::string& name) cons
 	{
 		return nullptr;
 	}
-	return m_tilesets.at(name);
+	// nullptr rather than the out_of_range that .at() would throw: callers reach here with
+	// a name from the navigation tree, which can name something the cache has not been
+	// told about yet. Matches GetPalette.
+	const auto tileset = m_tilesets.find(name);
+	return tileset == m_tilesets.cend() ? nullptr : tileset->second;
 }
 
 std::shared_ptr<AnimatedTilesetEntry> GameData::GetAnimatedTileset(const std::string& name) const
@@ -437,7 +441,8 @@ std::shared_ptr<AnimatedTilesetEntry> GameData::GetAnimatedTileset(const std::st
 	{
 		return nullptr;
 	}
-	return m_anim_tilesets.at(name);
+	const auto anim = m_anim_tilesets.find(name);
+	return anim == m_anim_tilesets.cend() ? nullptr : anim->second;
 }
 
 std::shared_ptr<Tilemap2DEntry> GameData::GetTilemap(const std::string& name) const
@@ -446,7 +451,23 @@ std::shared_ptr<Tilemap2DEntry> GameData::GetTilemap(const std::string& name) co
 	{
 		return nullptr;
 	}
-	return m_tilemaps.at(name);
+	const auto tilemap = m_tilemaps.find(name);
+	return tilemap == m_tilemaps.cend() ? nullptr : tilemap->second;
+}
+
+void GameData::RefreshCaches()
+{
+	if (!m_ready)
+	{
+		return;
+	}
+	// Cleared first: CacheData inserts, which leaves an existing key untouched, so a
+	// rebuild over the top would keep entries that have since been renamed or removed.
+	m_palettes.clear();
+	m_tilesets.clear();
+	m_anim_tilesets.clear();
+	m_tilemaps.clear();
+	CacheData();
 }
 
 void GameData::CacheData()

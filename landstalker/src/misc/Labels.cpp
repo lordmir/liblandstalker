@@ -322,6 +322,34 @@ bool Labels::Erase(const std::wstring& category, std::size_t index, std::size_t 
     return true;
 }
 
+bool Labels::Remap(const std::wstring& category, const std::map<int, int>& mapping)
+{
+    // Read every source label out first: the mapping is a permutation, so writing as we
+    // go would let an earlier move overwrite a source that a later one still needs.
+    std::map<int, std::wstring> moved;
+    for (const auto& entry : mapping)
+    {
+        const auto label = Get(category, entry.first);
+        if (label)
+        {
+            moved.emplace(entry.first, *label);
+        }
+    }
+    for (const auto& entry : mapping)
+    {
+        m_data.erase({ category, entry.first });
+    }
+    for (const auto& entry : mapping)
+    {
+        const auto label = moved.find(entry.first);
+        if (entry.second >= 0 && label != moved.cend())
+        {
+            m_data[{ category, entry.second }] = label->second;
+        }
+    }
+    return true;
+}
+
 bool Labels::IsValidPath(const std::wstring& what)
 {
     const auto normalized = NormalizePath(what);

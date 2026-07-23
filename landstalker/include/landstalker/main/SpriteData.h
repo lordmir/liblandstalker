@@ -147,6 +147,68 @@ public:
 	EntityMetadata GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const;
 	std::string GetEntityMetadataYaml(uint8_t id, std::shared_ptr<StringData> sd) const;
 
+	// The sprite graphics id is a byte, and the animation offset table the game indexes is
+	// dense from 0, so sprites can be appended, moved or removed but never left with a gap.
+	static constexpr std::size_t MAX_SPRITES = 256;
+
+	// Sprite, animation and frame names all become assembly labels, so a name is only usable
+	// if nothing of any of those kinds already carries it.
+	static bool IsValidSpriteName(const std::string& name);
+	bool IsSpriteNameInUse(const std::string& name) const;
+	// Appends a sprite in the next free id, complete with the one animation, one frame and
+	// one 1x1 subsprite a sprite needs to be drawable. Returns the new id, or nullopt if the
+	// name is unusable or the id space is full.
+	std::optional<uint8_t> AddSprite(const std::string& name);
+	bool RenameSprite(uint8_t id, const std::string& new_name);
+	// Exchanges the content of two sprite ids - each sprite's animations, frames, volume,
+	// dimensions, flags and labels - while leaving the entity-to-sprite lookup untouched, so
+	// the two sprites swap places in every entity that draws them. This "move by content" is
+	// deliberately unlike a reference-renumbering reorder. Note that the disassembly's SpriteB_
+	// constants name graphics ids by value; like any reorder, this changes which sprite an id
+	// (and therefore such a constant) resolves to, and neither approach rewrites sprites.inc.
+	bool SwapSprites(uint8_t a, uint8_t b);
+	// A DeleteSprite refuses while any entity points at the sprite; GetEntitiesFromSprite
+	// names them so a caller can warn first.
+	bool IsSpriteUsedByEntities(uint8_t id) const;
+	// Removes a sprite together with its animations and frames, pulling every higher id down
+	// by one and renumbering their references. Refuses while an entity still points at it,
+	// and refuses to remove the last remaining sprite. Not undoable.
+	bool DeleteSprite(uint8_t id);
+	// Recreates a sprite from the YAML produced by GetSpriteMetadataYaml plus the frame
+	// binaries it names, appending it under new_name. frame_dir is where the .frm files sit.
+	// Returns the new id, or nullopt on any failure (bad name, unreadable frames, full).
+	std::optional<uint8_t> ImportSprite(const std::string& new_name, const std::string& yaml_data,
+		const std::filesystem::path& frame_dir);
+
+	// --- Entity management ---
+	// An entity is a {type -> sprite graphics} entry the game resolves by a linear search, so
+	// entity ids need be neither dense nor contiguous. Items occupy the fixed range 0xC0..0xFE
+	// (GetSpriteFromEntity maps them all to the item-box sprite) and cannot be added, moved or
+	// deleted here - the 0xC0 boundary is the only thing that makes an entity an item.
+	static constexpr uint8_t FIRST_ITEM_ENTITY = 0xC0;
+	std::size_t GetEntityCount() const;
+	// The entity ids in use, in ascending order.
+	std::vector<uint8_t> GetEntityIds() const;
+	// Lowest free non-item id, or nullopt when 0x00..0xBF are all taken.
+	std::optional<uint8_t> GetFreeEntityId() const;
+	// Appends a non-item entity at the lowest free id, pointing at sprite_id with the given
+	// palette indices (-1 for none). Returns the new id, or nullopt if sprite_id is not a
+	// sprite or no free id remains.
+	std::optional<uint8_t> AddEntity(uint8_t sprite_id, int lo_palette, int hi_palette);
+	// True while some room places an entity of this type; GetRoomsUsingEntity names them so a
+	// delete can refuse and explain.
+	bool IsEntityUsedInRooms(uint8_t id) const;
+	std::vector<uint16_t> GetRoomsUsingEntity(uint8_t id) const;
+	// Removes a non-item entity together with everything keyed to its id: the sprite lookup,
+	// palette lookups, enemy stats, talk sfx (which lives in StringData) and display label.
+	// Refuses for items and for any entity a room still uses.
+	bool DeleteEntity(uint8_t id, const std::shared_ptr<StringData>& strings);
+	// Exchanges everything keyed to two non-item entity ids while leaving room references
+	// untouched: the rooms keep their type bytes, but the two entities swap sprite, palettes,
+	// enemy stats, talk sfx and label. Refuses if either id is an item. This "move by content"
+	// is deliberately unlike the sprite/tileset reorder, which renumbers references instead.
+	bool SwapEntities(uint8_t a, uint8_t b, const std::shared_ptr<StringData>& strings);
+
 	bool IsEntity(uint8_t id) const;
 	bool IsSprite(uint8_t id) const;
 	bool IsItem(uint8_t sprite_id) const;
@@ -236,6 +298,23 @@ public:
 	std::shared_ptr<PaletteEntry> GetLoPalette(uint8_t idx) const;
 	uint8_t GetHiPaletteCount() const;
 	std::shared_ptr<PaletteEntry> GetHiPalette(uint8_t idx) const;
+
+	// Sprite low/high palettes are flat lists the entity palette LUT indexes. The LUT keeps the
+	// low/high distinction in bit 7, so each list holds at most 128. Add/remove/swap edit these
+	// lists the way the string editor edits strings; a swap exchanges colours in place, leaving
+	// the entity references pointing where they point.
+	static constexpr std::size_t MAX_SPRITE_PALETTES = 128;
+	bool IsLoPaletteUsed(uint8_t index) const;
+	bool IsHiPaletteUsed(uint8_t index) const;
+	std::vector<uint8_t> GetEntitiesUsingLoPalette(uint8_t index) const;
+	std::vector<uint8_t> GetEntitiesUsingHiPalette(uint8_t index) const;
+	std::optional<uint8_t> AddLoPalette();
+	std::optional<uint8_t> AddHiPalette();
+	bool DeleteLoPalette(uint8_t index);
+	bool DeleteHiPalette(uint8_t index);
+	bool SwapLoPalettes(uint8_t a, uint8_t b);
+	bool SwapHiPalettes(uint8_t a, uint8_t b);
+
 	uint8_t GetProjectile1PaletteCount() const;
 	std::shared_ptr<PaletteEntry> GetProjectile1Palette(uint8_t idx) const;
 	uint8_t GetProjectile2PaletteCount() const;
@@ -259,6 +338,23 @@ private:
 	void SetDefaultFilenames();
 	bool CreateDirectoryStructure(const std::filesystem::path& dir);
 	void InitCache();
+	// Rewrites every sprite id in the project to follow the given old -> new mapping, which
+	// must cover each affected id exactly once. An id mapped to -1 is being deleted and its
+	// animations and frames must already have been removed. Shared by SwapSprites and
+	// DeleteSprite, which differ only in the mapping they build.
+	// remap_entity_references false leaves the entity -> sprite lookup alone, so the content
+	// moves between ids but the references do not follow it - SwapSprites relies on this.
+	void RemapSprites(const std::map<uint8_t, int>& mapping, bool remap_entity_references = true);
+	// Shared low/high sprite-palette list edits (the lo and hi variants differ only in the list,
+	// palette type, name format and display-label category they pass). The entity palette LUT
+	// resolves references through each entry's stored index, so a delete re-indexes the entries
+	// above the hole and the pointer-based lookups follow automatically.
+	std::optional<uint8_t> AddSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+		Palette::Type type, const std::string& name_format);
+	bool DeleteSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+		const std::wstring& label_category, uint8_t index, bool used);
+	bool SwapSpritePalettes(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+		const std::wstring& label_category, uint8_t a, uint8_t b);
 
 	ByteVector SerialisePaletteLUT() const;
 	void DeserialisePaletteLUT(const ByteVector& bytes);
