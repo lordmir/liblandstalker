@@ -26,6 +26,21 @@ public:
 		PRIORITY_ONLY,
 		NO_PRIORITY_ONLY
 	};
+	// A colour-indexed PNG decoded to one palette index per pixel, row-major.
+	struct IndexedImage
+	{
+		std::size_t width = 0;
+		std::size_t height = 0;
+		std::vector<uint8_t> pixels;    // valid only when `indexed`
+		std::vector<uint32_t> palette;  // PLTE entries as 0x00RRGGBB, one per slot (indexed only)
+		bool ok = false;                // the file decoded as a PNG
+		bool indexed = false;           // and it was a colour-indexed (palette) image
+		int max_index = -1;             // largest palette index used (indexed images only)
+	};
+	// Decodes an indexed PNG. `ok` is false when the file could not be read as a PNG at all;
+	// `indexed` is false when it decoded but is not a palette image (`pixels` then left empty).
+	static IndexedImage ReadIndexedPNG(const std::string& filename);
+
 	ImageBuffer();
 	ImageBuffer(std::size_t width, std::size_t height);
 	virtual ~ImageBuffer() = default;

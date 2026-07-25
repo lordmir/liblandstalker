@@ -552,6 +552,74 @@ void Tileset::SetTile(const Tile& src, const std::vector<uint8_t>& value)
     }
 }
 
+std::size_t Tileset::CountWholeTiles(std::size_t img_width, std::size_t img_height) const
+{
+    if (m_width == 0 || m_height == 0)
+    {
+        return 0;
+    }
+    // Integer division drops any partial column or row of pixels at the far right / bottom.
+    return (img_width / m_width) * (img_height / m_height);
+}
+
+int Tileset::MaxColourIndexInTiles(const std::vector<uint8_t>& pixels, std::size_t img_width,
+    std::size_t img_height, std::size_t tile_count) const
+{
+    const std::size_t cols = (m_width == 0) ? 0 : (img_width / m_width);
+    const std::size_t total = CountWholeTiles(img_width, img_height);
+    tile_count = std::min(tile_count, total);
+    if (cols == 0 || tile_count == 0)
+    {
+        return -1;
+    }
+    int max_index = -1;
+    for (std::size_t t = 0; t < tile_count; ++t)
+    {
+        const std::size_t base_x = (t % cols) * m_width;
+        const std::size_t base_y = (t / cols) * m_height;
+        for (std::size_t py = 0; py < m_height; ++py)
+        {
+            for (std::size_t px = 0; px < m_width; ++px)
+            {
+                const std::size_t idx = (base_y + py) * img_width + (base_x + px);
+                if (idx < pixels.size())
+                {
+                    max_index = std::max(max_index, static_cast<int>(pixels[idx]));
+                }
+            }
+        }
+    }
+    return max_index;
+}
+
+void Tileset::SetTilesFromIndexedImage(const std::vector<uint8_t>& pixels, std::size_t img_width,
+    std::size_t img_height, std::size_t tile_count)
+{
+    const std::size_t cols = (m_width == 0) ? 0 : (img_width / m_width);
+    const std::size_t total = CountWholeTiles(img_width, img_height);
+    tile_count = std::min(tile_count, total);
+    if (cols == 0 || tile_count == 0)
+    {
+        return;
+    }
+    const uint8_t mask = static_cast<uint8_t>((1u << m_bit_depth) - 1);
+    m_tiles.assign(tile_count, std::vector<uint8_t>(m_width * m_height, 0));
+    for (std::size_t t = 0; t < tile_count; ++t)
+    {
+        const std::size_t base_x = (t % cols) * m_width;
+        const std::size_t base_y = (t / cols) * m_height;
+        auto& tile = m_tiles[t];
+        for (std::size_t py = 0; py < m_height; ++py)
+        {
+            for (std::size_t px = 0; px < m_width; ++px)
+            {
+                const std::size_t idx = (base_y + py) * img_width + (base_x + px);
+                tile[py * m_width + px] = (idx < pixels.size()) ? (pixels[idx] & mask) : 0;
+            }
+        }
+    }
+}
+
 void Tileset::TransposeBlock()
 {
     if (m_blocktype == BlockType::NORMAL)

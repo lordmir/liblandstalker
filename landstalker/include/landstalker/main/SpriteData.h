@@ -221,6 +221,75 @@ public:
 	std::optional<uint8_t> ImportSprite(const std::string& new_name, const std::string& yaml_data,
 		const std::filesystem::path& frame_dir);
 
+	enum class SpriteSheetImportResult
+	{
+		Success,
+		BadName,        // new_name is invalid or already taken
+		YamlMissing,    // the metadata YAML does not exist
+		YamlInvalid,    // the YAML could not be parsed, or lacks a "spritesheet" block
+		PngMissing,     // the image the YAML names does not exist
+		PngUnreadable,  // libpng could not decode the file
+		PngNotIndexed,  // the PNG is not a colour-indexed (palette) image
+		PngWrongSize,   // the PNG is not columns*cell_width x rows*cell_height
+		PngBadColour,   // a pixel index exceeds 15 (sprites are 4bpp)
+		FrameTooComplex,// a cell needs more than the 8 hardware subsprites to represent
+		NoFrames,       // frame_count resolved to zero
+		IdSpaceFull     // no free sprite id
+	};
+	// Recreates a sprite from the PNG + sibling YAML pair WriteSpriteSheet produces. The YAML's
+	// "spritesheet" block supplies the grid geometry and the shared origin; each cell is cut into a
+	// frame whose pixels are placed relative to that origin, snapped to the 8px tile grid. The PNG
+	// must be colour-indexed, sized exactly columns*cell_width x rows*cell_height, with every pixel
+	// index in 0..15. Frames are named <new_name>Frame%02u, animations <new_name>Anim%02u. Returns
+	// the new id, or nullopt with `result` set to the reason on failure.
+	std::optional<uint8_t> ImportSpriteSheet(const std::string& new_name,
+		const std::filesystem::path& yaml_path, SpriteSheetImportResult& result);
+	// As ImportSpriteSheet, but overwrites an existing sprite in place: its frames, animations and
+	// metadata are replaced from the sheet while its id, internal name, display label and entity
+	// links are kept. Returns false with `result` set on failure (the sprite is left untouched).
+	bool ImportSpriteSheetIntoExisting(uint8_t id, const std::filesystem::path& yaml_path,
+		SpriteSheetImportResult& result);
+
+	// Appends a new sprite built from an already-decoded indexed image plus explicit grid geometry
+	// (rather than a YAML): `pixels` is row-major one index per pixel, `img_width` x `img_height`;
+	// the first `frame_count` cells of a cell_width x cell_height grid (row-major) each become a
+	// frame, with pixels placed relative to `origin`. The sprite gets one animation walking every
+	// frame. Used by the interactive import dialog. Returns the new id or nullopt with `result` set.
+	// Everything an import dialog and the pixel import need from a sprite-sheet YAML: grid geometry
+	// to seed the controls plus the animations and metadata to restore. yaml-free so the editor
+	// need not link it.
+	struct SpriteSheetInfo
+	{
+		bool found = false;                        // a "spritesheet" block was present
+		int cell_width = 0;
+		int cell_height = 0;
+		int frame_count = 0;                       // -1 (or 0) when the YAML did not pin it
+		int origin_x = 0;
+		int origin_y = 0;
+		std::vector<std::string> animation_names;  // for display; parallel to `animations`
+		std::vector<std::vector<int>> animations;  // frame index lists, empty => one all-frames anim
+		uint16_t max_tile_count = 0;               // 0 => derive from the frames
+		bool has_hitbox = false;
+		uint8_t hitbox_base = 0;
+		uint8_t hitbox_height = 0;
+		bool has_flags = false;
+		AnimationFlags flags;
+	};
+	// Reads the geometry, animations and metadata from a sprite-sheet YAML. Returns false (leaving
+	// `out.found` false) when the file is missing or has no spritesheet block.
+	static bool ReadSpriteSheetInfo(const std::filesystem::path& yaml_path, SpriteSheetInfo& out);
+
+	std::optional<uint8_t> ImportSpriteSheetPixels(const std::string& new_name,
+		const std::vector<uint8_t>& pixels, int img_width, int img_height,
+		int cell_width, int cell_height, int frame_count, const Point& origin,
+		const SpriteSheetInfo& info, SpriteSheetImportResult& result);
+	// As ImportSpriteSheetPixels, but replaces an existing sprite in place from a decoded image and
+	// explicit geometry: its frames, animations and metadata are rebuilt while its id, name, display
+	// label and entity links are kept. Returns false with `result` set on failure.
+	bool ImportSpriteSheetIntoExistingPixels(uint8_t id, const std::vector<uint8_t>& pixels,
+		int img_width, int img_height, int cell_width, int cell_height, int frame_count,
+		const Point& origin, const SpriteSheetInfo& info, SpriteSheetImportResult& result);
+
 	// Applies the metadata (max tile count, hitbox, animation flags) from a GetSpriteMetadataYaml() block to
 	// an existing sprite, leaving its frames and animations untouched. The YAML may hold several
 	// top-level blocks (as the sprite-sheet export writes) - the one carrying "sprite_id" is used.
@@ -387,6 +456,32 @@ private:
 	void SetDefaultFilenames();
 	bool CreateDirectoryStructure(const std::filesystem::path& dir);
 	void InitCache();
+
+	// The parsed, engine-ready contents of a sprite-sheet PNG+YAML pair. Free of yaml/png types so
+	// the read step and the (re)build step can be separate functions sharing it.
+	struct SpriteSheetContent
+	{
+		std::vector<std::vector<uint8_t>> frame_bytes; // one .frm byte stream per frame, grid order
+		std::vector<std::vector<int>> animations;      // frame indices per animation (may be empty)
+		uint16_t max_tile_count = 0;                   // 0 => derive from the frames
+		bool has_hitbox = false;
+		uint8_t hitbox_base = 0;
+		uint8_t hitbox_height = 0;
+		bool has_flags = false;
+		AnimationFlags flags;
+	};
+	// Reads and validates the PNG+YAML pair into `out`. Sets `result` and returns false on any
+	// problem; mutates nothing so a failed read leaves game data untouched.
+	bool ReadSpriteSheetContent(const std::filesystem::path& yaml_path, SpriteSheetContent& out,
+		SpriteSheetImportResult& result) const;
+	// Builds frames (<prefix>Frame%02u), animations (<prefix>Anim%02u) and metadata onto sprite
+	// `id`, whose frame and animation lists must already be empty.
+	void PopulateSpriteFromSheet(uint8_t id, const std::string& prefix, const SpriteSheetContent& content);
+	// Slices `frame_count` cells from a decoded indexed image into frame byte streams and folds in
+	// the info's animations/metadata, filling `out`. Sets `result` and returns false on any problem.
+	bool BuildSheetContentFromPixels(const std::vector<uint8_t>& pixels, int img_width, int img_height,
+		int cell_width, int cell_height, int frame_count, const Point& origin,
+		const SpriteSheetInfo& info, SpriteSheetContent& out, SpriteSheetImportResult& result) const;
 
 	// Semantic role of one animation slot (ordinal) of a sprite, derived from its AnimationFlags.
 	// The game reaches each slot as AnimationIndex/4 in UpdateSpriteFrame (spritefuncs1.asm); a

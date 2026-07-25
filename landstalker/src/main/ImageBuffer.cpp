@@ -4,6 +4,7 @@
 #include <cstring>
 #include <png.h>
 #include <numeric>
+#include <algorithm>
 #include <landstalker/misc/Utils.h>
 
 #if defined(_MSC_VER)
@@ -237,6 +238,101 @@ void ImageBuffer::Insert3DMapLayer(int x, int y, uint8_t palette_index, Tilemap3
                 tilepos.y++;
             }
         }
+}
+
+ImageBuffer::IndexedImage ImageBuffer::ReadIndexedPNG(const std::string& filename)
+{
+    IndexedImage out;
+    FILE* fp = fopen(filename.c_str(), "rb");
+    if (fp == nullptr)
+    {
+        return out;
+    }
+    unsigned char sig[8];
+    if (fread(sig, 1, 8, fp) != 8 || png_sig_cmp(sig, 0, 8) != 0)
+    {
+        fclose(fp);
+        return out;
+    }
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (png == nullptr)
+    {
+        fclose(fp);
+        return out;
+    }
+    png_infop info = png_create_info_struct(png);
+    if (info == nullptr)
+    {
+        png_destroy_read_struct(&png, nullptr, nullptr);
+        fclose(fp);
+        return out;
+    }
+    if (setjmp(png_jmpbuf(png)))
+    {
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return out;
+    }
+    png_init_io(png, fp);
+    png_set_sig_bytes(png, 8);
+    png_read_info(png, info);
+    png_uint_32 w = 0, h = 0;
+    int bit_depth = 0, colour_type = 0;
+    png_get_IHDR(png, info, &w, &h, &bit_depth, &colour_type, nullptr, nullptr, nullptr);
+    out.width = w;
+    out.height = h;
+    out.ok = true;
+    if (colour_type != PNG_COLOR_TYPE_PALETTE)
+    {
+        // A non-palette image decoded fine, but is not something the indexed callers accept.
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return out;
+    }
+    out.indexed = true;
+    // Capture the PLTE palette so callers can import the colours themselves, not just pixel indices.
+    png_colorp plte = nullptr;
+    int num_plte = 0;
+    if (png_get_PLTE(png, info, &plte, &num_plte) == PNG_INFO_PLTE && plte != nullptr)
+    {
+        out.palette.resize(num_plte);
+        for (int i = 0; i < num_plte; ++i)
+        {
+            out.palette[i] = (static_cast<uint32_t>(plte[i].red) << 16) |
+                (static_cast<uint32_t>(plte[i].green) << 8) | static_cast<uint32_t>(plte[i].blue);
+        }
+    }
+    // Expand sub-byte palette indices to one byte each, leaving the index values themselves alone.
+    if (bit_depth < 8)
+    {
+        png_set_packing(png);
+    }
+    png_read_update_info(png, info);
+    const std::size_t rowbytes = png_get_rowbytes(png, info);
+    std::vector<uint8_t> buffer(rowbytes * h);
+    std::vector<png_bytep> rows(h);
+    for (png_uint_32 y = 0; y < h; ++y)
+    {
+        rows[y] = buffer.data() + static_cast<std::size_t>(y) * rowbytes;
+    }
+    png_read_image(png, rows.data());
+    png_read_end(png, nullptr);
+    png_destroy_read_struct(&png, &info, nullptr);
+    fclose(fp);
+
+    out.pixels.assign(static_cast<std::size_t>(w) * h, 0);
+    int max_index = -1;
+    for (png_uint_32 y = 0; y < h; ++y)
+    {
+        for (png_uint_32 x = 0; x < w; ++x)
+        {
+            const uint8_t v = buffer[static_cast<std::size_t>(y) * rowbytes + x];
+            out.pixels[static_cast<std::size_t>(y) * w + x] = v;
+            max_index = std::max(max_index, static_cast<int>(v));
+        }
+    }
+    out.max_index = max_index;
+    return out;
 }
 
 bool ImageBuffer::WritePNG(const std::string& filename, const std::vector<std::shared_ptr<Palette>>& palettes, bool use_alpha)

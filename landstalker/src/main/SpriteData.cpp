@@ -8,6 +8,7 @@
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
 #include <landstalker/misc/Literals.h>
+#include <landstalker/sprites/SpriteFrame.h>
 #include <yaml-cpp/yaml.h>
 
 namespace Landstalker {
@@ -1614,6 +1615,106 @@ namespace
 		}
 		return YAML::Node(YAML::NodeType::Undefined);
 	}
+
+	// Reconstructs one frame's .frm byte stream from a single cell of the sheet. Cell pixels are read
+	// relative to `origin` (the shared origin the YAML records), so cell-local (origin.x+fx, origin.y+fy)
+	// becomes frame coordinate (fx, fy). The non-transparent content is snapped outward to the 8px tile
+	// grid and split into <=4x4-tile subsprites (column-major tiles, matching InsertSprite). Returns
+	// nullopt if the content needs more than MAX_SUBSPRITES hardware sprites.
+	std::optional<std::vector<uint8_t>> BuildFrameBitsFromCell(const std::vector<uint8_t>& sheet,
+		std::size_t sheet_w, std::size_t sheet_h, int cell_x0, int cell_y0, int cell_w, int cell_h,
+		const Point& origin)
+	{
+		const auto sample = [&](int cx, int cy) -> uint8_t {
+			const int sx = cell_x0 + cx;
+			const int sy = cell_y0 + cy;
+			if (sx < 0 || sy < 0 || sx >= static_cast<int>(sheet_w) || sy >= static_cast<int>(sheet_h))
+			{
+				return 0;
+			}
+			return sheet[static_cast<std::size_t>(sy) * sheet_w + sx];
+		};
+
+		// Non-transparent (index != 0) content bounding box, in cell-local pixels.
+		int minx = cell_w, miny = cell_h, maxx = -1, maxy = -1;
+		for (int cy = 0; cy < cell_h; ++cy)
+		{
+			for (int cx = 0; cx < cell_w; ++cx)
+			{
+				if (sample(cx, cy) != 0)
+				{
+					minx = std::min(minx, cx);
+					maxx = std::max(maxx, cx);
+					miny = std::min(miny, cy);
+					maxy = std::max(maxy, cy);
+				}
+			}
+		}
+
+		SpriteFrame frame;
+		std::vector<SpriteFrame::SubSprite> subs;
+		if (maxx < 0)
+		{
+			// A wholly transparent cell still needs one subsprite to be a valid, drawable frame.
+			subs.emplace_back(0, 0, 1, 1);
+			frame.SetSubSprites(subs);
+			return frame.GetBits(false);
+		}
+
+		// Round the content box down/up to whole 8px tiles, in origin-relative frame coordinates.
+		const auto floordiv8 = [](int a) {
+			return (a >= 0) ? (a / 8) : -((-a + 7) / 8);
+		};
+		const int tx0 = floordiv8(minx - origin.x);
+		const int ty0 = floordiv8(miny - origin.y);
+		const int tx1 = floordiv8(maxx - origin.x);
+		const int ty1 = floordiv8(maxy - origin.y);
+		const int wt = tx1 - tx0 + 1;
+		const int ht = ty1 - ty0 + 1;
+		const int cols = (wt + 3) / 4;
+		const int rows = (ht + 3) / 4;
+		if (cols * rows > static_cast<int>(SpriteFrame::MAX_SUBSPRITES))
+		{
+			return std::nullopt;
+		}
+
+		// Tile the content box with subsprites of at most 4x4 tiles, laid out row-major.
+		for (int by = 0; by < ht; by += 4)
+		{
+			for (int bx = 0; bx < wt; bx += 4)
+			{
+				const int w = std::min(4, wt - bx);
+				const int h = std::min(4, ht - by);
+				subs.emplace_back((tx0 + bx) * 8, (ty0 + by) * 8, w, h);
+			}
+		}
+		frame.SetSubSprites(subs); // assigns tile_idx per subsprite and sizes the (zeroed) tileset
+
+		// Fill each tile from the sheet. Within a subsprite the tiles run column-major, so tile
+		// (xi, yi) is at index tile_idx + xi*h + yi - the same order InsertSprite consumes them.
+		for (const auto& s : frame.GetSubSprites())
+		{
+			std::size_t idx = s.tile_idx;
+			for (std::size_t xi = 0; xi < s.w; ++xi)
+			{
+				for (std::size_t yi = 0; yi < s.h; ++yi)
+				{
+					auto& px = frame.GetTilePixels(static_cast<int>(idx));
+					for (int py = 0; py < 8; ++py)
+					{
+						for (int pxl = 0; pxl < 8; ++pxl)
+						{
+							const int fx = s.x + static_cast<int>(xi) * 8 + pxl;
+							const int fy = s.y + static_cast<int>(yi) * 8 + py;
+							px[static_cast<std::size_t>(py) * 8 + pxl] = sample(fx + origin.x, fy + origin.y);
+						}
+					}
+					++idx;
+				}
+			}
+		}
+		return frame.GetBits(false);
+	}
 }
 
 std::optional<uint8_t> SpriteData::ImportSprite(const std::string& new_name, const std::string& yaml_data,
@@ -1756,6 +1857,479 @@ std::optional<uint8_t> SpriteData::ImportSprite(const std::string& new_name, con
 	return std::nullopt;
 }
 
+bool SpriteData::ReadSpriteSheetContent(const std::filesystem::path& yaml_path,
+	SpriteSheetContent& out, SpriteSheetImportResult& result) const
+{
+	if (!std::filesystem::exists(yaml_path))
+	{
+		result = SpriteSheetImportResult::YamlMissing;
+		return false;
+	}
+	try
+	{
+		const auto root = YAML::LoadFile(yaml_path.string());
+		const auto sheet = root["spritesheet"];
+		if (!sheet || !sheet.IsMap())
+		{
+			result = SpriteSheetImportResult::YamlInvalid;
+			return false;
+		}
+		const int columns = sheet["columns"].as<int>(0);
+		const int rows = sheet["rows"].as<int>(0);
+		const int cell_width = sheet["cell_width"].as<int>(0);
+		const int cell_height = sheet["cell_height"].as<int>(0);
+		Point origin;
+		if (sheet["origin"] && sheet["origin"].IsSequence() && sheet["origin"].size() == 2)
+		{
+			origin = Point(sheet["origin"][0].as<int>(0), sheet["origin"][1].as<int>(0));
+		}
+		if (columns <= 0 || rows <= 0 || cell_width <= 0 || cell_height <= 0)
+		{
+			result = SpriteSheetImportResult::YamlInvalid;
+			return false;
+		}
+
+		// The sprite metadata block carries the authoritative frame count (the last grid row may be
+		// partly empty) and the animation lists; fall back to a full grid if it is absent.
+		const auto body = FindMetadataBlock(root, "sprite_id");
+		unsigned int frame_count = 0;
+		if (body && body.IsMap())
+		{
+			frame_count = body["frame_count"].as<unsigned int>(0u);
+		}
+		if (frame_count == 0)
+		{
+			frame_count = static_cast<unsigned int>(columns) * static_cast<unsigned int>(rows);
+		}
+		if (frame_count == 0)
+		{
+			result = SpriteSheetImportResult::NoFrames;
+			return false;
+		}
+
+		// Resolve the image the YAML names, relative to the YAML's own directory.
+		std::filesystem::path png_path = sheet["image"].as<std::string>("");
+		if (png_path.empty())
+		{
+			png_path = std::filesystem::path(yaml_path).replace_extension(".png");
+		}
+		else if (!png_path.is_absolute())
+		{
+			png_path = yaml_path.parent_path() / png_path;
+		}
+		if (!std::filesystem::exists(png_path))
+		{
+			result = SpriteSheetImportResult::PngMissing;
+			return false;
+		}
+
+		const auto image = ImageBuffer::ReadIndexedPNG(png_path.string());
+		if (!image.ok)
+		{
+			result = SpriteSheetImportResult::PngUnreadable;
+			return false;
+		}
+		if (!image.indexed)
+		{
+			result = SpriteSheetImportResult::PngNotIndexed;
+			return false;
+		}
+		if (image.width != static_cast<std::size_t>(columns) * cell_width ||
+			image.height != static_cast<std::size_t>(rows) * cell_height)
+		{
+			result = SpriteSheetImportResult::PngWrongSize;
+			return false;
+		}
+		if (image.max_index > 15)
+		{
+			result = SpriteSheetImportResult::PngBadColour;
+			return false;
+		}
+
+		// Cut every cell into a frame up front, so a too-complex cell aborts before anything is
+		// touched rather than leaving a half-built sprite behind. Row-major, matching the export.
+		out.frame_bytes.clear();
+		out.frame_bytes.reserve(frame_count);
+		for (unsigned int i = 0; i < frame_count; ++i)
+		{
+			const int col = static_cast<int>(i % static_cast<unsigned int>(columns));
+			const int row = static_cast<int>(i / static_cast<unsigned int>(columns));
+			auto bits = BuildFrameBitsFromCell(image.pixels, image.width, image.height,
+				col * cell_width, row * cell_height, cell_width, cell_height, origin);
+			if (!bits)
+			{
+				result = SpriteSheetImportResult::FrameTooComplex;
+				return false;
+			}
+			out.frame_bytes.push_back(std::move(*bits));
+		}
+
+		// Animation frame-index lists, straight from the metadata block (may be absent).
+		out.animations.clear();
+		if (body && body.IsMap() && body["animations"])
+		{
+			for (const auto& anim : body["animations"])
+			{
+				std::vector<int> indices;
+				for (const auto& idx : anim.second)
+				{
+					indices.push_back(idx.as<int>(-1));
+				}
+				out.animations.push_back(std::move(indices));
+			}
+		}
+
+		out.max_tile_count = (body && body.IsMap()) ? body["max_tile_count"].as<uint16_t>(0) : 0;
+		out.has_hitbox = false;
+		if (body && body.IsMap() && body["hitbox"] && body["hitbox"].IsMap())
+		{
+			const auto hitbox = body["hitbox"];
+			out.has_hitbox = true;
+			out.hitbox_base = static_cast<uint8_t>(std::lround(hitbox["base"].as<double>(0.0) * 8.0));
+			out.hitbox_height = static_cast<uint8_t>(std::lround(hitbox["height"].as<double>(0.0) * 16.0));
+		}
+		out.has_flags = false;
+		if (body && body.IsMap() && body["animation_flags"] && body["animation_flags"].IsMap())
+		{
+			const auto af = ParseAnimationFlags(body["animation_flags"]);
+			if (!af.IsDefault())
+			{
+				out.has_flags = true;
+				out.flags = af;
+			}
+		}
+		return true;
+	}
+	catch (const std::exception&)
+	{
+	}
+	result = SpriteSheetImportResult::YamlInvalid;
+	return false;
+}
+
+void SpriteData::PopulateSpriteFromSheet(uint8_t id, const std::string& prefix,
+	const SpriteSheetContent& content)
+{
+	// Frames first, in grid order, so the animation frame indices below line up. Named after the
+	// sprite to keep the label namespace tidy.
+	std::vector<std::string> frame_names;
+	for (std::size_t i = 0; i < content.frame_bytes.size(); ++i)
+	{
+		std::string frame_name = StrPrintf("%sFrame%02u", prefix.c_str(), static_cast<unsigned int>(i));
+		for (unsigned int suffix = 1; SpriteFrameExists(frame_name); ++suffix)
+		{
+			frame_name = StrPrintf("%sFrame%02u_%u", prefix.c_str(), static_cast<unsigned int>(i), suffix);
+		}
+		auto frame = SpriteFrameEntry::Create(this, content.frame_bytes[i], frame_name,
+			std::filesystem::path(RomLabels::Sprites::SPRITE_FRAME_FILE).parent_path() / (frame_name + ".frm"));
+		frame->SetSprite(id);
+		m_frames[frame_name] = frame;
+		m_sprite_frames[id].insert(frame_name);
+		frame_names.push_back(frame_name);
+	}
+
+	// Animations from the metadata block if present; otherwise a single animation that walks every
+	// frame, so the sprite is drawable and each frame is reachable.
+	unsigned int anim_index = 0;
+	for (const auto& indices : content.animations)
+	{
+		std::string anim_name = StrPrintf("%sAnim%02u", prefix.c_str(), anim_index++);
+		for (unsigned int suffix = 1; SpriteAnimationExists(anim_name); ++suffix)
+		{
+			anim_name = StrPrintf("%sAnim%02u_%u", prefix.c_str(), anim_index - 1, suffix);
+		}
+		std::vector<std::string> frames;
+		for (const int idx : indices)
+		{
+			if (idx >= 0 && idx < static_cast<int>(frame_names.size()))
+			{
+				frames.push_back(frame_names[idx]);
+			}
+		}
+		if (frames.empty())
+		{
+			frames.push_back(frame_names.front());
+		}
+		m_animation_frames[anim_name] = frames;
+		m_animations[id].push_back(anim_name);
+	}
+	if (m_animations[id].empty())
+	{
+		const auto anim_name = prefix + "Anim00";
+		m_animation_frames[anim_name] = frame_names;
+		m_animations[id].push_back(anim_name);
+	}
+
+	// Metadata: keep the reservation at least as large as the biggest frame, then let the YAML raise
+	// it, and restore hitbox / animation flags when the block carried them.
+	std::size_t largest_frame_tiles = 1;
+	for (const auto& frame_name : frame_names)
+	{
+		largest_frame_tiles = std::max(largest_frame_tiles, m_frames[frame_name]->GetData()->GetTileCount());
+	}
+	m_sprite_max_tile_count[id] = static_cast<uint16_t>(
+		std::max<std::size_t>(content.max_tile_count, largest_frame_tiles));
+	// A sprite must always have a dimensions entry: GetSpriteHitbox indexes the map directly, so a
+	// missing entry is undefined behaviour. Default to a zero hitbox (as AddSprite does) when the
+	// source carried none.
+	m_sprite_dimensions[id] = content.has_hitbox
+		? std::array<uint8_t, 2>{ content.hitbox_base, content.hitbox_height }
+		: std::array<uint8_t, 2>{ 0, 0 };
+	if (content.has_flags)
+	{
+		m_sprite_animation_flags[id] = content.flags;
+	}
+}
+
+std::optional<uint8_t> SpriteData::ImportSpriteSheet(const std::string& new_name,
+	const std::filesystem::path& yaml_path, SpriteSheetImportResult& result)
+{
+	result = SpriteSheetImportResult::YamlInvalid;
+	if (!IsValidSpriteName(new_name) || IsSpriteNameInUse(new_name))
+	{
+		result = SpriteSheetImportResult::BadName;
+		return std::nullopt;
+	}
+	SpriteSheetContent content;
+	if (!ReadSpriteSheetContent(yaml_path, content, result))
+	{
+		return std::nullopt;
+	}
+	if (m_animations.size() >= MAX_SPRITES)
+	{
+		result = SpriteSheetImportResult::IdSpaceFull;
+		return std::nullopt;
+	}
+	const auto new_sprite = static_cast<uint8_t>(m_animations.size());
+	m_names[new_sprite] = new_name;
+	m_ids[new_name] = new_sprite;
+	m_animations[new_sprite] = {};
+	m_sprite_frames[new_sprite] = {};
+	PopulateSpriteFromSheet(new_sprite, new_name, content);
+	result = SpriteSheetImportResult::Success;
+	return new_sprite;
+}
+
+bool SpriteData::ImportSpriteSheetIntoExisting(uint8_t id, const std::filesystem::path& yaml_path,
+	SpriteSheetImportResult& result)
+{
+	result = SpriteSheetImportResult::YamlInvalid;
+	if (!IsSprite(id))
+	{
+		result = SpriteSheetImportResult::BadName;
+		return false;
+	}
+	SpriteSheetContent content;
+	if (!ReadSpriteSheetContent(yaml_path, content, result))
+	{
+		return false;
+	}
+	// Tear the sprite's current frames and animations down, then rebuild from the sheet. Its id,
+	// internal name, display label and entity links are all keyed elsewhere and left untouched.
+	for (const auto& frame_name : m_sprite_frames[id])
+	{
+		m_frames.erase(frame_name);
+	}
+	m_sprite_frames[id].clear();
+	for (const auto& anim_name : m_animations[id])
+	{
+		m_animation_frames.erase(anim_name);
+	}
+	m_animations[id].clear();
+	PopulateSpriteFromSheet(id, GetSpriteName(id), content);
+	result = SpriteSheetImportResult::Success;
+	return true;
+}
+
+bool SpriteData::ReadSpriteSheetInfo(const std::filesystem::path& yaml_path, SpriteSheetInfo& out)
+{
+	if (!std::filesystem::exists(yaml_path))
+	{
+		return false;
+	}
+	try
+	{
+		const auto root = YAML::LoadFile(yaml_path.string());
+		const auto sheet = root["spritesheet"];
+		if (!sheet || !sheet.IsMap())
+		{
+			return false;
+		}
+		const int columns = sheet["columns"].as<int>(0);
+		const int rows = sheet["rows"].as<int>(0);
+		out.cell_width = sheet["cell_width"].as<int>(0);
+		out.cell_height = sheet["cell_height"].as<int>(0);
+		if (sheet["origin"] && sheet["origin"].IsSequence() && sheet["origin"].size() == 2)
+		{
+			out.origin_x = sheet["origin"][0].as<int>(0);
+			out.origin_y = sheet["origin"][1].as<int>(0);
+		}
+		const auto body = FindMetadataBlock(root, "sprite_id");
+		// Prefer the metadata block's frame count; fall back to a full grid.
+		int frame_count = (body && body.IsMap()) ? body["frame_count"].as<int>(0) : 0;
+		if (frame_count <= 0)
+		{
+			frame_count = columns * rows;
+		}
+		out.frame_count = frame_count;
+
+		if (body && body.IsMap())
+		{
+			if (body["animations"])
+			{
+				for (const auto& anim : body["animations"])
+				{
+					out.animation_names.push_back(anim.first.as<std::string>(""));
+					std::vector<int> indices;
+					for (const auto& idx : anim.second)
+					{
+						indices.push_back(idx.as<int>(-1));
+					}
+					out.animations.push_back(std::move(indices));
+				}
+			}
+			out.max_tile_count = body["max_tile_count"].as<uint16_t>(0);
+			if (body["hitbox"] && body["hitbox"].IsMap())
+			{
+				const auto hitbox = body["hitbox"];
+				out.has_hitbox = true;
+				out.hitbox_base = static_cast<uint8_t>(std::lround(hitbox["base"].as<double>(0.0) * 8.0));
+				out.hitbox_height = static_cast<uint8_t>(std::lround(hitbox["height"].as<double>(0.0) * 16.0));
+			}
+			if (body["animation_flags"] && body["animation_flags"].IsMap())
+			{
+				const auto af = ParseAnimationFlags(body["animation_flags"]);
+				if (!af.IsDefault())
+				{
+					out.has_flags = true;
+					out.flags = af;
+				}
+			}
+		}
+		out.found = out.cell_width > 0 && out.cell_height > 0;
+		return out.found;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
+}
+
+bool SpriteData::BuildSheetContentFromPixels(const std::vector<uint8_t>& pixels, int img_width,
+	int img_height, int cell_width, int cell_height, int frame_count, const Point& origin,
+	const SpriteSheetInfo& info, SpriteSheetContent& out, SpriteSheetImportResult& result) const
+{
+	if (cell_width <= 0 || cell_height <= 0 || img_width <= 0 || img_height <= 0)
+	{
+		result = SpriteSheetImportResult::PngWrongSize;
+		return false;
+	}
+	const int columns = img_width / cell_width;
+	if (columns <= 0 || frame_count <= 0)
+	{
+		result = SpriteSheetImportResult::NoFrames;
+		return false;
+	}
+
+	// Cut every requested cell to a frame up front, so a too-complex cell aborts before anything is
+	// touched. Row-major, matching the export and the dialog's preview grid.
+	out.frame_bytes.clear();
+	out.frame_bytes.reserve(frame_count);
+	for (int i = 0; i < frame_count; ++i)
+	{
+		const int col = i % columns;
+		const int row = i / columns;
+		auto bits = BuildFrameBitsFromCell(pixels, static_cast<std::size_t>(img_width),
+			static_cast<std::size_t>(img_height), col * cell_width, row * cell_height,
+			cell_width, cell_height, origin);
+		if (!bits)
+		{
+			result = SpriteSheetImportResult::FrameTooComplex;
+			return false;
+		}
+		out.frame_bytes.push_back(std::move(*bits));
+	}
+
+	// Restore the animations and metadata from the YAML when one was read; otherwise the sprite gets
+	// a single all-frames animation and a zero hitbox (PopulateSpriteFromSheet's defaults).
+	if (info.found)
+	{
+		out.animations = info.animations;
+		out.max_tile_count = info.max_tile_count;
+		out.has_hitbox = info.has_hitbox;
+		out.hitbox_base = info.hitbox_base;
+		out.hitbox_height = info.hitbox_height;
+		out.has_flags = info.has_flags;
+		out.flags = info.flags;
+	}
+	return true;
+}
+
+std::optional<uint8_t> SpriteData::ImportSpriteSheetPixels(const std::string& new_name,
+	const std::vector<uint8_t>& pixels, int img_width, int img_height,
+	int cell_width, int cell_height, int frame_count, const Point& origin,
+	const SpriteSheetInfo& info, SpriteSheetImportResult& result)
+{
+	result = SpriteSheetImportResult::YamlInvalid;
+	if (!IsValidSpriteName(new_name) || IsSpriteNameInUse(new_name))
+	{
+		result = SpriteSheetImportResult::BadName;
+		return std::nullopt;
+	}
+	SpriteSheetContent content;
+	if (!BuildSheetContentFromPixels(pixels, img_width, img_height, cell_width, cell_height,
+		frame_count, origin, info, content, result))
+	{
+		return std::nullopt;
+	}
+	if (m_animations.size() >= MAX_SPRITES)
+	{
+		result = SpriteSheetImportResult::IdSpaceFull;
+		return std::nullopt;
+	}
+	const auto new_sprite = static_cast<uint8_t>(m_animations.size());
+	m_names[new_sprite] = new_name;
+	m_ids[new_name] = new_sprite;
+	m_animations[new_sprite] = {};
+	m_sprite_frames[new_sprite] = {};
+	PopulateSpriteFromSheet(new_sprite, new_name, content);
+	result = SpriteSheetImportResult::Success;
+	return new_sprite;
+}
+
+bool SpriteData::ImportSpriteSheetIntoExistingPixels(uint8_t id, const std::vector<uint8_t>& pixels,
+	int img_width, int img_height, int cell_width, int cell_height, int frame_count,
+	const Point& origin, const SpriteSheetInfo& info, SpriteSheetImportResult& result)
+{
+	result = SpriteSheetImportResult::YamlInvalid;
+	if (!IsSprite(id))
+	{
+		result = SpriteSheetImportResult::BadName;
+		return false;
+	}
+	SpriteSheetContent content;
+	if (!BuildSheetContentFromPixels(pixels, img_width, img_height, cell_width, cell_height,
+		frame_count, origin, info, content, result))
+	{
+		return false;
+	}
+	// Tear the sprite's current frames and animations down, then rebuild - keeping its id, name,
+	// display label and entity links (all keyed elsewhere).
+	for (const auto& frame_name : m_sprite_frames[id])
+	{
+		m_frames.erase(frame_name);
+	}
+	m_sprite_frames[id].clear();
+	for (const auto& anim_name : m_animations[id])
+	{
+		m_animation_frames.erase(anim_name);
+	}
+	m_animations[id].clear();
+	PopulateSpriteFromSheet(id, GetSpriteName(id), content);
+	result = SpriteSheetImportResult::Success;
+	return true;
+}
+
 bool SpriteData::ApplySpriteMetadataYaml(uint8_t id, const std::string& yaml_data)
 {
 	if (!IsSprite(id))
@@ -1861,7 +2435,12 @@ bool SpriteData::IsSprite(uint8_t id) const
 bool SpriteData::IsItem(uint8_t sprite_id) const
 {
 	auto entities = GetEntitiesFromSprite(sprite_id);
-	return std::all_of(entities.cbegin(), entities.cend(), [this](const auto& e) { return IsEntityItem(e); });
+	// A sprite is an item only when every entity that draws it is an item - and only if some entity
+	// does. Without the emptiness guard std::all_of is vacuously true, so a sprite no entity uses
+	// (e.g. a freshly imported one) would be mistaken for an item and treated as a single, static
+	// frame - which stops its animation preview from ever advancing.
+	return !entities.empty() &&
+		std::all_of(entities.cbegin(), entities.cend(), [this](const auto& e) { return IsEntityItem(e); });
 }
 
 bool SpriteData::IsEntityItem(uint8_t entity_id) const

@@ -80,6 +80,22 @@ public:
     void SwapTile(const Tile& lhs, const Tile& rhs);
     void SetTile(const Tile& src, const std::vector<uint8_t>& value);
 
+    // How many whole tiles an indexed image of `img_width` x `img_height` yields when cut into this
+    // tileset's tile grid left-to-right, top-to-bottom. Pixels past the last whole tile column or
+    // row are ignored, so an image that does not divide evenly simply loses its overhang.
+    std::size_t CountWholeTiles(std::size_t img_width, std::size_t img_height) const;
+    // The largest palette index appearing in the first `tile_count` tiles of an indexed image
+    // (`pixels`, row-major, `img_width` x `img_height`) laid out as CountWholeTiles describes.
+    // Lets a caller reject an out-of-range import (index >= 1<<bit_depth) before committing. -1 if
+    // there is nothing to sample.
+    int MaxColourIndexInTiles(const std::vector<uint8_t>& pixels, std::size_t img_width,
+        std::size_t img_height, std::size_t tile_count) const;
+    // Replaces the tileset with the first `tile_count` tiles of an indexed image, read as
+    // CountWholeTiles / MaxColourIndexInTiles describe. The tileset is resized to `tile_count`.
+    // Callers should validate the colour range first; out-of-range indices are masked to fit.
+    void SetTilesFromIndexedImage(const std::vector<uint8_t>& pixels, std::size_t img_width,
+        std::size_t img_height, std::size_t tile_count);
+
 private:
     void TransposeBlock();
     void UntransposeBlock(std::vector<uint8_t>& bits);
