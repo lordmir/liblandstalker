@@ -10,6 +10,7 @@
 #include <landstalker/behaviours/Behaviours.h>
 #include <landstalker/misc/Point.h>
 #include <landstalker/main/StringData.h>
+#include <landstalker/main/ImageBuffer.h>
 
 namespace Landstalker {
 
@@ -139,11 +140,33 @@ public:
 	static std::wstring GetSpriteDisplayName(uint8_t id);
 	std::wstring GetSpriteAnimationDisplayName(uint8_t id, const std::string& name) const;
 	std::wstring GetSpriteFrameDisplayName(uint8_t id, const std::string& name) const;
+	// As GetSpriteFrameDisplayName, but annotated with the frame's role within a specific
+	// animation, e.g. "<name> [Walk NE 2]". Frames past the animation's expected length, or
+	// in an animation slot with no recognised role, are tagged "[Unused N]".
+	std::wstring GetSpriteAnimationFrameDisplayName(uint8_t id, uint8_t anim_id, int frame_pos, const std::string& name) const;
 	static std::wstring GetSpriteLowPaletteDisplayName(uint8_t id);
 	static std::wstring GetSpriteHighPaletteDisplayName(uint8_t id);
 	static std::wstring GetBehaviourDisplayName(int behav_id);
 	SpriteMetadata GetSpriteMetadata(uint8_t id) const;
 	std::string GetSpriteMetadataYaml(uint8_t id) const;
+
+	// A single image holding every unique frame the sprite's animations reference, laid out in a
+	// uniform grid. Every cell is the same size (the union bounding box of all frames) and each
+	// frame is aligned so its origin lands on the shared origin, so cells line up when flipped
+	// through animations. Cells follow the same frame order GetSpriteMetadataYaml() indexes, so the
+	// YAML's per-animation frame indices map to sheet cells row-major.
+	struct SpriteSheet
+	{
+		ImageBuffer image;    // palette index 0; supply the sprite palette when writing to PNG
+		int columns = 0;
+		int rows = 0;
+		int cell_width = 0;
+		int cell_height = 0;
+		Point origin;         // position of the shared origin within every cell
+		unsigned int frame_count = 0;
+	};
+	// columns <= 0 chooses a square-ish grid.
+	SpriteSheet MakeSpriteSheet(uint8_t id, int columns = 0) const;
 	EntityMetadata GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const;
 	std::string GetEntityMetadataYaml(uint8_t id, std::shared_ptr<StringData> sd) const;
 
@@ -338,6 +361,21 @@ private:
 	void SetDefaultFilenames();
 	bool CreateDirectoryStructure(const std::filesystem::path& dir);
 	void InitCache();
+
+	// Semantic role of one animation slot (ordinal) of a sprite, derived from its AnimationFlags.
+	// The game reaches each slot as AnimationIndex/4 in UpdateSpriteFrame (spritefuncs1.asm); a
+	// logical action occupies two consecutive ordinals - the NE bank (even) and SW bank (odd) -
+	// with NW/SE produced at runtime by h-flip. Some flag combinations overload one slot with
+	// several actions (e.g. a shared idle/walk bank), so label can list more than one role.
+	struct AnimationRole
+	{
+		std::string label;    // bracket text, e.g. "Idle/Walk NE" or "Unused 1"
+		bool unused;          // true when no game action maps to this slot
+		int expected_frames;  // frame count this action plays; extra frames are flagged unused; 0 = variable
+		int min_ok_frames;    // at/below this count the slot is a valid shorter role (idle), so no missing warning
+	};
+	// One entry per animation ordinal of the sprite, in list order.
+	std::vector<AnimationRole> ComputeSpriteAnimationRoles(uint8_t id) const;
 	// Rewrites every sprite id in the project to follow the given old -> new mapping, which
 	// must cover each affected id exactly once. An id mapped to -1 is being deleted and its
 	// animations and frames must already have been removed. Shared by SwapSprites and

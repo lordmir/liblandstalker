@@ -477,11 +477,191 @@ std::wstring SpriteData::GetSpriteDisplayName(uint8_t id)
 	return Labels::Get(Labels::C_SPRITES, id).value_or(StrWPrintf(RomLabels::Sprites::SPRITE_GFX, id));
 }
 
+std::vector<SpriteData::AnimationRole> SpriteData::ComputeSpriteAnimationRoles(uint8_t id) const
+{
+	std::vector<AnimationRole> roles;
+	auto it = m_animations.find(id);
+	if (it == m_animations.cend())
+	{
+		return roles;
+	}
+	const int count = static_cast<int>(it->second.size());
+
+	const AnimationFlags af = GetSpriteAnimationFlags(id);
+	const bool ext = af.has_full_animations;
+	const bool dedicated_idle = af.idle_animation_source == AnimationFlags::IdleAnimationSource::DEDICATED;
+	const bool has_jump = af.jump_animation_source == AnimationFlags::JumpAnimationSource::DEDICATED;
+	const bool has_damage = af.take_damage_animation_source == AnimationFlags::TakeDamageAnimationSource::DEDICATED;
+
+	// Base ordinals (AnimationIndex / 4) each action loads in UpdateSpriteFrame. The extended
+	// set (bit 6) relocates walk/attack/jump; dedicated idle (bit 1) shifts idle by one bank;
+	// the alternate damage frame (used when a jump animation exists) shares the jump bank.
+	const int walk_base = ext ? 2 : 0;
+	const int idle_base = dedicated_idle ? 2 : 0;
+	const int attack_base = ext ? 14 : 2;
+	const int jump_base = ext ? 8 : 4;
+	const int dmg_base = has_jump ? 8 : 6;
+
+	const int walk_frames = ext ? 8
+		: (af.walk_animation_frame_count == AnimationFlags::WalkAnimationFrameCount::TWO_FRAMES ? 2 : 4);
+	const int idle_frames = af.idle_animation_frames == AnimationFlags::IdleAnimationFrameCount::ONE_FRAME ? 1 : 2;
+
+	struct Slot
+	{
+		std::vector<std::string> names;
+		int expected = 0;      // max fixed frame expectation among roles here; 0 = variable/none
+		bool has_idle = false;
+		bool has_attack = false;
+	};
+	std::vector<Slot> slots(count);
+
+	// Every base ordinal here is even, so a slot's parity alone fixes its facing bank.
+	auto add_role = [&](int base, const char* name, int expected_frames, bool variable, bool is_idle, bool is_attack)
+	{
+		for (int d = 0; d < 2; ++d)
+		{
+			const int o = base + d;
+			if (o < 0 || o >= count)
+			{
+				continue;
+			}
+			slots[o].names.emplace_back(name);
+			if (!variable)
+			{
+				slots[o].expected = std::max(slots[o].expected, expected_frames);
+			}
+			slots[o].has_idle = slots[o].has_idle || is_idle;
+			slots[o].has_attack = slots[o].has_attack || is_attack;
+		}
+	};
+
+	// Idle and walk always exist; the action-specific banks only when their flag is set.
+	add_role(idle_base, "Idle", idle_frames, false, true, false);
+	add_role(walk_base, "Walk", walk_frames, false, false, false);
+	add_role(attack_base, "Attack", 0, true, false, true);
+	if (has_jump)
+	{
+		add_role(jump_base, "Jump", 1, false, false, false);
+	}
+	if (has_damage)
+	{
+		add_role(dmg_base, "Damage", 1, false, false, false);
+	}
+
+	// "Full animation" (extended set) sprites drive several extra banks directly from the player
+	// code (gamelogic4.asm) rather than through UpdateSpriteFrame, so they never show up in the
+	// flag-derived roles above. They sit, in order, after the auto-detected banks. Climb is a
+	// single slot with no SW bank, which offsets the NE/SW pairing, so each name carries its own
+	// facing rather than relying on ordinal parity.
+	static const char* const kFullAnimExtraRoles[] = {
+		"Pick up NE", "Pick up SW",
+		"Carry NE", "Carry SW",
+		"Jump+Carry NE", "Jump+Carry SW",
+		"Throw NE", "Throw SW",
+		"Climb NE",
+		"Damage+Faint NE", "Damage+Faint SW",
+	};
+	constexpr int kFullAnimExtraCount = static_cast<int>(sizeof(kFullAnimExtraRoles) / sizeof(kFullAnimExtraRoles[0]));
+
+	roles.resize(count);
+	int no_role_seq = 0;   // running index over slots with no flag-derived role
+	int extra_num = 0;     // running number for genuinely-uncategorised "Extra" slots
+	for (int o = 0; o < count; ++o)
+	{
+		Slot& s = slots[o];
+		// A slot holding a dedicated idle belongs to a non-combat sprite that never reaches the
+		// attack handler, so idle wins the shared idle/attack bank rather than mislabelling it.
+		if (s.has_idle && s.has_attack)
+		{
+			s.names.erase(std::remove(s.names.begin(), s.names.end(), std::string("Attack")), s.names.end());
+		}
+		AnimationRole& role = roles[o];
+		if (!s.names.empty())
+		{
+			role.unused = false;
+			role.expected_frames = s.expected;
+			// A shared idle/walk bank legitimately holds just the idle frames, so treat any count
+			// down to the idle length as fine and only warn on a genuinely short walk/action.
+			role.min_ok_frames = s.has_idle ? idle_frames : 0;
+			std::string joined;
+			for (std::size_t i = 0; i < s.names.size(); ++i)
+			{
+				joined += (i ? "/" : "") + s.names[i];
+			}
+			role.label = joined + ((o % 2 == 0) ? " NE" : " SW");
+			continue;
+		}
+
+		const int k = no_role_seq++;
+		role.expected_frames = 0;
+		role.min_ok_frames = 0;
+		if (ext && k < kFullAnimExtraCount)
+		{
+			// Named extra bank - these are called directly from code, so treat them as known.
+			role.unused = false;
+			role.label = kFullAnimExtraRoles[k];
+		}
+		else
+		{
+			// Genuinely uncategorised bank, also reached only by direct calls from code.
+			role.unused = true;
+			role.label = "Extra " + std::to_string(++extra_num);
+		}
+	}
+	return roles;
+}
+
 std::wstring SpriteData::GetSpriteAnimationDisplayName(uint8_t id, const std::string& name) const
 {
 	const auto& anims = m_animations.at(id);
 	int anim_id = static_cast<int>(std::distance(anims.cbegin(), std::find(anims.cbegin(), anims.cend(), name)));
-	return Labels::Get(Labels::C_SPRITE_ANIMATIONS, (id << 8) | anim_id).value_or(std::wstring(name.cbegin(), name.cend()));
+	std::wstring base = Labels::Get(Labels::C_SPRITE_ANIMATIONS, (id << 8) | anim_id).value_or(std::wstring(name.cbegin(), name.cend()));
+
+	const auto roles = ComputeSpriteAnimationRoles(id);
+	if (anim_id >= 0 && anim_id < static_cast<int>(roles.size()))
+	{
+		const AnimationRole& role = roles[anim_id];
+		base += L" [" + std::wstring(role.label.cbegin(), role.label.cend()) + L"]";
+		if (!role.unused && role.expected_frames > 0)
+		{
+			const int actual = static_cast<int>(GetSpriteAnimationFrameCount(id, static_cast<uint8_t>(anim_id)));
+			if (actual < role.expected_frames && actual > role.min_ok_frames)
+			{
+				base += L" (missing: expects " + std::to_wstring(role.expected_frames) + L", has "
+					+ std::to_wstring(actual) + L")";
+			}
+		}
+	}
+	return base;
+}
+
+std::wstring SpriteData::GetSpriteAnimationFrameDisplayName(uint8_t id, uint8_t anim_id, int frame_pos, const std::string& name) const
+{
+	std::wstring base = GetSpriteFrameDisplayName(id, name);
+
+	const auto roles = ComputeSpriteAnimationRoles(id);
+	if (anim_id >= roles.size())
+	{
+		return base;
+	}
+	const AnimationRole& role = roles[anim_id];
+
+	std::wstring tag;
+	if (role.unused)
+	{
+		// Whole slot is an uncategorised extra animation - number its frames from 1.
+		tag = L"Extra " + std::to_wstring(frame_pos + 1);
+	}
+	else if (role.expected_frames > 0 && frame_pos >= role.expected_frames)
+	{
+		// Extra frame beyond what a known action plays.
+		tag = L"Unused " + std::to_wstring(frame_pos - role.expected_frames + 1);
+	}
+	else
+	{
+		tag = std::wstring(role.label.cbegin(), role.label.cend()) + L" " + std::to_wstring(frame_pos + 1);
+	}
+	return base + L" [" + tag + L"]";
 }
 
 std::wstring SpriteData::GetSpriteFrameDisplayName(uint8_t id, const std::string& name) const
@@ -604,6 +784,77 @@ std::string SpriteData::GetSpriteMetadataYaml(uint8_t id) const
 	}
 	out << YAML::EndMap << YAML::EndMap;
 	return std::string(out.c_str());
+}
+
+SpriteData::SpriteSheet SpriteData::MakeSpriteSheet(uint8_t id, int columns) const
+{
+	SpriteSheet sheet;
+	if (!IsSprite(id))
+	{
+		throw std::runtime_error("Sprite ID does not exist");
+	}
+
+	// The same deduplicated frame ordering GetSpriteMetadata() indexes, so the sheet cells line up
+	// with the frame indices its YAML records for each animation.
+	std::set<std::string> included_frames;
+	std::vector<std::string> frame_names;
+	for (const auto& anim_name : m_animations.at(id))
+	{
+		for (const auto& frame_name : m_animation_frames.at(anim_name))
+		{
+			if (included_frames.count(frame_name) > 0)
+			{
+				continue;
+			}
+			included_frames.insert(frame_name);
+			frame_names.push_back(frame_name);
+		}
+	}
+	if (frame_names.empty())
+	{
+		return sheet;
+	}
+
+	Rect bounding_box;
+	for (const auto& frame_name : frame_names)
+	{
+		bounding_box = bounding_box.GetUnion(m_frames.at(frame_name)->GetData()->GetBoundingBox());
+	}
+	sheet.cell_width = bounding_box.GetWidth();
+	sheet.cell_height = bounding_box.GetHeight();
+	sheet.origin = Point(-bounding_box.GetLeft(), -bounding_box.GetTop());
+	sheet.frame_count = static_cast<unsigned int>(frame_names.size());
+
+	const int count = static_cast<int>(frame_names.size());
+	int cols = columns;
+	if (cols <= 0)
+	{
+		// Smallest square that holds every frame: ceil(sqrt(count)).
+		cols = 1;
+		while (cols * cols < count)
+		{
+			++cols;
+		}
+	}
+	// Never wider than the frames we have, so a small sprite is not padded with blank columns.
+	cols = std::min(cols, count);
+	const int rows = (count + cols - 1) / cols;
+	sheet.columns = cols;
+	sheet.rows = rows;
+
+	sheet.image = ImageBuffer(static_cast<std::size_t>(cols) * sheet.cell_width,
+		static_cast<std::size_t>(rows) * sheet.cell_height);
+	for (int i = 0; i < count; ++i)
+	{
+		const int col = i % cols;
+		const int row = i / cols;
+		const auto frame = m_frames.at(frame_names[i])->GetData();
+		// Drawing each frame at the shared origin (rather than its own top-left) is what aligns the
+		// cells, since the origin sits at the same spot in every cell.
+		sheet.image.InsertSprite(col * sheet.cell_width + sheet.origin.x,
+			row * sheet.cell_height + sheet.origin.y, 0, *frame);
+	}
+	return sheet;
 }
 
 SpriteData::EntityMetadata SpriteData::GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const

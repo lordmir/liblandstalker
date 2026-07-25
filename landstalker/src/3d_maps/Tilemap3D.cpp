@@ -210,35 +210,24 @@ uint16_t Tilemap3D::GetSize() const
 
 void Tilemap3D::Resize(uint8_t w, uint8_t h)
 {
+    // Copy the overlapping region with the correct source stride (the old
+    // width) and zero-fill the rest. Written as an indexed copy to avoid the
+    // past-the-end source iterator the previous version produced when height
+    // grew while width shrank.
     const std::vector<uint16_t> old_bg = background;
     const std::vector<uint16_t> old_fg = foreground;
 
-    background.resize(w * h);
-    foreground.resize(w * h);
-    
-    auto obit = old_bg.cbegin();
-    auto ofit = old_fg.cbegin();
-    auto nbit = background.begin();
-    auto nfit = foreground.begin();
-    for (int i = 0; i < h; ++i)
+    background.assign(static_cast<std::size_t>(w) * h, 0);
+    foreground.assign(static_cast<std::size_t>(w) * h, 0);
+
+    const int copy_w = std::min<int>(w, width);
+    const int copy_h = std::min<int>(h, height);
+    for (int y = 0; y < copy_h; ++y)
     {
-        for (int j = 0; j < w; j++)
+        for (int x = 0; x < copy_w; ++x)
         {
-            if ((i < height) && (j < width))
-            {
-                *nbit++ = *obit++;
-                *nfit++ = *ofit++;
-            }
-            else
-            {
-                *nbit++ = 0;
-                *nfit++ = 0;
-            }
-        }
-        if (w < width)
-        {
-            obit += width - w;
-            ofit += width - w;
+            background[y * w + x] = old_bg[y * width + x];
+            foreground[y * w + x] = old_fg[y * width + x];
         }
     }
 
@@ -248,28 +237,21 @@ void Tilemap3D::Resize(uint8_t w, uint8_t h)
 
 void Tilemap3D::ResizeHeightmap(uint8_t w, uint8_t h)
 {
+    // Copy the overlapping region with the correct source stride (the old
+    // heightmap width) and fill the rest with the cleared-cell value. The
+    // previous iterator-walking version advanced the source by the tilemap
+    // width instead of hmwidth, corrupting the map on a width shrink, and could
+    // step past the source end when height grew while width shrank.
     const std::vector<uint16_t> old_hm = heightmap;
+    heightmap.assign(static_cast<std::size_t>(w) * h, 0x4000);
 
-    heightmap.resize(w * h);
-
-    auto ohit = old_hm.cbegin();
-    auto nhit = heightmap.begin();
-    for (int i = 0; i < h; ++i)
+    const int copy_w = std::min<int>(w, hmwidth);
+    const int copy_h = std::min<int>(h, hmheight);
+    for (int y = 0; y < copy_h; ++y)
     {
-        for (int j = 0; j < w; j++)
+        for (int x = 0; x < copy_w; ++x)
         {
-            if ((i < hmheight) && (j < hmwidth))
-            {
-                *nhit++ = *ohit++;
-            }
-            else
-            {
-                *nhit++ = 0x4000;
-            }
-        }
-        if (w < hmwidth)
-        {
-            ohit += width - w;
+            heightmap[y * w + x] = old_hm[y * hmwidth + x];
         }
     }
 
@@ -328,6 +310,54 @@ void Tilemap3D::InsertHeightmapRow(uint8_t before)
                     dst[y * hmwidth + x] = src[y * (hmwidth - 1) + x - 1];
                 }
             }
+        }
+    }
+}
+
+void Tilemap3D::InsertHeightmapRowAt(uint8_t at)
+{
+    if (hmwidth >= 64)
+    {
+        return;
+    }
+    if (at > hmwidth)
+    {
+        at = hmwidth;
+    }
+    const std::vector<uint16_t> orig = heightmap;
+    const int old_w = hmwidth;
+    hmwidth += 1;
+    heightmap.assign(static_cast<std::size_t>(hmwidth) * hmheight, 0x4000);
+    for (int y = 0; y < hmheight; ++y)
+    {
+        for (int x = 0; x < old_w; ++x)
+        {
+            const int dst_x = x < at ? x : x + 1;
+            heightmap[y * hmwidth + dst_x] = orig[y * old_w + x];
+        }
+    }
+}
+
+void Tilemap3D::InsertHeightmapColumnAt(uint8_t at)
+{
+    if (hmheight >= 64)
+    {
+        return;
+    }
+    if (at > hmheight)
+    {
+        at = hmheight;
+    }
+    const std::vector<uint16_t> orig = heightmap;
+    const int old_h = hmheight;
+    hmheight += 1;
+    heightmap.assign(static_cast<std::size_t>(hmwidth) * hmheight, 0x4000);
+    for (int y = 0; y < old_h; ++y)
+    {
+        const int dst_y = y < at ? y : y + 1;
+        for (int x = 0; x < hmwidth; ++x)
+        {
+            heightmap[dst_y * hmwidth + x] = orig[y * hmwidth + x];
         }
     }
 }
@@ -431,6 +461,54 @@ void Tilemap3D::InsertTilemapColumn(int col)
     }
 }
 
+void Tilemap3D::InsertTilemapRowAt(int at)
+{
+    if (width >= 64)
+    {
+        return;
+    }
+    at = std::clamp(at, 0, static_cast<int>(width));
+    const std::vector<uint16_t> orig_fg = foreground;
+    const std::vector<uint16_t> orig_bg = background;
+    const int old_w = width;
+    width += 1;
+    foreground.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    background.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < old_w; ++x)
+        {
+            const int dst_x = x < at ? x : x + 1;
+            foreground[y * width + dst_x] = orig_fg[y * old_w + x];
+            background[y * width + dst_x] = orig_bg[y * old_w + x];
+        }
+    }
+}
+
+void Tilemap3D::InsertTilemapColumnAt(int at)
+{
+    if (height >= 64)
+    {
+        return;
+    }
+    at = std::clamp(at, 0, static_cast<int>(height));
+    const std::vector<uint16_t> orig_fg = foreground;
+    const std::vector<uint16_t> orig_bg = background;
+    const int old_h = height;
+    height += 1;
+    foreground.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    background.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    for (int y = 0; y < old_h; ++y)
+    {
+        const int dst_y = y < at ? y : y + 1;
+        for (int x = 0; x < width; ++x)
+        {
+            foreground[dst_y * width + x] = orig_fg[y * width + x];
+            background[dst_y * width + x] = orig_bg[y * width + x];
+        }
+    }
+}
+
 void Tilemap3D::DeleteTilemapRow(int row)
 {
     if (row < width && width > 1)
@@ -439,6 +517,7 @@ void Tilemap3D::DeleteTilemapRow(int row)
         std::vector<uint16_t> orig_bg = background;
         width -= 1;
         foreground.resize(width * height);
+        background.resize(width * height);
         const uint16_t* fg_src = orig_fg.data();
         uint16_t* fg_dst = foreground.data();
         const uint16_t* bg_src = orig_bg.data();

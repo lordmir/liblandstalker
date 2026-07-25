@@ -127,11 +127,20 @@ public:
     void ResizeHeightmap(uint8_t w, uint8_t h);
     void InsertHeightmapRow(uint8_t before);
     void InsertHeightmapColumn(uint8_t before);
+    // Insert a blank line at an arbitrary index in [0, dimension]. Unlike the
+    // legacy InsertHeightmapRow/Column above (which duplicate the line at
+    // `before` and cannot target index 0), these insert an empty line at `at`,
+    // shifting existing lines at/after `at` one step, and accept `at == size`
+    // to append. "Row" indexes the x extent (width), "Column" the y extent.
+    void InsertHeightmapRowAt(uint8_t at);
+    void InsertHeightmapColumnAt(uint8_t at);
     void DeleteHeightmapRow(uint8_t row);
     void DeleteHeightmapColumn(uint8_t col);
     void ClearTilemap();
     void InsertTilemapRow(int row);
     void InsertTilemapColumn(int col);
+    void InsertTilemapRowAt(int at);
+    void InsertTilemapColumnAt(int at);
     void DeleteTilemapRow(int row);
     void DeleteTilemapColumn(int col);
     void SetLeft(uint8_t left);
