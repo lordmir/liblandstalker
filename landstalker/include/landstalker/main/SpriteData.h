@@ -111,7 +111,7 @@ public:
 		Point origin;
 		AnimationFlags animation_flags;
 		Hitbox hitbox;
-		unsigned int volume;
+		unsigned int max_tile_count;
 		std::vector<int> compressed_frames;
 		std::map<std::string, std::vector<int>> animations;
 	};
@@ -167,8 +167,26 @@ public:
 	};
 	// columns <= 0 chooses a square-ish grid.
 	SpriteSheet MakeSpriteSheet(uint8_t id, int columns = 0) const;
+
+	// The palette the editor shows this sprite with: the first entity that uses it supplies the
+	// palette, otherwise the default sprite palette. Matches the sprite/entity preview panes.
+	std::shared_ptr<Palette> GetSpriteDisplayPalette(uint8_t id) const;
+
+	enum class SpriteSheetResult { Written, NoFrames, ImageWriteFailed, MetadataWriteFailed };
+	// Writes sprite `id`'s uniform-cell sheet (MakeSpriteSheet, `columns` per row) to png_path using
+	// `palettes`, and a sibling .yaml holding `prefix_yaml` (e.g. entity metadata; may be empty), the
+	// sprite metadata, and the sheet's grid layout so a frame index maps to a cell row-major.
+	SpriteSheetResult WriteSpriteSheet(uint8_t id, const std::filesystem::path& png_path,
+		const std::vector<std::shared_ptr<Palette>>& palettes, int columns = 8,
+		const std::string& prefix_yaml = std::string()) const;
+
 	EntityMetadata GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const;
 	std::string GetEntityMetadataYaml(uint8_t id, std::shared_ptr<StringData> sd) const;
+	// Applies the metadata (palettes, talk sound, item properties, enemy stats) from a
+	// GetEntityMetadataYaml() block to an existing entity. The YAML may hold several top-level
+	// blocks (as the sprite-sheet export writes) - the one carrying "entity_id" is used. Only the
+	// fields present are changed. Returns false if the entity does not exist or no block parsed.
+	bool ApplyEntityMetadataYaml(uint8_t id, const std::string& yaml_data, std::shared_ptr<StringData> sd);
 
 	// The sprite graphics id is a byte, and the animation offset table the game indexes is
 	// dense from 0, so sprites can be appended, moved or removed but never left with a gap.
@@ -183,7 +201,7 @@ public:
 	// name is unusable or the id space is full.
 	std::optional<uint8_t> AddSprite(const std::string& name);
 	bool RenameSprite(uint8_t id, const std::string& new_name);
-	// Exchanges the content of two sprite ids - each sprite's animations, frames, volume,
+	// Exchanges the content of two sprite ids - each sprite's animations, frames, max tile count,
 	// dimensions, flags and labels - while leaving the entity-to-sprite lookup untouched, so
 	// the two sprites swap places in every entity that draws them. This "move by content" is
 	// deliberately unlike a reference-renumbering reorder. Note that the disassembly's SpriteB_
@@ -202,6 +220,12 @@ public:
 	// Returns the new id, or nullopt on any failure (bad name, unreadable frames, full).
 	std::optional<uint8_t> ImportSprite(const std::string& new_name, const std::string& yaml_data,
 		const std::filesystem::path& frame_dir);
+
+	// Applies the metadata (max tile count, hitbox, animation flags) from a GetSpriteMetadataYaml() block to
+	// an existing sprite, leaving its frames and animations untouched. The YAML may hold several
+	// top-level blocks (as the sprite-sheet export writes) - the one carrying "sprite_id" is used.
+	// Returns false if the sprite does not exist or no sprite block could be parsed.
+	bool ApplySpriteMetadataYaml(uint8_t id, const std::string& yaml_data);
 
 	// --- Entity management ---
 	// An entity is a {type -> sprite graphics} entry the game resolves by a linear search, so
@@ -286,8 +310,10 @@ public:
 	std::vector<std::string> GetSpriteAnimationFrames(const std::string& name, uint8_t anim_id) const;
 	AnimationFlags GetSpriteAnimationFlags(uint8_t id) const;
 	void SetSpriteAnimationFlags(uint8_t id, const AnimationFlags& flags);
-	uint16_t GetSpriteVolume(uint8_t id) const;
-	void SetSpriteVolume(uint8_t id, uint16_t val);
+	// The number of VRAM tiles reserved for the sprite: it must be at least the tile count of the
+	// sprite's largest frame. Stored raw (not a fractional unit).
+	uint16_t GetSpriteMaxTileCount(uint8_t id) const;
+	void SetSpriteMaxTileCount(uint8_t id, uint16_t val);
 
 	std::vector<Entity> GetRoomEntities(uint16_t room) const;
 	void SetRoomEntities(uint16_t room, const std::vector<Entity>& entities);
@@ -448,8 +474,8 @@ private:
 	std::map<std::string, uint8_t> m_ids;
 	std::map<uint8_t, std::set<std::string>> m_sprite_frames;
 
-	std::map<uint8_t, uint16_t> m_sprite_volume;
-	std::map<uint8_t, uint16_t> m_sprite_volume_orig;
+	std::map<uint8_t, uint16_t> m_sprite_max_tile_count;
+	std::map<uint8_t, uint16_t> m_sprite_max_tile_count_orig;
 	std::map<uint8_t, std::vector<std::string>> m_animations;
 	std::map<uint8_t, std::vector<std::string>> m_animations_orig;
 	std::map<std::string, std::vector<std::string>> m_animation_frames;
