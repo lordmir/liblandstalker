@@ -236,20 +236,6 @@ public:
 		NoFrames,       // frame_count resolved to zero
 		IdSpaceFull     // no free sprite id
 	};
-	// Recreates a sprite from the PNG + sibling YAML pair WriteSpriteSheet produces. The YAML's
-	// "spritesheet" block supplies the grid geometry and the shared origin; each cell is cut into a
-	// frame whose pixels are placed relative to that origin, snapped to the 8px tile grid. The PNG
-	// must be colour-indexed, sized exactly columns*cell_width x rows*cell_height, with every pixel
-	// index in 0..15. Frames are named <new_name>Frame%02u, animations <new_name>Anim%02u. Returns
-	// the new id, or nullopt with `result` set to the reason on failure.
-	std::optional<uint8_t> ImportSpriteSheet(const std::string& new_name,
-		const std::filesystem::path& yaml_path, SpriteSheetImportResult& result);
-	// As ImportSpriteSheet, but overwrites an existing sprite in place: its frames, animations and
-	// metadata are replaced from the sheet while its id, internal name, display label and entity
-	// links are kept. Returns false with `result` set on failure (the sprite is left untouched).
-	bool ImportSpriteSheetIntoExisting(uint8_t id, const std::filesystem::path& yaml_path,
-		SpriteSheetImportResult& result);
-
 	// Appends a new sprite built from an already-decoded indexed image plus explicit grid geometry
 	// (rather than a YAML): `pixels` is row-major one index per pixel, `img_width` x `img_height`;
 	// the first `frame_count` cells of a cell_width x cell_height grid (row-major) each become a
@@ -372,6 +358,11 @@ public:
 	std::shared_ptr<SpriteFrameEntry> GetSpriteFrame(uint8_t id, uint8_t frame) const;
 	std::shared_ptr<SpriteFrameEntry> GetSpriteFrame(uint8_t id, uint8_t anim, uint8_t frame) const;
 	std::shared_ptr<SpriteFrameEntry> GetSpriteFrame(const std::string& anim_name, uint8_t frame) const;
+	// Computes the minimum-waste subsprite layout for the named frame (the same cover the sheet
+	// import uses, capped at 6 subsprites) from its current pixels. Returns nullopt if the frame does
+	// not exist, is empty, or cannot be covered within the cap. The frame itself is left untouched -
+	// the caller applies the layout (e.g. through the editor, so the change is undoable).
+	std::optional<std::vector<SpriteFrame::SubSprite>> ComputeOptimalSubsprites(const std::string& frame_name);
 	uint32_t GetSpriteAnimationFrameCount(uint8_t id, uint8_t anim_id) const;
 	uint32_t GetSpriteAnimationFrameCount(const std::string& name) const;
 	std::vector<std::string> GetSpriteAnimationFrames(uint8_t id, uint8_t anim_id) const;
@@ -470,10 +461,6 @@ private:
 		bool has_flags = false;
 		AnimationFlags flags;
 	};
-	// Reads and validates the PNG+YAML pair into `out`. Sets `result` and returns false on any
-	// problem; mutates nothing so a failed read leaves game data untouched.
-	bool ReadSpriteSheetContent(const std::filesystem::path& yaml_path, SpriteSheetContent& out,
-		SpriteSheetImportResult& result) const;
 	// Builds frames (<prefix>Frame%02u), animations (<prefix>Anim%02u) and metadata onto sprite
 	// `id`, whose frame and animation lists must already be empty.
 	void PopulateSpriteFromSheet(uint8_t id, const std::string& prefix, const SpriteSheetContent& content);

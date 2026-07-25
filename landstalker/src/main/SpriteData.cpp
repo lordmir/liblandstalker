@@ -5,6 +5,7 @@
 #include <queue>
 #include <cmath>
 #include <fstream>
+#include <functional>
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
 #include <landstalker/misc/Literals.h>
@@ -1616,11 +1617,195 @@ namespace
 		return YAML::Node(YAML::NodeType::Undefined);
 	}
 
+	// The subsprite budget the packer aims for. The hardware allows 8 (SpriteFrame::MAX_SUBSPRITES),
+	// but a sprite has a shared subsprite pool as well as a tile pool, so imports and the optimiser
+	// leave headroom by targeting 6 per frame.
+	constexpr std::size_t IMPORT_MAX_SUBSPRITES = 6;
+
+	// A rectangle of tiles in a frame's tile grid: top-left (r0, c0) and size (h, w), all in tiles.
+	struct CellRect { int r0; int c0; int h; int w; };
+
+	// Exact branch-and-bound cover of the filled tiles: at most MAX_SUBSPRITES non-overlapping
+	// rectangles, each at most 4x4 tiles, that together cover every filled tile while minimising
+	// (total area, rectangle count) lexicographically. Because the rectangles never overlap, total
+	// area == filled + empty-covered, so minimising area is exactly "waste as few blank tiles as
+	// possible" - the subsprite packing the hardware wants. Fills `out` and returns true on success;
+	// returns false when no cover fits the caps, or when the search is abandoned after a node budget
+	// (the caller then falls back to a plain 4x4 tiling). Mirrors the reference segmentiser.
+	bool SegmentizeFilledCells(const std::vector<std::vector<uint8_t>>& cells, std::vector<CellRect>& out)
+	{
+		const int n_rows = static_cast<int>(cells.size());
+		const int n_cols = n_rows ? static_cast<int>(cells[0].size()) : 0;
+		constexpr int MAX_DIM = 4;
+		const int max_seg = static_cast<int>(IMPORT_MAX_SUBSPRITES);
+
+		std::vector<std::pair<int, int>> filled;
+		for (int r = 0; r < n_rows; ++r)
+		{
+			for (int c = 0; c < n_cols; ++c)
+			{
+				if (cells[r][c])
+				{
+					filled.emplace_back(r, c);
+				}
+			}
+		}
+		if (filled.empty())
+		{
+			out = { CellRect{ 0, 0, 1, 1 } };
+			return true;
+		}
+
+		std::vector<std::vector<char>> covered(n_rows, std::vector<char>(n_cols, 0));
+		std::vector<CellRect> placed;
+		bool have_best = false;
+		int best_area = 0;
+		int best_count = 0;
+		std::vector<CellRect> best;
+		long nodes = 0;
+		const long node_budget = 500000;
+		bool aborted = false;
+
+		std::function<void(int)> search = [&](int area)
+		{
+			if (aborted)
+			{
+				return;
+			}
+			if (++nodes > node_budget)
+			{
+				aborted = true;
+				return;
+			}
+			// The first uncovered filled tile in row-major order fixes the next rectangle's top edge.
+			int pr = -1, pc = -1;
+			for (int r = 0; r < n_rows && pr < 0; ++r)
+			{
+				for (int c = 0; c < n_cols; ++c)
+				{
+					if (cells[r][c] && !covered[r][c])
+					{
+						pr = r;
+						pc = c;
+						break;
+					}
+				}
+			}
+			if (pr < 0)
+			{
+				const int count = static_cast<int>(placed.size());
+				if (!have_best || area < best_area || (area == best_area && count < best_count))
+				{
+					have_best = true;
+					best_area = area;
+					best_count = count;
+					best = placed;
+				}
+				return;
+			}
+			if (static_cast<int>(placed.size()) >= max_seg)
+			{
+				return;
+			}
+			// Admissible lower bounds: every uncovered tile needs at least one more covered cell, and
+			// at least ceil(uncovered / 16) more rectangles. Prune when even that cannot beat the best.
+			int uncovered = 0;
+			for (const auto& f : filled)
+			{
+				if (!covered[f.first][f.second])
+				{
+					++uncovered;
+				}
+			}
+			const int area_lb = area + uncovered;
+			const int count_lb = static_cast<int>(placed.size()) +
+				(uncovered + MAX_DIM * MAX_DIM - 1) / (MAX_DIM * MAX_DIM);
+			if (have_best && (area_lb > best_area || (area_lb == best_area && count_lb >= best_count)))
+			{
+				return;
+			}
+
+			for (int h = 1; h <= MAX_DIM; ++h)
+			{
+				if (pr + h > n_rows)
+				{
+					break;
+				}
+				for (int w = 1; w <= MAX_DIM; ++w)
+				{
+					// The top edge is pinned to the pivot's row, but columns may start left of it to
+					// catch filled tiles in the rectangle's lower rows.
+					for (int c0 = std::max(0, pc - w + 1); c0 <= pc; ++c0)
+					{
+						if (c0 + w > n_cols)
+						{
+							continue;
+						}
+						bool overlap = false;
+						int fill = 0;
+						for (int dr = 0; dr < h && !overlap; ++dr)
+						{
+							for (int dc = 0; dc < w; ++dc)
+							{
+								if (covered[pr + dr][c0 + dc])
+								{
+									overlap = true;
+									break;
+								}
+								fill += cells[pr + dr][c0 + dc];
+							}
+						}
+						if (overlap)
+						{
+							continue;
+						}
+						// A rectangle covering a single filled tile is dominated by the 1x1 at the
+						// pivot, so only try 1x1 or rectangles that cover two or more filled tiles.
+						if ((h != 1 || w != 1) && fill < 2)
+						{
+							continue;
+						}
+						for (int dr = 0; dr < h; ++dr)
+						{
+							for (int dc = 0; dc < w; ++dc)
+							{
+								covered[pr + dr][c0 + dc] = 1;
+							}
+						}
+						placed.push_back(CellRect{ pr, c0, h, w });
+						search(area + h * w);
+						placed.pop_back();
+						for (int dr = 0; dr < h; ++dr)
+						{
+							for (int dc = 0; dc < w; ++dc)
+							{
+								covered[pr + dr][c0 + dc] = 0;
+							}
+						}
+						if (aborted)
+						{
+							return;
+						}
+					}
+				}
+			}
+		};
+
+		search(0);
+		if (have_best)
+		{
+			out = best;
+			return true;
+		}
+		return false;
+	}
+
 	// Reconstructs one frame's .frm byte stream from a single cell of the sheet. Cell pixels are read
 	// relative to `origin` (the shared origin the YAML records), so cell-local (origin.x+fx, origin.y+fy)
 	// becomes frame coordinate (fx, fy). The non-transparent content is snapped outward to the 8px tile
-	// grid and split into <=4x4-tile subsprites (column-major tiles, matching InsertSprite). Returns
-	// nullopt if the content needs more than MAX_SUBSPRITES hardware sprites.
+	// grid, then covered by <=4x4-tile subsprites arranged to waste as few blank tiles as possible
+	// (SegmentizeFilledCells), falling back to a plain 4x4 tiling. Tiles run column-major within a
+	// subsprite, matching InsertSprite. Returns nullopt if the content needs more than MAX_SUBSPRITES.
 	std::optional<std::vector<uint8_t>> BuildFrameBitsFromCell(const std::vector<uint8_t>& sheet,
 		std::size_t sheet_w, std::size_t sheet_h, int cell_x0, int cell_y0, int cell_w, int cell_h,
 		const Point& origin)
@@ -1671,22 +1856,59 @@ namespace
 		const int ty1 = floordiv8(maxy - origin.y);
 		const int wt = tx1 - tx0 + 1;
 		const int ht = ty1 - ty0 + 1;
-		const int cols = (wt + 3) / 4;
-		const int rows = (ht + 3) / 4;
-		if (cols * rows > static_cast<int>(SpriteFrame::MAX_SUBSPRITES))
+
+		// Which whole tiles actually hold pixels, so blank interior tiles can be left out of the cover.
+		std::vector<std::vector<uint8_t>> filled(ht, std::vector<uint8_t>(wt, 0));
+		for (int r = 0; r < ht; ++r)
+		{
+			for (int c = 0; c < wt; ++c)
+			{
+				const int base_x = origin.x + (tx0 + c) * 8;
+				const int base_y = origin.y + (ty0 + r) * 8;
+				bool any = false;
+				for (int py = 0; py < 8 && !any; ++py)
+				{
+					for (int pxl = 0; pxl < 8; ++pxl)
+					{
+						if (sample(base_x + pxl, base_y + py) != 0)
+						{
+							any = true;
+							break;
+						}
+					}
+				}
+				filled[r][c] = any ? 1 : 0;
+			}
+		}
+
+		// Prefer the minimum-waste subsprite cover; fall back to a plain 4x4 tiling if the search
+		// cannot fit the caps or is abandoned. Either way, more than 8 subsprites cannot be drawn.
+		std::vector<CellRect> rects;
+		if (!SegmentizeFilledCells(filled, rects))
+		{
+			const int cols = (wt + 3) / 4;
+			const int rows = (ht + 3) / 4;
+			if (static_cast<std::size_t>(cols * rows) > IMPORT_MAX_SUBSPRITES)
+			{
+				return std::nullopt;
+			}
+			rects.clear();
+			for (int by = 0; by < ht; by += 4)
+			{
+				for (int bx = 0; bx < wt; bx += 4)
+				{
+					rects.push_back(CellRect{ by, bx, std::min(4, ht - by), std::min(4, wt - bx) });
+				}
+			}
+		}
+		if (rects.size() > IMPORT_MAX_SUBSPRITES)
 		{
 			return std::nullopt;
 		}
 
-		// Tile the content box with subsprites of at most 4x4 tiles, laid out row-major.
-		for (int by = 0; by < ht; by += 4)
+		for (const auto& rc : rects)
 		{
-			for (int bx = 0; bx < wt; bx += 4)
-			{
-				const int w = std::min(4, wt - bx);
-				const int h = std::min(4, ht - by);
-				subs.emplace_back((tx0 + bx) * 8, (ty0 + by) * 8, w, h);
-			}
+			subs.emplace_back((tx0 + rc.c0) * 8, (ty0 + rc.r0) * 8, rc.w, rc.h);
 		}
 		frame.SetSubSprites(subs); // assigns tile_idx per subsprite and sizes the (zeroed) tileset
 
@@ -1715,6 +1937,69 @@ namespace
 		}
 		return frame.GetBits(false);
 	}
+}
+
+std::optional<std::vector<SpriteFrame::SubSprite>> SpriteData::ComputeOptimalSubsprites(
+	const std::string& frame_name)
+{
+	const auto it = m_frames.find(frame_name);
+	if (it == m_frames.end())
+	{
+		return std::nullopt;
+	}
+	const auto frame = it->second->GetData();
+	const int left = frame->GetLeft();
+	const int top = frame->GetTop();
+	const int w = frame->GetWidth();
+	const int h = frame->GetHeight();
+	if (w <= 0 || h <= 0)
+	{
+		return std::nullopt;
+	}
+
+	// Flatten the frame's current tiles into a raw index buffer (origin at -left,-top), then hand it
+	// to the same reconstruction the sheet import uses so the subsprites are re-packed optimally.
+	std::vector<uint8_t> buf(static_cast<std::size_t>(w) * h, 0);
+	for (const auto& s : frame->GetSubSprites())
+	{
+		std::size_t idx = s.tile_idx;
+		for (std::size_t xi = 0; xi < s.w; ++xi)
+		{
+			for (std::size_t yi = 0; yi < s.h; ++yi)
+			{
+				if (idx < frame->GetTileCount())
+				{
+					const auto& px = frame->GetTilePixels(static_cast<int>(idx));
+					for (int py = 0; py < 8; ++py)
+					{
+						for (int pxl = 0; pxl < 8; ++pxl)
+						{
+							const int bx = s.x + static_cast<int>(xi) * 8 + pxl - left;
+							const int by = s.y + static_cast<int>(yi) * 8 + py - top;
+							if (bx >= 0 && by >= 0 && bx < w && by < h && px[static_cast<std::size_t>(py) * 8 + pxl] != 0)
+							{
+								buf[static_cast<std::size_t>(by) * w + bx] = px[static_cast<std::size_t>(py) * 8 + pxl];
+							}
+						}
+					}
+				}
+				++idx;
+			}
+		}
+	}
+
+	const Point origin{ -left, -top };
+	auto bits = BuildFrameBitsFromCell(buf, static_cast<std::size_t>(w), static_cast<std::size_t>(h),
+		0, 0, w, h, origin);
+	if (!bits)
+	{
+		return std::nullopt;
+	}
+	// Parse the packed layout back into subsprites without disturbing the real frame; the caller
+	// applies them through the editor so the canvas re-derives the tiles and undo can capture it.
+	SpriteFrame packed;
+	packed.SetBits(*bits);
+	return packed.GetSubSprites();
 }
 
 std::optional<uint8_t> SpriteData::ImportSprite(const std::string& new_name, const std::string& yaml_data,
@@ -1857,156 +2142,6 @@ std::optional<uint8_t> SpriteData::ImportSprite(const std::string& new_name, con
 	return std::nullopt;
 }
 
-bool SpriteData::ReadSpriteSheetContent(const std::filesystem::path& yaml_path,
-	SpriteSheetContent& out, SpriteSheetImportResult& result) const
-{
-	if (!std::filesystem::exists(yaml_path))
-	{
-		result = SpriteSheetImportResult::YamlMissing;
-		return false;
-	}
-	try
-	{
-		const auto root = YAML::LoadFile(yaml_path.string());
-		const auto sheet = root["spritesheet"];
-		if (!sheet || !sheet.IsMap())
-		{
-			result = SpriteSheetImportResult::YamlInvalid;
-			return false;
-		}
-		const int columns = sheet["columns"].as<int>(0);
-		const int rows = sheet["rows"].as<int>(0);
-		const int cell_width = sheet["cell_width"].as<int>(0);
-		const int cell_height = sheet["cell_height"].as<int>(0);
-		Point origin;
-		if (sheet["origin"] && sheet["origin"].IsSequence() && sheet["origin"].size() == 2)
-		{
-			origin = Point(sheet["origin"][0].as<int>(0), sheet["origin"][1].as<int>(0));
-		}
-		if (columns <= 0 || rows <= 0 || cell_width <= 0 || cell_height <= 0)
-		{
-			result = SpriteSheetImportResult::YamlInvalid;
-			return false;
-		}
-
-		// The sprite metadata block carries the authoritative frame count (the last grid row may be
-		// partly empty) and the animation lists; fall back to a full grid if it is absent.
-		const auto body = FindMetadataBlock(root, "sprite_id");
-		unsigned int frame_count = 0;
-		if (body && body.IsMap())
-		{
-			frame_count = body["frame_count"].as<unsigned int>(0u);
-		}
-		if (frame_count == 0)
-		{
-			frame_count = static_cast<unsigned int>(columns) * static_cast<unsigned int>(rows);
-		}
-		if (frame_count == 0)
-		{
-			result = SpriteSheetImportResult::NoFrames;
-			return false;
-		}
-
-		// Resolve the image the YAML names, relative to the YAML's own directory.
-		std::filesystem::path png_path = sheet["image"].as<std::string>("");
-		if (png_path.empty())
-		{
-			png_path = std::filesystem::path(yaml_path).replace_extension(".png");
-		}
-		else if (!png_path.is_absolute())
-		{
-			png_path = yaml_path.parent_path() / png_path;
-		}
-		if (!std::filesystem::exists(png_path))
-		{
-			result = SpriteSheetImportResult::PngMissing;
-			return false;
-		}
-
-		const auto image = ImageBuffer::ReadIndexedPNG(png_path.string());
-		if (!image.ok)
-		{
-			result = SpriteSheetImportResult::PngUnreadable;
-			return false;
-		}
-		if (!image.indexed)
-		{
-			result = SpriteSheetImportResult::PngNotIndexed;
-			return false;
-		}
-		if (image.width != static_cast<std::size_t>(columns) * cell_width ||
-			image.height != static_cast<std::size_t>(rows) * cell_height)
-		{
-			result = SpriteSheetImportResult::PngWrongSize;
-			return false;
-		}
-		if (image.max_index > 15)
-		{
-			result = SpriteSheetImportResult::PngBadColour;
-			return false;
-		}
-
-		// Cut every cell into a frame up front, so a too-complex cell aborts before anything is
-		// touched rather than leaving a half-built sprite behind. Row-major, matching the export.
-		out.frame_bytes.clear();
-		out.frame_bytes.reserve(frame_count);
-		for (unsigned int i = 0; i < frame_count; ++i)
-		{
-			const int col = static_cast<int>(i % static_cast<unsigned int>(columns));
-			const int row = static_cast<int>(i / static_cast<unsigned int>(columns));
-			auto bits = BuildFrameBitsFromCell(image.pixels, image.width, image.height,
-				col * cell_width, row * cell_height, cell_width, cell_height, origin);
-			if (!bits)
-			{
-				result = SpriteSheetImportResult::FrameTooComplex;
-				return false;
-			}
-			out.frame_bytes.push_back(std::move(*bits));
-		}
-
-		// Animation frame-index lists, straight from the metadata block (may be absent).
-		out.animations.clear();
-		if (body && body.IsMap() && body["animations"])
-		{
-			for (const auto& anim : body["animations"])
-			{
-				std::vector<int> indices;
-				for (const auto& idx : anim.second)
-				{
-					indices.push_back(idx.as<int>(-1));
-				}
-				out.animations.push_back(std::move(indices));
-			}
-		}
-
-		out.max_tile_count = (body && body.IsMap()) ? body["max_tile_count"].as<uint16_t>(0) : 0;
-		out.has_hitbox = false;
-		if (body && body.IsMap() && body["hitbox"] && body["hitbox"].IsMap())
-		{
-			const auto hitbox = body["hitbox"];
-			out.has_hitbox = true;
-			out.hitbox_base = static_cast<uint8_t>(std::lround(hitbox["base"].as<double>(0.0) * 8.0));
-			out.hitbox_height = static_cast<uint8_t>(std::lround(hitbox["height"].as<double>(0.0) * 16.0));
-		}
-		out.has_flags = false;
-		if (body && body.IsMap() && body["animation_flags"] && body["animation_flags"].IsMap())
-		{
-			const auto af = ParseAnimationFlags(body["animation_flags"]);
-			if (!af.IsDefault())
-			{
-				out.has_flags = true;
-				out.flags = af;
-			}
-		}
-		return true;
-	}
-	catch (const std::exception&)
-	{
-	}
-	result = SpriteSheetImportResult::YamlInvalid;
-	return false;
-}
-
 void SpriteData::PopulateSpriteFromSheet(uint8_t id, const std::string& prefix,
 	const SpriteSheetContent& content)
 {
@@ -2079,66 +2214,6 @@ void SpriteData::PopulateSpriteFromSheet(uint8_t id, const std::string& prefix,
 	{
 		m_sprite_animation_flags[id] = content.flags;
 	}
-}
-
-std::optional<uint8_t> SpriteData::ImportSpriteSheet(const std::string& new_name,
-	const std::filesystem::path& yaml_path, SpriteSheetImportResult& result)
-{
-	result = SpriteSheetImportResult::YamlInvalid;
-	if (!IsValidSpriteName(new_name) || IsSpriteNameInUse(new_name))
-	{
-		result = SpriteSheetImportResult::BadName;
-		return std::nullopt;
-	}
-	SpriteSheetContent content;
-	if (!ReadSpriteSheetContent(yaml_path, content, result))
-	{
-		return std::nullopt;
-	}
-	if (m_animations.size() >= MAX_SPRITES)
-	{
-		result = SpriteSheetImportResult::IdSpaceFull;
-		return std::nullopt;
-	}
-	const auto new_sprite = static_cast<uint8_t>(m_animations.size());
-	m_names[new_sprite] = new_name;
-	m_ids[new_name] = new_sprite;
-	m_animations[new_sprite] = {};
-	m_sprite_frames[new_sprite] = {};
-	PopulateSpriteFromSheet(new_sprite, new_name, content);
-	result = SpriteSheetImportResult::Success;
-	return new_sprite;
-}
-
-bool SpriteData::ImportSpriteSheetIntoExisting(uint8_t id, const std::filesystem::path& yaml_path,
-	SpriteSheetImportResult& result)
-{
-	result = SpriteSheetImportResult::YamlInvalid;
-	if (!IsSprite(id))
-	{
-		result = SpriteSheetImportResult::BadName;
-		return false;
-	}
-	SpriteSheetContent content;
-	if (!ReadSpriteSheetContent(yaml_path, content, result))
-	{
-		return false;
-	}
-	// Tear the sprite's current frames and animations down, then rebuild from the sheet. Its id,
-	// internal name, display label and entity links are all keyed elsewhere and left untouched.
-	for (const auto& frame_name : m_sprite_frames[id])
-	{
-		m_frames.erase(frame_name);
-	}
-	m_sprite_frames[id].clear();
-	for (const auto& anim_name : m_animations[id])
-	{
-		m_animation_frames.erase(anim_name);
-	}
-	m_animations[id].clear();
-	PopulateSpriteFromSheet(id, GetSpriteName(id), content);
-	result = SpriteSheetImportResult::Success;
-	return true;
 }
 
 bool SpriteData::ReadSpriteSheetInfo(const std::filesystem::path& yaml_path, SpriteSheetInfo& out)

@@ -277,8 +277,16 @@ ImageBuffer::IndexedImage ImageBuffer::ReadIndexedPNG(const std::string& filenam
     png_set_sig_bytes(png, 8);
     png_read_info(png, info);
     png_uint_32 w = 0, h = 0;
-    int bit_depth = 0, colour_type = 0;
-    png_get_IHDR(png, info, &w, &h, &bit_depth, &colour_type, nullptr, nullptr, nullptr);
+    int bit_depth = 0, colour_type = 0, interlace_type = 0;
+    png_get_IHDR(png, info, &w, &h, &bit_depth, &colour_type, &interlace_type, nullptr, nullptr);
+    if (interlace_type != PNG_INTERLACE_NONE)
+    {
+        // The row reader below expects a single non-interlaced pass; rather than mis-decode an
+        // interlaced image (we never set up interlace handling), reject it as unreadable.
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return out;
+    }
     out.width = w;
     out.height = h;
     out.ok = true;
