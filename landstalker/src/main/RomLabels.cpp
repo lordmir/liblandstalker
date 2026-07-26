@@ -96,6 +96,20 @@ namespace RomLabels
 		const std::string ENEMY_STATS("EnemyStats");
 		const std::string ROOM_SPRITE_TABLE("RoomSpriteTable");
 
+		const std::string INVENTORY_ITEMS("InventoryItems");
+		const std::string INVENTORY_ITEMS_SECTION("InventoryItemsSection");
+		const std::string EQUIP_INVENTORY_LAYOUT("EquipInventoryLayout");
+		const std::string EQUIP_INVENTORY_LAYOUT_SECTION("EquipInventoryLayoutSection");
+		const std::string INPUT_PLAYBACK("InputPlayback");
+		const std::string INPUT_PLAYBACK_SECTION("InputPlaybackSection");
+		const std::string FRIDAY_ANIMATION_DATA("FridayAnimationData");
+		const std::string FRIDAY_ANIMATION("FridayAnimation%d");
+		const std::string FRIDAY_ANIMATION_SECTION("FridayAnimationDataSection");
+		const std::string CHARGED_SWORD_BOOST("ChargedSwordBoost");
+		const std::string CHARGED_SWORD_BOOST_SECTION("ChargedSwordBoostSection");
+		const std::string ARMOUR_DEFENCE("ArmourDefence");
+		const std::string ARMOUR_DEFENCE_SECTION("ArmourDefenceSection");
+
 		const std::string SPRITE_ANIM_FLAGS_LOOKUP("SpriteAnimFlags");
 		const std::string SPRITE_ANIM_FLAGS_LOOKUP_SECTION("SpriteAnimFlagsSection");
 
@@ -125,6 +139,12 @@ namespace RomLabels
 		const std::string ROOM_SPRITE_TABLE_OFFSETS_FILE("assets_packed/spritedata/roomtableoffsets.bin");
 		const std::string ENEMY_STATS_FILE("assets_packed/spritedata/enemystats.bin");
 		const std::string ROOM_SPRITE_TABLE_FILE("assets_packed/spritedata/roomspritetable.bin");
+		const std::string INVENTORY_ITEMS_FILE("assets_packed/misc/inventory/inventoryitems.bin");
+		const std::string EQUIP_INVENTORY_LAYOUT_FILE("assets_packed/misc/inventory/inventoryequip.bin");
+		const std::string INPUT_PLAYBACK_FILE("assets_packed/misc/playbackinputtable.bin");
+		const std::string FRIDAY_ANIMATION_DATA_FILE("code/misc/fridayanimationdata.asm");
+		const std::string FRIDAY_ANIMATION_FILE("assets_packed/misc/fridayanim/fridayanim%02d.bin");
+		const std::string DAMAGE_CONSTANTS_FILE("code/include/constants/damage.inc");
 	}
 
 	namespace Strings

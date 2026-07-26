@@ -1,5 +1,6 @@
 #include <landstalker/main/RomOffsets.h>
 #include <landstalker/main/RomLabels.h>
+#include <landstalker/misc/Utils.h>
 
 namespace Landstalker {
 using namespace RomLabels;
@@ -256,6 +257,23 @@ RomOffsets::RomOffsets()
 		{ Tilesets::INTRO_FONT_PTR,                {{Region::JP, 0x00C4C2}, {Region::US, 0x00C528}, {Region::UK, 0x00C528}, {Region::FR, 0x00C528}, {Region::DE, 0x00C532}, {Region::US_BETA, 0x00C4D0}}},
 		{ Script::SCRIPT_END,                      {{Region::JP, 0x0262CE}, {Region::US, 0x025408}, {Region::UK, 0x025408}, {Region::FR, 0x0254D0}, {Region::DE, 0x0251B0}, {Region::US_BETA, 0x025330}}},
 		{ Script::SCRIPT_STRINGS_BEGIN,            {{Region::JP, 0x029B4C}, {Region::US, 0x028DB4}, {Region::UK, 0x028DB4}, {Region::FR, 0x028988}, {Region::DE, 0x02866E}, {Region::US_BETA, 0x028CA6}}},
+		// The Friday animation tables are reached through 15 individual pc-relative lea instructions
+		// (SetFridayWaypoints); each is patched to point at its table. Keyed by FridayAnimation%d.
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 1),  {{Region::JP, 0x00388E}, {Region::US, 0x0038A2}, {Region::UK, 0x0038A2}, {Region::FR, 0x0038A2}, {Region::DE, 0x0038A2}, {Region::US_BETA, 0x00389C}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 2),  {{Region::JP, 0x00389A}, {Region::US, 0x0038AE}, {Region::UK, 0x0038AE}, {Region::FR, 0x0038AE}, {Region::DE, 0x0038AE}, {Region::US_BETA, 0x0038A8}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 3),  {{Region::JP, 0x0038A6}, {Region::US, 0x0038BA}, {Region::UK, 0x0038BA}, {Region::FR, 0x0038BA}, {Region::DE, 0x0038BA}, {Region::US_BETA, 0x0038B4}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 4),  {{Region::JP, 0x0038B0}, {Region::US, 0x0038C4}, {Region::UK, 0x0038C4}, {Region::FR, 0x0038C4}, {Region::DE, 0x0038C4}, {Region::US_BETA, 0x0038BE}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 5),  {{Region::JP, 0x0038BA}, {Region::US, 0x0038CE}, {Region::UK, 0x0038CE}, {Region::FR, 0x0038CE}, {Region::DE, 0x0038CE}, {Region::US_BETA, 0x0038C8}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 6),  {{Region::JP, 0x0038C4}, {Region::US, 0x0038D8}, {Region::UK, 0x0038D8}, {Region::FR, 0x0038D8}, {Region::DE, 0x0038D8}, {Region::US_BETA, 0x0038D2}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 7),  {{Region::JP, 0x0038CE}, {Region::US, 0x0038E2}, {Region::UK, 0x0038E2}, {Region::FR, 0x0038E2}, {Region::DE, 0x0038E2}, {Region::US_BETA, 0x0038DC}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 8),  {{Region::JP, 0x0038D8}, {Region::US, 0x0038EC}, {Region::UK, 0x0038EC}, {Region::FR, 0x0038EC}, {Region::DE, 0x0038EC}, {Region::US_BETA, 0x0038E6}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 9),  {{Region::JP, 0x0038E2}, {Region::US, 0x0038F6}, {Region::UK, 0x0038F6}, {Region::FR, 0x0038F6}, {Region::DE, 0x0038F6}, {Region::US_BETA, 0x0038F0}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 10), {{Region::JP, 0x0038EC}, {Region::US, 0x003900}, {Region::UK, 0x003900}, {Region::FR, 0x003900}, {Region::DE, 0x003900}, {Region::US_BETA, 0x0038FA}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 11), {{Region::JP, 0x0038F6}, {Region::US, 0x00390A}, {Region::UK, 0x00390A}, {Region::FR, 0x00390A}, {Region::DE, 0x00390A}, {Region::US_BETA, 0x003904}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 12), {{Region::JP, 0x003900}, {Region::US, 0x003914}, {Region::UK, 0x003914}, {Region::FR, 0x003914}, {Region::DE, 0x003914}, {Region::US_BETA, 0x00390E}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 13), {{Region::JP, 0x00390A}, {Region::US, 0x00391E}, {Region::UK, 0x00391E}, {Region::FR, 0x00391E}, {Region::DE, 0x00391E}, {Region::US_BETA, 0x003918}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 14), {{Region::JP, 0x003914}, {Region::US, 0x003928}, {Region::UK, 0x003928}, {Region::FR, 0x003928}, {Region::DE, 0x003928}, {Region::US_BETA, 0x003922}}},
+		{ StrPrintf(Sprites::FRIDAY_ANIMATION, 15), {{Region::JP, 0x00391E}, {Region::US, 0x003932}, {Region::UK, 0x003932}, {Region::FR, 0x003932}, {Region::DE, 0x003932}, {Region::US_BETA, 0x00392C}}},
 	}),
 	SECTION
 	({
@@ -263,6 +281,12 @@ RomOffsets::RomOffsets()
 		{ Sprites::SPRITE_DATA_SECTION,              {{Region::JP, {0x01A58C, 0x022E00}}, {Region::US, {0x01A5BA, 0x022E80}}, {Region::UK, {0x01A5BA, 0x022E80}}, {Region::FR, {0x01A5AE, 0x022E80}}, {Region::DE, {0x01A5B4, 0x022E80}}, {Region::US_BETA, {0x01A58C, 0x022E00}}}},
 		{ Sprites::SPRITE_BEHAVIOUR_SECTION,         {{Region::JP, {0x09B058, 0x09E756}}, {Region::US, {0x09B058, 0x09E75E}}, {Region::UK, {0x09B058, 0x09E75E}}, {Region::FR, {0x09B058, 0x09E75E}}, {Region::DE, {0x09B058, 0x09E75E}}, {Region::US_BETA, {0x09B058, 0x09E75E}}}},
 		{ Sprites::ITEM_PROPERTIES_SECTION,          {{Region::JP, {0x02A09C, 0x02A19C}}, {Region::US, {0x029304, 0x029404}}, {Region::UK, {0x029304, 0x029404}}, {Region::FR, {0x028EEA, 0x028FEA}}, {Region::DE, {0x028BD0, 0x028CD0}}, {Region::US_BETA, {0x0291F6, 0x0292F6}}}},
+		{ Sprites::INVENTORY_ITEMS_SECTION,          {{Region::JP, {0x00D4F8, 0x00D520}}, {Region::US, {0x00D55C, 0x00D584}}, {Region::UK, {0x00D55C, 0x00D584}}, {Region::FR, {0x00D55C, 0x00D584}}, {Region::DE, {0x00D564, 0x00D58C}}, {Region::US_BETA, {0x00D506, 0x00D52E}}}},
+		{ Sprites::EQUIP_INVENTORY_LAYOUT_SECTION,   {{Region::JP, {0x00EE5C, 0x00EE70}}, {Region::US, {0x00ECE0, 0x00ECF4}}, {Region::UK, {0x00ECE0, 0x00ECF4}}, {Region::FR, {0x00EC4A, 0x00EC5E}}, {Region::DE, {0x00EC3E, 0x00EC52}}, {Region::US_BETA, {0x00EC8A, 0x00EC9E}}}},
+		{ Sprites::INPUT_PLAYBACK_SECTION,           {{Region::JP, {0x01086A, 0x010ACE}}, {Region::US, {0x01086A, 0x010ACE}}, {Region::UK, {0x01086A, 0x010ACE}}, {Region::FR, {0x01086A, 0x010ACE}}, {Region::DE, {0x01086A, 0x010ACE}}, {Region::US_BETA, {0x01086A, 0x010ACE}}}},
+		{ Sprites::FRIDAY_ANIMATION_SECTION,         {{Region::JP, {0x0039F0, 0x003F7E}}, {Region::US, {0x003A04, 0x003F92}}, {Region::UK, {0x003A04, 0x003F92}}, {Region::FR, {0x003A04, 0x003F92}}, {Region::DE, {0x003A04, 0x003F92}}, {Region::US_BETA, {0x0039FE, 0x003F8C}}}},
+		{ Sprites::CHARGED_SWORD_BOOST_SECTION,      {{Region::JP, {0x0165A4, 0x0165AC}}, {Region::US, {0x0165C8, 0x0165D0}}, {Region::UK, {0x0165C8, 0x0165D0}}, {Region::FR, {0x0165BC, 0x0165C4}}, {Region::DE, {0x0165BC, 0x0165C4}}, {Region::US_BETA, {0x0165A4, 0x0165AC}}}},
+		{ Sprites::ARMOUR_DEFENCE_SECTION,           {{Region::JP, {0x0076B4, 0x0076BE}}, {Region::US, {0x00770E, 0x007718}}, {Region::UK, {0x00770E, 0x007718}}, {Region::FR, {0x00770E, 0x007718}}, {Region::DE, {0x007718, 0x007722}}, {Region::US_BETA, {0x0076C2, 0x0076CC}}}},
 		{ Sprites::SPRITE_ANIM_FLAGS_LOOKUP_SECTION, {{Region::JP, {0x0107D8, 0x010842}}, {Region::US, {0x0107D8, 0x010842}}, {Region::UK, {0x0107D8, 0x010842}}, {Region::FR, {0x0107D8, 0x010842}}, {Region::DE, {0x0107D8, 0x010842}}, {Region::US_BETA, {0x0107D8, 0x010842}}}},
 		{ Sprites::PALETTE_DATA,                     {{Region::JP, {0x1A453A, 0x1A4C8E}}, {Region::US, {0x1A453A, 0x1A4C8E}}, {Region::UK, {0x1A453A, 0x1A4C8E}}, {Region::FR, {0x1A453A, 0x1A4C8E}}, {Region::DE, {0x1A453A, 0x1A4C8E}}, {Region::US_BETA, {0x1A453A, 0x1A4C8E}}}},
 		{ Strings::STRING_SECTION,                   {{Region::JP, {0x02B4B8, 0x038600}}, {Region::US, {0x02A884, 0x038600}}, {Region::UK, {0x02A884, 0x038600}}, {Region::FR, {0x02A58E, 0x038600}}, {Region::DE, {0x02A280, 0x038600}}, {Region::US_BETA, {0x02A772, 0x038600}}}},

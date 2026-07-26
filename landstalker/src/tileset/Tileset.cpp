@@ -285,7 +285,10 @@ void Tileset::Reset(int size)
 {
     if (size != -1)
     {
-        m_tiles.resize(size);
+        // Grow with properly sized, zeroed tiles rather than empty vectors - a bare resize()
+        // leaves new tiles' pixel buffers empty, which the std::fill below cannot correct and
+        // which anything reading the tile later runs off the end of. Matches Resize / SetBits.
+        m_tiles.resize(size, std::vector<uint8_t>(m_width * m_height));
     }
     for (auto& elem : m_tiles)
     {
@@ -682,11 +685,6 @@ void Tileset::TransposeBlock()
             }
         }
     }
-}
-
-void Tileset::UntransposeBlock(std::vector<uint8_t>& /*bits*/)
-{
-    // const std::array<int, 24> untranspose4x6{ 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15,16,20,17,21,18,22,19,23};
 }
 
 std::vector<uint8_t> Tileset::GetTile(const Tile& tile) const

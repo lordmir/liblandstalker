@@ -77,6 +77,51 @@ std::vector<uint8_t> SerialiseFixedWidth(const std::vector<std::array<uint8_t, N
 	return result;
 }
 
+// The input-playback table is a raw byte blob framed by a 0xFF end-of-table marker and padded
+// with 0xFF to an even length (the table body itself always ends on a 0x80 end-of-sequence byte,
+// so trailing 0xFFs are never part of it). These keep the in-memory copy holding just the body:
+// strip the framing on load, re-apply it on save.
+static ByteVector StripInputPlaybackFraming(ByteVector bytes)
+{
+	while (!bytes.empty() && bytes.back() == 0xFF)
+	{
+		bytes.pop_back();
+	}
+	return bytes;
+}
+
+static ByteVector FrameInputPlayback(ByteVector bytes)
+{
+	bytes.push_back(0xFF);
+	if ((bytes.size() & 1) == 1)
+	{
+		bytes.push_back(0xFF);
+	}
+	return bytes;
+}
+
+namespace
+{
+	// The damage.inc modifier constants, in ROM order: the four charged-sword attack boosts
+	// (ChargedSwordBoost table) followed by the five armour defences (ArmourDefence table). The
+	// names match the disassembly's equ labels; the values are the engine defaults, used to seed
+	// ROM-only projects and to backfill any constant a project's damage.inc omits.
+	struct DamageConstantDef { const char* name; uint16_t value; };
+	constexpr std::size_t NUM_SWORD_BOOSTS = 4;   // first four -> ChargedSwordBoost
+	constexpr std::size_t NUM_ARMOUR_DEFENCES = 5; // remaining -> ArmourDefence
+	const std::array<DamageConstantDef, NUM_SWORD_BOOSTS + NUM_ARMOUR_DEFENCES> DAMAGE_CONSTANTS = {{
+		{ "MAGIC_SWORD_BOOST",      0x01C0 },
+		{ "ICE_SWORD_BOOST",        0x0180 },
+		{ "THUNDER_SWORD_BOOST",    0x0200 },
+		{ "GAIA_SWORD_BOOST",       0x0140 },
+		{ "LEATHER_BREAST_DEFENCE", 0x0100 },
+		{ "STEEL_BREAST_DEFENCE",   0x00E6 },
+		{ "CHROME_BREAST_DEFENCE",  0x00CC },
+		{ "SHELL_BREAST_DEFENCE",   0x00B3 },
+		{ "HYPER_BREAST_DEFENCE",   0x0080 },
+	}};
+}
+
 template <std::size_t N>
 std::map<uint8_t, std::array<uint8_t, N>> DeserialiseMap(const std::vector<uint8_t>& bytes)
 {
@@ -439,6 +484,26 @@ bool SpriteData::HasBeenModified() const
 		return true;
 	}
 	if (m_item_properties_orig != m_item_properties)
+	{
+		return true;
+	}
+	if (m_inventory_items_orig != m_inventory_items)
+	{
+		return true;
+	}
+	if (m_equip_inventory_layout_orig != m_equip_inventory_layout)
+	{
+		return true;
+	}
+	if (m_input_playback_orig != m_input_playback)
+	{
+		return true;
+	}
+	if (m_friday_animations_orig != m_friday_animations)
+	{
+		return true;
+	}
+	if (m_damage_constants_orig != m_damage_constants)
 	{
 		return true;
 	}
@@ -3320,6 +3385,205 @@ void SpriteData::ClearEnemyStats(uint8_t entity_index)
 	m_enemy_stats.erase(entity_index);
 }
 
+const ByteVector& SpriteData::GetInventoryItems() const
+{
+	return m_inventory_items;
+}
+
+void SpriteData::SetInventoryItems(const ByteVector& data)
+{
+	m_inventory_items = data;
+}
+
+const ByteVector& SpriteData::GetEquipInventoryLayout() const
+{
+	return m_equip_inventory_layout;
+}
+
+void SpriteData::SetEquipInventoryLayout(const ByteVector& data)
+{
+	m_equip_inventory_layout = data;
+}
+
+const ByteVector& SpriteData::GetInputPlayback() const
+{
+	return m_input_playback;
+}
+
+void SpriteData::SetInputPlayback(const ByteVector& data)
+{
+	m_input_playback = data;
+}
+
+SpriteData::FridayAnimation::FridayAnimation(const ByteVector& bytes)
+{
+	auto read16 = [&bytes](std::size_t offset) -> uint16_t
+	{
+		return static_cast<uint16_t>((bytes[offset] << 8) | bytes[offset + 1]);
+	};
+	if (bytes.size() < 4)
+	{
+		return; // no header - treat as an empty path
+	}
+	start_y = read16(0);
+	start_x = read16(2);
+	std::size_t i = 4;
+	while (i + 2 <= bytes.size())
+	{
+		const uint16_t steps = read16(i);
+		if ((steps & 0x8000) != 0)
+		{
+			break; // negative word terminates the path
+		}
+		i += 2;
+		Waypoint wp;
+		wp.frames = static_cast<uint16_t>(steps + 1);
+		if (i + 4 <= bytes.size())
+		{
+			wp.x = read16(i);
+			wp.y = read16(i + 2);
+		}
+		i += 4;
+		waypoints.push_back(wp);
+	}
+}
+
+ByteVector SpriteData::FridayAnimation::Serialise() const
+{
+	ByteVector bytes;
+	bytes.reserve(4 + waypoints.size() * 6 + 2);
+	auto write16 = [&bytes](uint16_t value)
+	{
+		bytes.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
+		bytes.push_back(static_cast<uint8_t>(value & 0xFF));
+	};
+	write16(start_y);
+	write16(start_x);
+	for (const auto& wp : waypoints)
+	{
+		// frames-1 is the stored step count; clamp it below 0x8000 so it never reads as the
+		// negative end-of-path marker.
+		const uint16_t steps = (wp.frames > 0) ? static_cast<uint16_t>((wp.frames - 1) & 0x7FFF) : 0;
+		write16(steps);
+		write16(wp.x);
+		write16(wp.y);
+	}
+	write16(0xFFFF);
+	return bytes;
+}
+
+std::size_t SpriteData::GetFridayAnimationCount() const
+{
+	return m_friday_animations.size();
+}
+
+const ByteVector& SpriteData::GetFridayAnimation(std::size_t index) const
+{
+	return m_friday_animations.at(index);
+}
+
+void SpriteData::SetFridayAnimation(std::size_t index, const ByteVector& data)
+{
+	m_friday_animations.at(index) = data;
+}
+
+SpriteData::FridayAnimation SpriteData::GetFridayAnimationPath(std::size_t index) const
+{
+	return FridayAnimation(m_friday_animations.at(index));
+}
+
+void SpriteData::SetFridayAnimationPath(std::size_t index, const FridayAnimation& path)
+{
+	m_friday_animations.at(index) = path.Serialise();
+}
+
+const std::map<std::string, uint16_t>& SpriteData::GetDamageConstants() const
+{
+	return m_damage_constants;
+}
+
+void SpriteData::SetDamageConstants(const std::map<std::string, uint16_t>& constants)
+{
+	m_damage_constants = constants;
+}
+
+uint16_t SpriteData::GetDamageConstant(const std::string& name) const
+{
+	auto it = m_damage_constants.find(name);
+	return it == m_damage_constants.cend() ? 0 : it->second;
+}
+
+void SpriteData::SetDamageConstant(const std::string& name, uint16_t value)
+{
+	m_damage_constants[name] = value;
+}
+
+void SpriteData::SetDefaultDamageConstants()
+{
+	for (const auto& c : DAMAGE_CONSTANTS)
+	{
+		m_damage_constants.emplace(c.name, c.value);
+	}
+}
+
+bool SpriteData::AsmLoadDamageConstants()
+{
+	// Start from the engine defaults so a missing file or an incomplete damage.inc still yields a
+	// complete, ROM-consistent set of nine constants.
+	m_damage_constants.clear();
+	SetDefaultDamageConstants();
+	if (!m_damage_constants_file.empty())
+	{
+		const auto path = GetBasePath() / m_damage_constants_file;
+		if (std::filesystem::exists(path))
+		{
+			const auto defines = AsmFile::ParseDefines(path.string(), GetBasePath());
+			for (const auto& c : DAMAGE_CONSTANTS)
+			{
+				auto it = defines.find(c.name);
+				if (it != defines.cend())
+				{
+					m_damage_constants[c.name] = static_cast<uint16_t>(AsmFile::ParseValue(it->second, defines));
+				}
+			}
+		}
+	}
+	m_damage_constants_orig = m_damage_constants;
+	return true;
+}
+
+bool SpriteData::AsmSaveDamageConstants(const std::filesystem::path& dir)
+{
+	// ROM-loaded projects never had an include file; do not fabricate one - the ROM tables are the
+	// authority in that case (they are patched directly by RomPrepareInjectSpriteData).
+	if (m_damage_constants_file.empty())
+	{
+		return true;
+	}
+	try
+	{
+		AsmFile file;
+		file.WriteFileHeader(m_damage_constants_file, "Damage Modifiers");
+		file << AsmFile::Comment(" Magic Sword Attacks");
+		for (std::size_t i = 0; i < DAMAGE_CONSTANTS.size(); ++i)
+		{
+			if (i == NUM_SWORD_BOOSTS)
+			{
+				file << AsmFile::NewLine() << AsmFile::Comment(" Armour");
+			}
+			const auto& name = DAMAGE_CONSTANTS[i].name;
+			auto it = m_damage_constants.find(name);
+			const uint16_t value = (it != m_damage_constants.cend()) ? it->second : DAMAGE_CONSTANTS[i].value;
+			file << AsmFile::Define(name, value, AsmFile::Width::W);
+		}
+		return file.WriteFile(dir / m_damage_constants_file);
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
+}
+
 std::map<int, std::string> SpriteData::GetScriptNames() const
 {
 	std::map<int, std::string> names;
@@ -3377,6 +3641,11 @@ void SpriteData::CommitAllChanges()
 	m_room_entities_orig = m_room_entities;
 	m_room_entity_table_size_orig = m_room_entity_table_size;
 	m_item_properties_orig = m_item_properties;
+	m_inventory_items_orig = m_inventory_items;
+	m_equip_inventory_layout_orig = m_equip_inventory_layout;
+	m_input_playback_orig = m_input_playback;
+	m_friday_animations_orig = m_friday_animations;
+	m_damage_constants_orig = m_damage_constants;
 	m_sprite_behaviours_orig = m_sprite_behaviours;
 	m_sprite_animation_flags_orig = m_sprite_animation_flags;
 	m_pending_writes.clear();
@@ -3401,6 +3670,28 @@ bool SpriteData::LoadAsmFilenames()
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::ENEMY_STATS, m_enemy_stats_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::ROOM_SPRITE_TABLE, m_room_sprite_table_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::ITEM_PROPERTIES, m_item_properties_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::INVENTORY_ITEMS, m_inventory_items_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT, m_equip_inventory_layout_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::INPUT_PLAYBACK, m_input_playback_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::FRIDAY_ANIMATION_DATA, m_friday_animation_data_file);
+		// The Friday table filenames live one level down, in the fridayanimationdata.asm include.
+		AsmFile fa(GetBasePath() / m_friday_animation_data_file);
+		m_friday_animation_files.clear();
+		for (std::size_t i = 1; i <= NUM_FRIDAY_ANIMATIONS; ++i)
+		{
+			std::filesystem::path path;
+			retval = retval && GetFilenameFromAsm(fa, StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i), path);
+			if (path.empty())
+			{
+				path = StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i);
+			}
+			m_friday_animation_files.push_back(path);
+		}
+		// damage.inc is a nested constants include, not a labelled data block, so it has no entry in
+		// the main asm to look up - resolve it by walking the Defines include tree, and do not fail
+		// the load if the project does not ship one.
+		m_damage_constants_file = AsmFile::FindDefineInclude(GetAsmFilename(), GetBasePath(),
+			RomLabels::DEFINES_SECTION, RomLabels::Sprites::DAMAGE_CONSTANTS_FILE);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::SPRITE_BEHAVIOUR_OFFSETS, m_sprite_behaviour_offset_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::SPRITE_BEHAVIOUR_TABLE, m_sprite_behaviour_table_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::SPRITE_FRAMES_DATA, m_sprite_frames_data_file);
@@ -3433,6 +3724,17 @@ void SpriteData::SetDefaultFilenames()
 	if (m_enemy_stats_file.empty())                  m_enemy_stats_file               = RomLabels::Sprites::ENEMY_STATS_FILE;
 	if (m_room_sprite_table_file.empty())            m_room_sprite_table_file         = RomLabels::Sprites::ROOM_SPRITE_TABLE_FILE;
 	if (m_item_properties_file.empty())              m_item_properties_file           = RomLabels::Sprites::ITEM_PROPERTIES_FILE;
+	if (m_inventory_items_file.empty())              m_inventory_items_file           = RomLabels::Sprites::INVENTORY_ITEMS_FILE;
+	if (m_equip_inventory_layout_file.empty())       m_equip_inventory_layout_file    = RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT_FILE;
+	if (m_input_playback_file.empty())               m_input_playback_file            = RomLabels::Sprites::INPUT_PLAYBACK_FILE;
+	if (m_friday_animation_data_file.empty())        m_friday_animation_data_file     = RomLabels::Sprites::FRIDAY_ANIMATION_DATA_FILE;
+	if (m_friday_animation_files.empty())
+	{
+		for (std::size_t i = 1; i <= NUM_FRIDAY_ANIMATIONS; ++i)
+		{
+			m_friday_animation_files.push_back(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i));
+		}
+	}
 	if (m_sprite_behaviour_offset_file.empty())      m_sprite_behaviour_offset_file   = RomLabels::Sprites::SPRITE_BEHAVIOUR_OFFSET_FILE;
 	if (m_sprite_behaviour_table_file.empty())       m_sprite_behaviour_table_file    = RomLabels::Sprites::SPRITE_BEHAVIOUR_TABLE_FILE;
 	if (m_palette_data_file.empty())                 m_palette_data_file              = RomLabels::Sprites::PALETTE_DATA_FILE;
@@ -3461,6 +3763,18 @@ bool SpriteData::CreateDirectoryStructure(const std::filesystem::path& dir)
 	retval = retval && CreateDirectoryTree(dir / m_enemy_stats_file);
 	retval = retval && CreateDirectoryTree(dir / m_room_sprite_table_file);
 	retval = retval && CreateDirectoryTree(dir / m_item_properties_file);
+	retval = retval && CreateDirectoryTree(dir / m_inventory_items_file);
+	retval = retval && CreateDirectoryTree(dir / m_equip_inventory_layout_file);
+	retval = retval && CreateDirectoryTree(dir / m_input_playback_file);
+	retval = retval && CreateDirectoryTree(dir / m_friday_animation_data_file);
+	for (const auto& p : m_friday_animation_files)
+	{
+		retval = retval && CreateDirectoryTree(dir / p);
+	}
+	if (!m_damage_constants_file.empty())
+	{
+		retval = retval && CreateDirectoryTree(dir / m_damage_constants_file);
+	}
 	retval = retval && CreateDirectoryTree(dir / m_sprite_behaviour_offset_file);
 	retval = retval && CreateDirectoryTree(dir / m_sprite_behaviour_table_file);
 	retval = retval && CreateDirectoryTree(dir / m_palette_data_file);
@@ -3506,6 +3820,11 @@ void SpriteData::InitCache()
 	m_room_entities_orig = m_room_entities;
 	m_room_entity_table_size_orig = m_room_entity_table_size;
 	m_item_properties_orig = m_item_properties;
+	m_inventory_items_orig = m_inventory_items;
+	m_equip_inventory_layout_orig = m_equip_inventory_layout;
+	m_input_playback_orig = m_input_playback;
+	m_friday_animations_orig = m_friday_animations;
+	m_damage_constants_orig = m_damage_constants;
 	m_sprite_behaviours_orig = m_sprite_behaviours;
 	m_sprite_animation_flags_orig = m_sprite_animation_flags;
 }
@@ -3813,6 +4132,15 @@ bool SpriteData::AsmLoadSpriteData()
 	m_permanent_switch_flags   = DecodeFlags<RoomClearFlag>(DeserialiseFixedWidth<4>(ReadBytes(GetBasePath() / m_permanent_switch_flags_file)));
 	m_sacred_tree_flags        = DecodeFlags<SacredTreeFlag>(DeserialiseFixedWidth<4>(ReadBytes(GetBasePath() / m_sacred_tree_flags_file)));
 	m_item_properties          = DeserialiseFixedWidth<4>(ReadBytes(GetBasePath() / m_item_properties_file));
+	m_inventory_items          = ReadBytes(GetBasePath() / m_inventory_items_file);
+	m_equip_inventory_layout   = ReadBytes(GetBasePath() / m_equip_inventory_layout_file);
+	m_input_playback           = StripInputPlaybackFraming(ReadBytes(GetBasePath() / m_input_playback_file));
+	m_friday_animations.clear();
+	for (const auto& p : m_friday_animation_files)
+	{
+		m_friday_animations.push_back(ReadBytes(GetBasePath() / p));
+	}
+	AsmLoadDamageConstants();
 	m_enemy_stats              = DeserialiseMap<5>(ReadBytes(GetBasePath() / m_enemy_stats_file));
 	m_sprite_dimensions        = DeserialiseMap<2>(ReadBytes(GetBasePath() / m_sprite_dimensions_lookup_file));
 	m_sprite_to_entity_lookup  = DeserialiseMap(ReadBytes(GetBasePath() / m_sprite_gfx_idx_lookup_file), true);
@@ -4003,6 +4331,11 @@ bool SpriteData::RomLoadSpriteData(const Rom& rom)
 {
 	const uint32_t items_begin = Disasm::ReadOffset16(rom, RomLabels::Sprites::ITEM_PROPERTIES);
 	const uint32_t items_size = rom.get_section(RomLabels::Sprites::ITEM_PROPERTIES_SECTION).end - items_begin;
+	// The inventory layout tables are pc-relative incbin blobs with no pointer to follow,
+	// so they are read straight out of their fixed sections.
+	const auto inventory_items_section = rom.get_section(RomLabels::Sprites::INVENTORY_ITEMS_SECTION);
+	const auto equip_layout_section = rom.get_section(RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT_SECTION);
+	const auto input_playback_section = rom.get_section(RomLabels::Sprites::INPUT_PLAYBACK_SECTION);
 	const uint32_t anim_flags_begin = Disasm::ReadOffset16(rom, RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP);
 	const uint32_t anim_flags_size = rom.get_section(RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP_SECTION).end - anim_flags_begin;
 
@@ -4045,6 +4378,54 @@ bool SpriteData::RomLoadSpriteData(const Rom& rom)
 	m_permanent_switch_flags = DecodeFlags<RoomClearFlag>(DeserialiseFixedWidth<4>(rom.read_array<uint8_t>(permanent_switch_begin, permanent_switch_size)));
 	m_sacred_tree_flags = DecodeFlags<SacredTreeFlag>(DeserialiseFixedWidth<4>(rom.read_array<uint8_t>(trees_begin, trees_size)));
 	m_item_properties = DeserialiseFixedWidth<4>(rom.read_array<uint8_t>(items_begin, items_size));
+	m_inventory_items = rom.read_array<uint8_t>(inventory_items_section.begin, inventory_items_section.size());
+	m_equip_inventory_layout = rom.read_array<uint8_t>(equip_layout_section.begin, equip_layout_section.size());
+	m_input_playback = StripInputPlaybackFraming(rom.read_array<uint8_t>(input_playback_section.begin, input_playback_section.size()));
+
+	// The 15 Friday animation tables are addressed by 15 individual pc-relative lea pointers. Each
+	// table runs from its own pointer up to the next pointer (or the section end); computed by
+	// nearest-greater boundary so the read is robust to the tables being reordered.
+	const uint32_t friday_end = rom.get_section(RomLabels::Sprites::FRIDAY_ANIMATION_SECTION).end;
+	std::array<uint32_t, NUM_FRIDAY_ANIMATIONS> friday_starts{};
+	for (std::size_t i = 0; i < NUM_FRIDAY_ANIMATIONS; ++i)
+	{
+		friday_starts[i] = Disasm::ReadOffset16(rom, StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i + 1));
+	}
+	m_friday_animations.clear();
+	m_friday_animation_files.clear();
+	for (std::size_t i = 0; i < NUM_FRIDAY_ANIMATIONS; ++i)
+	{
+		uint32_t next = friday_end;
+		for (uint32_t s : friday_starts)
+		{
+			if (s > friday_starts[i] && s < next)
+			{
+				next = s;
+			}
+		}
+		m_friday_animations.push_back(rom.read_array<uint8_t>(friday_starts[i], next - friday_starts[i]));
+		m_friday_animation_files.push_back(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i + 1));
+	}
+
+	// The damage modifiers live in two fixed pc-relative word tables - four charged-sword boosts
+	// then five armour defences - keyed here by the same constant names damage.inc uses in ASM mode.
+	{
+		const auto sword_section = rom.get_section(RomLabels::Sprites::CHARGED_SWORD_BOOST_SECTION);
+		const auto armour_section = rom.get_section(RomLabels::Sprites::ARMOUR_DEFENCE_SECTION);
+		const auto sword_values = rom.read_array<uint16_t>(sword_section.begin, sword_section.size() / sizeof(uint16_t));
+		const auto armour_values = rom.read_array<uint16_t>(armour_section.begin, armour_section.size() / sizeof(uint16_t));
+		m_damage_constants.clear();
+		SetDefaultDamageConstants();
+		for (std::size_t i = 0; i < DAMAGE_CONSTANTS.size(); ++i)
+		{
+			const auto& values = (i < NUM_SWORD_BOOSTS) ? sword_values : armour_values;
+			const std::size_t idx = (i < NUM_SWORD_BOOSTS) ? i : (i - NUM_SWORD_BOOSTS);
+			if (idx < values.size())
+			{
+				m_damage_constants[DAMAGE_CONSTANTS[i].name] = values[idx];
+			}
+		}
+	}
 	m_enemy_stats = DeserialiseMap<5>(rom.read_array<uint8_t>(enemy_data_begin, enemy_data_size));
 	m_sprite_dimensions = DeserialiseMap<2>(rom.read_array<uint8_t>(sprite_dims_begin, sprite_dims_size));
 	m_sprite_to_entity_lookup = DeserialiseMap(rom.read_array<uint8_t>(sprite_ent_lut_begin, sprite_ent_lut_size), true);
@@ -4172,6 +4553,9 @@ bool SpriteData::AsmSaveSpriteData(const std::filesystem::path& dir)
 	WriteBytes(SerialiseFixedWidth<4>(EncodeFlags(m_permanent_switch_flags)), dir / m_permanent_switch_flags_file);
 	WriteBytes(SerialiseFixedWidth<4>(EncodeFlags(m_sacred_tree_flags)), dir / m_sacred_tree_flags_file);
 	WriteBytes(SerialiseFixedWidth<4>(m_item_properties, false), dir / m_item_properties_file);
+	WriteBytes(m_inventory_items, dir / m_inventory_items_file);
+	WriteBytes(m_equip_inventory_layout, dir / m_equip_inventory_layout_file);
+	WriteBytes(FrameInputPlayback(m_input_playback), dir / m_input_playback_file);
 	WriteBytes(SerialiseMap<5>(m_enemy_stats), dir / m_enemy_stats_file);
 	WriteBytes(SerialiseMap<2>(m_sprite_dimensions), dir / m_sprite_dimensions_lookup_file);
 	WriteBytes(SerialiseMap(m_sprite_to_entity_lookup, true), dir / m_sprite_gfx_idx_lookup_file);
@@ -4181,7 +4565,34 @@ bool SpriteData::AsmSaveSpriteData(const std::filesystem::path& dir)
 	auto result = SerialiseRoomEntityTable();
 	WriteBytes(result.first, dir / m_room_sprite_table_file);
 	WriteBytes(result.second, dir / m_room_sprite_table_offsets_file);
-	return true;
+	bool retval = AsmSaveFridayAnimations(dir);
+	retval = AsmSaveDamageConstants(dir) && retval;
+	return retval;
+}
+
+bool SpriteData::AsmSaveFridayAnimations(const std::filesystem::path& dir)
+{
+	try
+	{
+		AsmFile file;
+		file.WriteFileHeader(m_friday_animation_data_file, "Friday Animation Data");
+		for (std::size_t i = 0; i < m_friday_animations.size(); ++i)
+		{
+			std::filesystem::path path = (i < m_friday_animation_files.size())
+				? m_friday_animation_files[i]
+				: StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i + 1);
+			file << AsmFile::Label(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i + 1))
+			     << AsmFile::IncludeFile(path, AsmFile::FileType::BINARY);
+			file << AsmFile::Align(2);
+			WriteBytes(m_friday_animations[i], dir / path);
+		}
+		file.WriteFile(dir / m_friday_animation_data_file);
+		return true;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
 }
 
 bool SpriteData::RomPrepareInjectSpriteFrames(const Rom& rom)
@@ -4288,6 +4699,12 @@ bool SpriteData::RomPrepareInjectSpriteData(const Rom& rom)
 	uint32_t item_begin = rom.get_section(RomLabels::Sprites::ITEM_PROPERTIES_SECTION).begin;
 	auto item_bytes = std::make_shared<ByteVector>(SerialiseFixedWidth<4>(m_item_properties, false));
 
+	// The inventory layout tables are referenced pc-relative, so they have no pointer to
+	// patch - they are written back in place at their fixed sections.
+	auto inventory_items_bytes = std::make_shared<ByteVector>(m_inventory_items);
+	auto equip_layout_bytes = std::make_shared<ByteVector>(m_equip_inventory_layout);
+	auto input_playback_bytes = std::make_shared<ByteVector>(FrameInputPlayback(m_input_playback));
+
 	std::vector<std::array<uint8_t, 2>> anim_flags;
 	std::transform(m_sprite_animation_flags.cbegin(), m_sprite_animation_flags.cend(), std::back_inserter<std::vector<std::array<uint8_t, 2>>>(anim_flags), [](const auto& elem)
 		{
@@ -4348,6 +4765,41 @@ bool SpriteData::RomPrepareInjectSpriteData(const Rom& rom)
 
 	m_pending_writes.push_back({ RomLabels::Sprites::ITEM_PROPERTIES_SECTION, item_bytes });
 	m_pending_writes.push_back(Asm::WriteOffset8(rom, RomLabels::Sprites::ITEM_PROPERTIES, item_begin));
+	m_pending_writes.push_back({ RomLabels::Sprites::INVENTORY_ITEMS_SECTION, inventory_items_bytes });
+	m_pending_writes.push_back({ RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT_SECTION, equip_layout_bytes });
+	m_pending_writes.push_back({ RomLabels::Sprites::INPUT_PLAYBACK_SECTION, input_playback_bytes });
+
+	// The damage modifiers are two fixed pc-relative word tables (four sword boosts, then five
+	// armour defences), so like the inventory tables they are written back in place with no pointer
+	// to patch. Words are big-endian, taken from m_damage_constants in the canonical order.
+	auto sword_boost_bytes = std::make_shared<ByteVector>();
+	auto armour_defence_bytes = std::make_shared<ByteVector>();
+	for (std::size_t i = 0; i < DAMAGE_CONSTANTS.size(); ++i)
+	{
+		auto it = m_damage_constants.find(DAMAGE_CONSTANTS[i].name);
+		const uint16_t value = (it != m_damage_constants.cend()) ? it->second : DAMAGE_CONSTANTS[i].value;
+		auto& dst = (i < NUM_SWORD_BOOSTS) ? *sword_boost_bytes : *armour_defence_bytes;
+		dst.push_back(static_cast<uint8_t>(value >> 8));
+		dst.push_back(static_cast<uint8_t>(value & 0xFF));
+	}
+	m_pending_writes.push_back({ RomLabels::Sprites::CHARGED_SWORD_BOOST_SECTION, sword_boost_bytes });
+	m_pending_writes.push_back({ RomLabels::Sprites::ARMOUR_DEFENCE_SECTION, armour_defence_bytes });
+
+	// Lay the 15 Friday tables out contiguously in their section (kept 2-byte aligned) and patch
+	// each animation's pc-relative lea to point at its new start.
+	const uint32_t friday_begin = rom.get_section(RomLabels::Sprites::FRIDAY_ANIMATION_SECTION).begin;
+	auto friday_bytes = std::make_shared<ByteVector>();
+	for (std::size_t i = 0; i < m_friday_animations.size(); ++i)
+	{
+		const uint32_t addr = friday_begin + static_cast<uint32_t>(friday_bytes->size());
+		friday_bytes->insert(friday_bytes->end(), m_friday_animations[i].cbegin(), m_friday_animations[i].cend());
+		if ((friday_bytes->size() & 1) == 1)
+		{
+			friday_bytes->push_back(0xFF);
+		}
+		m_pending_writes.push_back(Asm::WriteOffset16(rom, StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i + 1), addr));
+	}
+	m_pending_writes.push_back({ RomLabels::Sprites::FRIDAY_ANIMATION_SECTION, friday_bytes });
 	m_pending_writes.push_back({ RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP_SECTION, unk_bytes });
 	m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP, unk_begin));
 	m_pending_writes.push_back({ RomLabels::Sprites::SPRITE_BEHAVIOUR_SECTION, behav_bytes });

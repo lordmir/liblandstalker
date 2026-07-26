@@ -98,7 +98,6 @@ public:
 
 private:
     void TransposeBlock();
-    void UntransposeBlock(std::vector<uint8_t>& bits);
 
     std::size_t m_width;
     std::size_t m_height;

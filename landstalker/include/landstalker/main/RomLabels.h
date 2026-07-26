@@ -99,6 +99,20 @@ namespace RomLabels
 		extern const std::string ENEMY_STATS;
 		extern const std::string ROOM_SPRITE_TABLE;
 
+		extern const std::string INVENTORY_ITEMS;
+		extern const std::string INVENTORY_ITEMS_SECTION;
+		extern const std::string EQUIP_INVENTORY_LAYOUT;
+		extern const std::string EQUIP_INVENTORY_LAYOUT_SECTION;
+		extern const std::string INPUT_PLAYBACK;
+		extern const std::string INPUT_PLAYBACK_SECTION;
+		extern const std::string FRIDAY_ANIMATION_DATA;   // include label in the top-level ASM
+		extern const std::string FRIDAY_ANIMATION;        // per-table label pattern, e.g. FridayAnimation%d
+		extern const std::string FRIDAY_ANIMATION_SECTION;
+		extern const std::string CHARGED_SWORD_BOOST;         // charged-hit sword damage multipliers (4 words)
+		extern const std::string CHARGED_SWORD_BOOST_SECTION;
+		extern const std::string ARMOUR_DEFENCE;              // armour defence modifiers (5 words)
+		extern const std::string ARMOUR_DEFENCE_SECTION;
+
 		extern const std::string SPRITE_ANIM_FLAGS_LOOKUP;
 		extern const std::string SPRITE_ANIM_FLAGS_LOOKUP_SECTION;
 
@@ -128,6 +142,12 @@ namespace RomLabels
 		extern const std::string ROOM_SPRITE_TABLE_OFFSETS_FILE;
 		extern const std::string ENEMY_STATS_FILE;
 		extern const std::string ROOM_SPRITE_TABLE_FILE;
+		extern const std::string INVENTORY_ITEMS_FILE;
+		extern const std::string EQUIP_INVENTORY_LAYOUT_FILE;
+		extern const std::string INPUT_PLAYBACK_FILE;
+		extern const std::string FRIDAY_ANIMATION_DATA_FILE; // the fridayanimationdata.asm include
+		extern const std::string FRIDAY_ANIMATION_FILE;      // per-table binary pattern, e.g. fridayanim%02d.bin
+		extern const std::string DAMAGE_CONSTANTS_FILE;      // damage.inc (sword/armour damage modifiers)
 	}
 
 	namespace Strings

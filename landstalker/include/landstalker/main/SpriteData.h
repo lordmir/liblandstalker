@@ -103,6 +103,30 @@ public:
 		Hitbox(uint8_t b, uint8_t h) : base(b), height(h) {}
 	};
 
+	// A Friday overlay-animation table (fridayanimNN.bin): the sprite starts at (start_x, start_y)
+	// and is moved along a list of waypoints, one straight-line segment at a time. Encoding is a
+	// [Y][X] header word pair, then per waypoint a [steps][X][Y] triple (the engine interpolates to
+	// (x, y) over steps+1 = `frames` frames), terminated by a word with bit 15 set. All values are
+	// big-endian words; note the header is Y-then-X while a waypoint is X-then-Y.
+	struct FridayAnimation
+	{
+		struct Waypoint
+		{
+			uint16_t x = 0;       // target VDP sprite X
+			uint16_t y = 0;       // target VDP sprite Y
+			uint16_t frames = 1;  // frames spent moving to (x, y); stored on disk as frames-1
+		};
+		uint16_t start_x = 0;
+		uint16_t start_y = 0;
+		std::vector<Waypoint> waypoints;
+
+		FridayAnimation() = default;
+		// Decodes a raw table; a truncated/empty blob yields an empty path.
+		explicit FridayAnimation(const ByteVector& bytes);
+		// Re-encodes to the on-disk form, always terminated by 0xFFFF.
+		ByteVector Serialise() const;
+	};
+
 	// A room has 3 shared sprite-palette VDP slots: palette 1's low (colours 2-7) and high
 	// (colours 8-14) halves, and palette 3's low half (its high half belongs to the HUD).
 	// An entity's Entity::GetPalette() (0=Room, 1=Sprite Lo/Hi, 2=Player, 3=Sprite Lo+HUD)
@@ -481,6 +505,39 @@ public:
 	void SetEnemyStats(uint8_t entity_index, const EnemyStats& stats);
 	void ClearEnemyStats(uint8_t entity_index);
 
+	// The raw item-menu inventory layout (InventoryItems) and equip-menu layout
+	// (EquipInventoryLayout) tables. Both are still stored and edited as opaque byte
+	// blobs; no structured accessors exist yet.
+	const ByteVector& GetInventoryItems() const;
+	void SetInventoryItems(const ByteVector& data);
+	const ByteVector& GetEquipInventoryLayout() const;
+	void SetEquipInventoryLayout(const ByteVector& data);
+
+	// The intro/demo input-playback table (InputPlayback). Stored and edited as an opaque byte
+	// blob of input+duration word pairs (0x80 marks end-of-sequence, 0xFE duration means hold);
+	// no structured accessors exist yet.
+	const ByteVector& GetInputPlayback() const;
+	void SetInputPlayback(const ByteVector& data);
+
+	// The 15 Friday overlay-animation waypoint tables (FridayAnimation1..15). Each is stored as
+	// an opaque byte blob; no structured accessors exist yet. The count is fixed by the engine.
+	static constexpr std::size_t NUM_FRIDAY_ANIMATIONS = 15;
+	std::size_t GetFridayAnimationCount() const;
+	const ByteVector& GetFridayAnimation(std::size_t index) const;
+	void SetFridayAnimation(std::size_t index, const ByteVector& data);
+	// The same tables decoded to / from their waypoint-path structure.
+	FridayAnimation GetFridayAnimationPath(std::size_t index) const;
+	void SetFridayAnimationPath(std::size_t index, const FridayAnimation& path);
+
+	// The sword/armour damage-modifier constants (damage.inc / ChargedSwordBoost + ArmourDefence).
+	// Each is a 16-bit fixed-point value; divide by 256.0 for the fractional multiplier. Keyed by
+	// the disassembly's equ names (e.g. MAGIC_SWORD_BOOST). In ASM mode these come from damage.inc;
+	// in ROM mode from the two data tables (four sword boosts, then five armour defences).
+	const std::map<std::string, uint16_t>& GetDamageConstants() const;
+	void SetDamageConstants(const std::map<std::string, uint16_t>& constants);
+	uint16_t GetDamageConstant(const std::string& name) const;
+	void SetDamageConstant(const std::string& name, uint16_t value);
+
 	std::map<int, std::string> GetScriptNames() const;
 	std::pair<std::string, std::vector<Behaviours::Command>> GetScript(int id) const;
 	void SetScript(int id, const std::string& name, const std::vector<Behaviours::Command>& cmds);
@@ -565,6 +622,15 @@ private:
 	bool RomLoadSpritePalettes(const Rom& rom);
 	bool RomLoadSpriteData(const Rom& rom);
 
+	// Writes fridayanimationdata.asm (15 labelled incbins + Align) and its .bin files.
+	bool AsmSaveFridayAnimations(const std::filesystem::path& dir);
+
+	// Reads / writes the damage-modifier constants from / to their include file (damage.inc).
+	bool AsmLoadDamageConstants();
+	bool AsmSaveDamageConstants(const std::filesystem::path& dir);
+	// Seeds m_damage_constants with the engine defaults for every constant not already present.
+	void SetDefaultDamageConstants();
+
 	bool AsmSaveSpriteFrames(const std::filesystem::path& dir);
 	bool AsmSaveSpritePointers(const std::filesystem::path& dir);
 	bool AsmSaveSpritePalettes(const std::filesystem::path& dir);
@@ -597,6 +663,12 @@ private:
 	std::filesystem::path m_room_sprite_table_offsets_file;
 	std::filesystem::path m_enemy_stats_file;
 	std::filesystem::path m_room_sprite_table_file;
+	std::filesystem::path m_inventory_items_file;
+	std::filesystem::path m_equip_inventory_layout_file;
+	std::filesystem::path m_input_playback_file;
+	std::filesystem::path m_friday_animation_data_file;              // fridayanimationdata.asm
+	std::vector<std::filesystem::path> m_friday_animation_files;     // one .bin per animation
+	std::filesystem::path m_damage_constants_file;                  // damage.inc (empty for ROM projects)
 
 	std::map<uint8_t, std::string> m_names;
 	std::map<std::string, uint8_t> m_ids;
@@ -647,6 +719,16 @@ private:
 	std::map<uint8_t, std::array<uint8_t, 5>> m_enemy_stats_orig;
 	std::vector<std::array<uint8_t, 4>> m_item_properties;
 	std::vector<std::array<uint8_t, 4>> m_item_properties_orig;
+	ByteVector m_inventory_items;
+	ByteVector m_inventory_items_orig;
+	ByteVector m_equip_inventory_layout;
+	ByteVector m_equip_inventory_layout_orig;
+	ByteVector m_input_playback;
+	ByteVector m_input_playback_orig;
+	std::vector<ByteVector> m_friday_animations;
+	std::vector<ByteVector> m_friday_animations_orig;
+	std::map<std::string, uint16_t> m_damage_constants;
+	std::map<std::string, uint16_t> m_damage_constants_orig;
 	std::map<uint8_t, AnimationFlags> m_sprite_animation_flags;
 	std::map<uint8_t, AnimationFlags> m_sprite_animation_flags_orig;
 
