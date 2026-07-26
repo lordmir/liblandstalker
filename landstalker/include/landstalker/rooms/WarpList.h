@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <list>
 #include <map>
+#include <utility>
 #include <landstalker/main/Rom.h>
 #include <landstalker/rooms/RoomIndexMap.h>
 #include <filesystem>
@@ -73,6 +74,11 @@ public:
 
 	std::vector<Warp> GetWarpsForRoom(uint16_t room) const;
 	static bool HasDuplicateWarps(const std::vector<Warp>& warps);
+	// Returns the (i, j) index pairs of warps whose footprint within `room`
+	// overlaps another's - e.g. two warps with different destinations that
+	// both sit on the same tile, so only one is ever actually reachable.
+	static std::vector<std::pair<std::size_t, std::size_t>> FindWarpsWithDuplicatePosition(
+		uint16_t room, const std::vector<Warp>& warps);
 	void UpdateWarpsForRoom(uint16_t room, const std::vector<Warp>& warps);
 	bool HasFallDestination(uint16_t room) const;
 	uint16_t GetFallDestination(uint16_t room) const;

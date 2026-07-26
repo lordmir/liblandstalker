@@ -1156,6 +1156,105 @@ SpriteData::Hitbox SpriteData::GetEntityHitbox(uint8_t id) const
 	return GetSpriteHitbox(sprite_id);
 }
 
+std::vector<SpriteData::PaletteSlotClash> SpriteData::FindPaletteClashes(const std::vector<Entity>& entities) const
+{
+	struct SlotOwner
+	{
+		bool set = false;
+		int palette_idx = -1;
+		std::size_t entity_index = 0;
+	};
+	SlotOwner pal1_low, pal1_high, pal3_low;
+	std::vector<PaletteSlotClash> result;
+
+	auto claim = [&result](SlotOwner& owner, int palette_idx, SpritePaletteSlot slot, std::size_t index)
+	{
+		if (palette_idx < 0)
+		{
+			return;
+		}
+		if (!owner.set)
+		{
+			owner.set = true;
+			owner.palette_idx = palette_idx;
+			owner.entity_index = index;
+			return;
+		}
+		if (owner.palette_idx != palette_idx)
+		{
+			result.push_back({ slot, owner.entity_index, index });
+		}
+	};
+
+	for (std::size_t i = 0; i < entities.size(); ++i)
+	{
+		uint8_t palette_mode = entities[i].GetPalette();
+		if ((palette_mode != 1 && palette_mode != 3) || !IsEntity(entities[i].GetType()))
+		{
+			continue;
+		}
+		auto [lo, hi] = GetEntityPaletteIdxs(entities[i].GetType());
+		if (palette_mode == 1)
+		{
+			claim(pal1_low, lo, SpritePaletteSlot::Palette1Low, i);
+			claim(pal1_high, hi, SpritePaletteSlot::Palette1High, i);
+		}
+		else
+		{
+			claim(pal3_low, lo, SpritePaletteSlot::Palette3Low, i);
+		}
+	}
+	return result;
+}
+
+int SpriteData::GetRoomSpriteVramTileUsage(const std::vector<Entity>& entities) const
+{
+	int total = PLAYER_FIXED_VRAM_TILES;
+	for (const auto& entity : entities)
+	{
+		if (!IsEntity(entity.GetType()) || entity.IsTileCopySet())
+		{
+			continue;
+		}
+		auto frame = GetDefaultEntityFrame(entity.GetType());
+		if (frame && frame->GetData())
+		{
+			total += static_cast<int>(frame->GetData()->GetTileCount());
+		}
+	}
+	return total;
+}
+
+int SpriteData::GetRoomSpritePieceUsage(const std::vector<Entity>& entities) const
+{
+	int total = 0;
+	auto add_frame_pieces = [&total](const std::shared_ptr<SpriteFrameEntry>& frame)
+	{
+		if (frame && frame->GetData())
+		{
+			total += static_cast<int>(frame->GetData()->GetSubSpriteCount());
+		}
+	};
+
+	// The player is always sprite 0 (not a room entity), so its default frame is looked up
+	// the same way GetDefaultEntityFrame picks one for a non-item sprite: animation 1 if it
+	// has a walk/idle split, otherwise animation 0.
+	constexpr uint8_t kPlayerSpriteId = 0;
+	add_frame_pieces(GetSpriteAnimationCount(kPlayerSpriteId) > 1
+		? GetSpriteFrame(kPlayerSpriteId, 1, 0)
+		: GetSpriteFrame(kPlayerSpriteId, 0, 0));
+
+	for (const auto& entity : entities)
+	{
+		if (!IsEntity(entity.GetType()))
+		{
+			continue;
+		}
+		add_frame_pieces(GetDefaultEntityFrame(entity.GetType()));
+	}
+	return total;
+}
+
 void SpriteData::SetSpriteHitbox(uint8_t id, const Hitbox& hitbox)
 {
 	assert(m_sprite_dimensions.find(id) != m_sprite_dimensions.cend());

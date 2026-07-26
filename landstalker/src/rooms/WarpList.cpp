@@ -96,6 +96,78 @@ bool WarpList::HasDuplicateWarps(const std::vector<Warp>& warps)
 	return false;
 }
 
+namespace {
+
+struct WarpRoomRect
+{
+	uint8_t x;
+	uint8_t y;
+	uint8_t w;
+	uint8_t h;
+};
+
+bool RectsOverlap(const WarpRoomRect& a, const WarpRoomRect& b)
+{
+	return a.x < b.x + b.w && b.x < a.x + a.w &&
+	       a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+// A warp can touch `room` on its room1 side, its room2 side, or both (a warp
+// that connects a room to itself), so it may contribute up to two rects.
+std::vector<WarpRoomRect> WarpRectsInRoom(uint16_t room, const WarpList::Warp& warp)
+{
+	std::vector<WarpRoomRect> rects;
+	if (warp.room1 == room)
+	{
+		rects.push_back({warp.x1, warp.y1, warp.x_size, warp.y_size});
+	}
+	if (warp.room2 == room)
+	{
+		rects.push_back({warp.x2, warp.y2, warp.x_size, warp.y_size});
+	}
+	return rects;
+}
+
+} // namespace
+
+std::vector<std::pair<std::size_t, std::size_t>> WarpList::FindWarpsWithDuplicatePosition(
+	uint16_t room, const std::vector<Warp>& warps)
+{
+	std::vector<std::pair<std::size_t, std::size_t>> result;
+	for (std::size_t i = 0; i < warps.size(); ++i)
+	{
+		if (!warps[i].IsValid())
+		{
+			continue;
+		}
+		const auto rects_i = WarpRectsInRoom(room, warps[i]);
+		for (std::size_t j = i + 1; j < warps.size(); ++j)
+		{
+			if (!warps[j].IsValid())
+			{
+				continue;
+			}
+			const auto rects_j = WarpRectsInRoom(room, warps[j]);
+			bool overlap = false;
+			for (const auto& a : rects_i)
+			{
+				for (const auto& b : rects_j)
+				{
+					if (RectsOverlap(a, b))
+					{
+						overlap = true;
+					}
+				}
+			}
+			if (overlap)
+			{
+				result.emplace_back(i, j);
+			}
+		}
+	}
+	return result;
+}
+
 void WarpList::UpdateWarpsForRoom(uint16_t room, const std::vector<Warp>& warps)
 {
 	// Writing back an unchanged list has to be a no-op. The deduplication at the end of

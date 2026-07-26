@@ -697,10 +697,6 @@ bool RoomToYaml::ImportFromYamlText(const std::string& yaml, const RoomKey& key,
             }
             warps->push_back(warp);
         }
-        if (WarpList::HasDuplicateWarps(*warps))
-        {
-            throw std::runtime_error("'warps' contains the same warp more than once.");
-        }
     }
 
     std::optional<std::vector<uint16_t>> characters;

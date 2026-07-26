@@ -103,6 +103,27 @@ public:
 		Hitbox(uint8_t b, uint8_t h) : base(b), height(h) {}
 	};
 
+	// A room has 3 shared sprite-palette VDP slots: palette 1's low (colours 2-7) and high
+	// (colours 8-14) halves, and palette 3's low half (its high half belongs to the HUD).
+	// An entity's Entity::GetPalette() (0=Room, 1=Sprite Lo/Hi, 2=Player, 3=Sprite Lo+HUD)
+	// selects which of these it draws into (gamelogic\spritefuncs3.asm GetSpritePalette).
+	enum class SpritePaletteSlot
+	{
+		Palette1Low,
+		Palette1High,
+		Palette3Low
+	};
+
+	// Two entities in one room whose GetPalette() targets the same physical slot but with
+	// different palette data: whichever loads second overwrites the other's colours in-game
+	// (spritefuncs3.asm _conflict beeps a debug alarm, then overwrites anyway).
+	struct PaletteSlotClash
+	{
+		SpritePaletteSlot slot;
+		std::size_t first;   // index into the entities vector passed to FindPaletteClashes
+		std::size_t second;
+	};
+
 	struct SpriteMetadata
 	{
 		unsigned int frame_width;
@@ -328,6 +349,31 @@ public:
 	Hitbox GetSpriteHitbox(uint8_t id) const;
 	Hitbox GetEntityHitbox(uint8_t id) const;
 	void SetSpriteHitbox(uint8_t id, const Hitbox& hitbox);
+
+	// Room-editor validation helpers mirroring engine limits that only manifest as debug-build
+	// alarms (or, for the piece budget, not even that - see GetRoomSpritePieceUsage) in
+	// gamelogic\spriterender.asm. The player is always sprite 0 and isn't part of a room's
+	// entity list, but still shares both budgets below with every placed entity: the piece
+	// budget looks up sprite 0's own default frame directly, while the VRAM budget instead
+	// adds a flat reservation for it (the engine always reserves that regardless of room; the
+	// same "look up sprite 0's real frame" approach would work there too, but the flat figure
+	// is the one actually cited in the disassembly).
+	std::vector<PaletteSlotClash> FindPaletteClashes(const std::vector<Entity>& entities) const;
+	// Sprite tiles stream into a fixed VRAM window from $03A8; the player always reserves a
+	// flat 44 ($2C) tiles there, entities with Entity::IsTileCopySet() reuse another sprite's
+	// already-loaded tiles instead of consuming new VRAM, everyone else adds their default
+	// frame's tile count (spriterender.asm _roomLoadSprite/_newVram/_bumpVram). Overflowing
+	// $04F4 (332 tiles from the base) beeps 11 times in a debug build (_chkOverflow).
+	static constexpr int SPRITE_VRAM_BUDGET_TILES = 0x04F4 - 0x03A8;
+	static constexpr int PLAYER_FIXED_VRAM_TILES = 0x2C;
+	int GetRoomSpriteVramTileUsage(const std::vector<Entity>& entities) const;
+	// Each entity's current frame emits up to 8 VDP hardware-sprite "pieces" (SpriteFrame::
+	// MAX_SUBSPRITES) into a fixed 64-slot table shared by every active entity (VDP sprites
+	// 16-79; spriterender.asm ResetVdpSprites/BuildVdpSpriteEntry). Unlike the VRAM budget,
+	// there is no debug alarm for this at all - it's an unbounded write that silently
+	// corrupts adjacent VDP sprites/DMA queue data past the limit.
+	static constexpr int SPRITE_PIECE_BUDGET = 64;
+	int GetRoomSpritePieceUsage(const std::vector<Entity>& entities) const;
 
 	bool SpriteFrameExists(const std::string& name) const;
 	void DeleteSpriteFrame(const std::string& name);

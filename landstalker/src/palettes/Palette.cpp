@@ -534,6 +534,29 @@ bool Palette::IsVarWidth() const
 	return IsVarWidth(m_type);
 }
 
+bool Palette::SetSize(int n)
+{
+	if (!IsVarWidth() || n <= 0)
+	{
+		return false;
+	}
+	const std::size_t target = static_cast<std::size_t>(n);
+	if (target == m_pal.size())
+	{
+		return false;
+	}
+	const std::size_t old = m_pal.size();
+	m_pal.resize(target);
+	// Fresh slots start black; grown/shrunk metadata stays parallel to the colour vector.
+	for (std::size_t i = old; i < target; ++i)
+	{
+		m_pal[i] = std::make_shared<Colour>();
+	}
+	m_owner.resize(target, m_name);
+	m_locked.resize(target, false);
+	return true;
+}
+
 const std::vector<bool>& Palette::GetLockedColours(const Type& type)
 {
 	return LOCKED_ENTRIES.at(type);
