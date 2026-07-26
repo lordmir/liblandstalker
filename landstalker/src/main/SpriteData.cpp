@@ -4580,7 +4580,7 @@ bool SpriteData::AsmSaveFridayAnimations(const std::filesystem::path& dir)
 		{
 			std::filesystem::path path = (i < m_friday_animation_files.size())
 				? m_friday_animation_files[i]
-				: StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i + 1);
+				: std::filesystem::path(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i + 1));
 			file << AsmFile::Label(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i + 1))
 			     << AsmFile::IncludeFile(path, AsmFile::FileType::BINARY);
 			file << AsmFile::Align(2);
