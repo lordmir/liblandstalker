@@ -35,6 +35,8 @@ public:
 
     uint8_t GetType() const;
     bool SetType(uint8_t type);
+    bool IsChest() const { return m_type == 0x12; }
+    bool IsItem() const { return m_type >= 0xC0; }
     uint8_t GetPalette() const;
     bool SetPalette(uint8_t palette);
     Orientation GetOrientation() const;

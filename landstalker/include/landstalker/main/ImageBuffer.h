@@ -26,6 +26,21 @@ public:
 		PRIORITY_ONLY,
 		NO_PRIORITY_ONLY
 	};
+	// A colour-indexed PNG decoded to one palette index per pixel, row-major.
+	struct IndexedImage
+	{
+		std::size_t width = 0;
+		std::size_t height = 0;
+		std::vector<uint8_t> pixels;    // valid only when `indexed`
+		std::vector<uint32_t> palette;  // PLTE entries as 0x00RRGGBB, one per slot (indexed only)
+		bool ok = false;                // the file decoded as a PNG
+		bool indexed = false;           // and it was a colour-indexed (palette) image
+		int max_index = -1;             // largest palette index used (indexed images only)
+	};
+	// Decodes an indexed PNG. `ok` is false when the file could not be read as a PNG at all;
+	// `indexed` is false when it decoded but is not a palette image (`pixels` then left empty).
+	static IndexedImage ReadIndexedPNG(const std::string& filename);
+
 	ImageBuffer();
 	ImageBuffer(std::size_t width, std::size_t height);
 	virtual ~ImageBuffer() = default;
@@ -46,6 +61,7 @@ public:
 	void InsertBlock(std::size_t x, std::size_t y, uint8_t palette_index, const MapBlock& block, const Tileset& tileset, BlockMode mode = BlockMode::NORMAL);
 	const std::vector<uint8_t>& GetRGB(const std::vector<std::shared_ptr<Palette>>& pals) const;
 	const std::vector<uint8_t>& GetAlpha(const std::vector<std::shared_ptr<Palette>>& pals, uint8_t low_pri_max_opacity = 0xFF, uint8_t high_pri_max_opacity = 0xFF) const;
+	const std::vector<uint8_t>& GetPixels() const;
 	std::size_t GetHeight() const;
 	std::size_t GetWidth() const;
 private:

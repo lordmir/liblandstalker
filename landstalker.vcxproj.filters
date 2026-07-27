@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\AnimatedTileset.cpp">
@@ -100,7 +100,13 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\RoomToTmx.cpp">
       <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\RoomToYaml.cpp">
+      <Filter>Source Files\3D Maps</Filter>
+    </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3D.cpp">
+      <Filter>Source Files\3D Maps</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\Tilemap3DCompressor.cpp">
       <Filter>Source Files\3D Maps</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\3d_maps\TileSwaps.cpp">
@@ -119,6 +125,9 @@
       <Filter>Source Files\Rooms</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\RoomDialogueTable.cpp">
+      <Filter>Source Files\Rooms</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\RoomIndexMap.cpp">
       <Filter>Source Files\Rooms</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\WarpList.cpp">
@@ -154,6 +163,21 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunction.cpp">
       <Filter>Source Files\Script</Filter>
     </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunctionTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\AsmFunctionTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ItemUseTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\RoomActionTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptStatements.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptTable.cpp">
       <Filter>Source Files\Script</Filter>
     </ClCompile>
@@ -172,8 +196,9 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\tileset\Tile.cpp">
       <Filter>Source Files\Tileset</Filter>
     </ClCompile>
-    <ClCompile Include="landstalker\src\text\Charset.cpp">
-      <Filter>Source Files\Text</Filter>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\text\Charset.cpp" />
+    <ClCompile Include="landstalker\src\tileset\EndCreditFont.cpp">
+      <Filter>Source Files\Tileset</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -285,7 +310,13 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\RoomToTmx.h">
       <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\RoomToYaml.h">
+      <Filter>Header Files\3D Maps</Filter>
+    </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3D.h">
+      <Filter>Header Files\3D Maps</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\Tilemap3DCompressor.h">
       <Filter>Header Files\3D Maps</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\3d_maps\TileSwaps.h">
@@ -327,6 +358,9 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\RoomDialogueTable.h">
       <Filter>Header Files\Rooms</Filter>
     </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\RoomIndexMap.h">
+      <Filter>Header Files\Rooms</Filter>
+    </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\WarpList.h">
       <Filter>Header Files\Rooms</Filter>
     </ClInclude>
@@ -340,6 +374,24 @@
       <Filter>Header Files\Script</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunction.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunctionTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\AsmFunctionTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\AsmText.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ItemUseTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\RoomActionTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptStatements.h">
       <Filter>Header Files\Script</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptTable.h">
@@ -360,9 +412,9 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\tileset\Tileset.h">
       <Filter>Header Files\Tileset</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="$(ProjectDir)\CMakeLists.txt" />
+    <ClInclude Include="landstalker\include\landstalker\tileset\EndCreditFont.h">
+      <Filter>Header Files\Tileset</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">

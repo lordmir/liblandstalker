@@ -102,7 +102,7 @@ static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset,
             bool right = false;
             while (true)
             {
-                next_offset += map_width + (right ? 1 : 0);
+                next_offset += static_cast<std::size_t>(map_width) + (right ? 1 : 0);
                 if (next_offset + match_run <= input.size() && next_offset >= b)
                 {
                     bool matches = true;
@@ -135,9 +135,9 @@ static int findMatchFrequency(const std::vector<uint16_t>& input, size_t offset,
     int best_overall = std::max(best_fixed, best_dyn);
     if (best_dyn > best_fixed && best_dyn >= 2)
     {
-        fc[best_b]++;
-        lc[best_b] += best_dyn;
-        vc[best_b] += best_dyn * best_dyn_vert;
+        fc[static_cast<int>(best_b)]++;
+        lc[static_cast<int>(best_b)] += best_dyn;
+        vc[static_cast<int>(best_b)] += best_dyn * best_dyn_vert;
     }
     
     return best_overall;
@@ -164,7 +164,7 @@ static std::pair<int, int> findMatch(const std::vector<uint16_t>& input, size_t 
         if (match_run > ret.second)
         {
             ret.second = match_run;
-            ret.first = i;
+            ret.first = static_cast<int>(i);
         }
     }
     if (ret.second == 0)
@@ -531,7 +531,7 @@ void Tilemap3DCompressor::OptimizeVerticalRun(const Tilemap3D& map, std::vector<
         
         while (next < tiles_size)
         {
-            next += map.GetWidth() + (right ? 1 : 0);
+            next += static_cast<std::size_t>(map.GetWidth()) + (right ? 1 : 0);
             auto nit = std::find_if(it, lz77.end(), [&](const LZ77Entry& comp)
                 {
                     return (comp.index == static_cast<int>(next)) && (comp.back_offset_idx == entry.back_offset_idx);
@@ -727,7 +727,7 @@ uint16_t Tilemap3DCompressor::WriteLayerData(const Tilemap3D& map, const std::ar
     WriteLayerTiles(tile_entries, cmap);
     
     cmap.AdvanceNextByte();
-    uint16_t current_pos = cmap.GetByteCount();
+    uint16_t current_pos = static_cast<uint16_t>(cmap.GetByteCount());
     if (current_pos > size) throw std::runtime_error("Output buffer not large enough to hold result.");
     std::copy(cmap.Begin(), cmap.End(), dst);
     return current_pos - 1;

@@ -5,6 +5,7 @@ target_sources(${MODULE_NAME} PRIVATE
     "Doors.cpp"
     "MapToTmx.cpp"
     "RoomToTmx.cpp"
+    "RoomToYaml.cpp"
     "Tilemap3D.cpp"
     "Tilemap3DCompressor.cpp"
     "TileSwaps.cpp"

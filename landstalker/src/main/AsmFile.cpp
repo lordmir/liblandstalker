@@ -1,7 +1,10 @@
 #include <landstalker/main/AsmFile.h>
 #include <landstalker/misc/Utils.h>
 
+#include <algorithm>
+#include <cctype>
 #include <regex>
+#include <set>
 #include <unordered_map>
 #include <iostream>
 #include <iomanip>
@@ -13,9 +16,158 @@ namespace Landstalker {
 const std::unordered_map<std::string, AsmFile::Inst> AsmFile::INSTRUCTIONS
 {
 	{"dc", Inst::DC}, {"dcb", Inst::DCB}, {"include", Inst::INCLUDE}, {"incbin", Inst::INCBIN},
-	{"Align", Inst::ALIGN}, {"ScriptID", Inst::SCRIPTID}, {"ScriptJump", Inst::SCRIPTJUMP}
+	{"Align", Inst::ALIGN}, {"ScriptID", Inst::SCRIPTID}, {"ScriptJump", Inst::SCRIPTJUMP},
+	{"equ", Inst::EQU}
 };
 const std::unordered_map<std::string, AsmFile::Width> AsmFile::WIDTHS{ {"", Width::NONE}, {"b", Width::B}, {"w", Width::W}, {"l", Width::L}, {"s", Width::S} };
+
+namespace {
+
+std::size_t FindUnquoted(const std::string& text, char needle)
+{
+	char quote = '\0';
+	for (std::size_t i = 0; i < text.size(); ++i)
+	{
+		const char c = text[i];
+		if (quote != '\0')
+		{
+			if (c == quote)
+			{
+				if (i + 1 < text.size() && text[i + 1] == quote)
+				{
+					++i;
+				}
+				else
+				{
+					quote = '\0';
+				}
+			}
+		}
+		else if (c == '"' || c == '\'')
+		{
+			quote = c;
+		}
+		else if (c == needle)
+		{
+			return i;
+		}
+	}
+	return std::string::npos;
+}
+
+std::vector<std::string> SplitOperands(const std::string& operands)
+{
+	std::vector<std::string> result;
+	std::string operand;
+	char quote = '\0';
+	for (std::size_t i = 0; i < operands.size(); ++i)
+	{
+		const char c = operands[i];
+		if (quote != '\0')
+		{
+			operand += c;
+			if (c == quote)
+			{
+				if (i + 1 < operands.size() && operands[i + 1] == quote)
+				{
+					operand += operands[++i];
+				}
+				else
+				{
+					quote = '\0';
+				}
+			}
+		}
+		else if (c == '"' || c == '\'')
+		{
+			quote = c;
+			operand += c;
+		}
+		else if (c == ',')
+		{
+			result.push_back(Trim(operand));
+			operand.clear();
+		}
+		else
+		{
+			operand += c;
+		}
+	}
+	result.push_back(Trim(operand));
+	return result;
+}
+
+bool ParseStringLiteral(const std::string& operand, std::string& value)
+{
+	const std::string literal = Trim(operand);
+	if (literal.size() < 2 || (literal.front() != '"' && literal.front() != '\'') ||
+		literal.back() != literal.front())
+	{
+		return false;
+	}
+
+	value.clear();
+	const char quote = literal.front();
+	for (std::size_t i = 1; i + 1 < literal.size(); ++i)
+	{
+		if (literal[i] != quote)
+		{
+			value += literal[i];
+		}
+		else if (i + 2 < literal.size() && literal[i + 1] == quote)
+		{
+			value += quote;
+			++i;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+std::string FormatStringLiteral(const std::string& value)
+{
+	std::string result;
+	std::string printable;
+	auto append_operand = [&result](const std::string& operand)
+	{
+		if (!result.empty())
+		{
+			result += ',';
+		}
+		result += operand;
+	};
+	auto flush_printable = [&]()
+	{
+		if (!printable.empty())
+		{
+			append_operand('"' + printable + '"');
+			printable.clear();
+		}
+	};
+
+	for (const unsigned char c : value)
+	{
+		if (c >= 0x20 && c <= 0x7E && c != '"')
+		{
+			printable += static_cast<char>(c);
+		}
+		else
+		{
+			flush_printable();
+			std::ostringstream hex;
+			hex << '$' << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+				<< static_cast<unsigned int>(c);
+			append_operand(hex.str());
+		}
+	}
+	flush_printable();
+	return result.empty() ? "\"\"" : result;
+}
+
+} // namespace
 
 std::string AsmFile::Instruction::ToLine(const std::string& label, const std::string& comment) const
 {
@@ -69,12 +221,9 @@ AsmFile::Instruction AsmFile::Instruction::FromAsmLine(const AsmFile::AsmLine& l
 		return Instruction();
 	}
 
-	std::string param;
-	std::stringstream ss(line.operand);
 	Instruction ins(line.instruction, width);
-	while (ss.good())
+	for (const std::string& param : SplitOperands(line.operand))
 	{
-		std::getline(ss, param, ',');
 		auto result = ParseValue(param, defines);
 		if (result != -1)
 		{
@@ -168,12 +317,25 @@ const std::map<std::string, std::string>& AsmFile::GetDefines() const
 	return m_defines;
 }
 
-std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_file)
+namespace {
+
+void ParseDefinesInto(const std::string& inc_file, const std::filesystem::path& base_path,
+	std::map<std::string, std::string>& defines, std::set<std::filesystem::path>& visited)
 {
-	std::map<std::string, std::string> defines;
+	std::error_code ec;
+	auto canonical = std::filesystem::weakly_canonical(inc_file, ec);
+	if (ec)
+	{
+		canonical = inc_file;
+	}
+	if (!visited.insert(canonical).second)
+	{
+		return; // Already parsed - guard against include cycles.
+	}
 	std::ifstream ifs(inc_file);
 	std::string line;
-	std::regex def_re("^(\\w+):\\s+equ\\s+(\\S+)", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	static const std::regex def_re("^(\\w+):\\s+equ\\s+(\\S+)", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	static const std::regex inc_re("^\\s*include\\s+\"([^\"]+)\"", std::regex_constants::ECMAScript | std::regex_constants::icase);
 	std::smatch matches;
 	while (ifs.good() && std::getline(ifs, line))
 	{
@@ -181,6 +343,139 @@ std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_
 		{
 			defines[matches[1].str()] = matches[2].str();
 		}
+		else if (std::regex_search(line, matches, inc_re))
+		{
+			std::filesystem::path rel = ReformatPath(matches[1].str());
+			std::filesystem::path child = base_path.empty()
+				? std::filesystem::path(inc_file).parent_path() / rel
+				: base_path / rel;
+			ParseDefinesInto(child.string(), base_path, defines, visited);
+		}
+	}
+}
+
+// Collects every include reachable from inc_file, depth first, as paths relative to
+// base_path. Mirrors ParseDefinesInto's resolution rules and cycle guard.
+void CollectIncludesInto(const std::filesystem::path& rel_file, const std::filesystem::path& base_path,
+	std::vector<std::filesystem::path>& includes, std::set<std::filesystem::path>& visited)
+{
+	const auto full = base_path.empty() ? rel_file : base_path / rel_file;
+	std::error_code ec;
+	auto canonical = std::filesystem::weakly_canonical(full, ec);
+	if (ec)
+	{
+		canonical = full;
+	}
+	if (!visited.insert(canonical).second)
+	{
+		return;
+	}
+	std::ifstream ifs(full);
+	std::string line;
+	static const std::regex inc_re("^\\s*include\\s+\"([^\"]+)\"", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	std::smatch matches;
+	while (ifs.good() && std::getline(ifs, line))
+	{
+		if (std::regex_search(line, matches, inc_re))
+		{
+			std::filesystem::path rel = ReformatPath(matches[1].str());
+			std::filesystem::path child = base_path.empty()
+				? full.parent_path() / rel
+				: rel;
+			includes.push_back(child);
+			CollectIncludesInto(child, base_path, includes, visited);
+		}
+	}
+}
+
+} // namespace
+
+std::filesystem::path AsmFile::FindDefineInclude(const std::filesystem::path& main_asm,
+	const std::filesystem::path& base_path, const std::string& defines_label,
+	const std::string& filename)
+{
+	auto lower = [](std::string s)
+	{
+		std::transform(s.begin(), s.end(), s.begin(), [](const unsigned char c)
+		{
+			return static_cast<char>(std::tolower(c));
+		});
+		return s;
+	};
+	const auto target = lower(std::filesystem::path(ReformatPath(filename)).filename().string());
+
+	std::vector<std::filesystem::path> includes;
+	std::set<std::filesystem::path> visited;
+	for (const auto& inc : CollectDefineIncludes(main_asm, defines_label))
+	{
+		includes.push_back(inc);
+		CollectIncludesInto(inc, base_path, includes, visited);
+	}
+	for (const auto& inc : includes)
+	{
+		if (lower(inc.filename().string()) == target)
+		{
+			return inc;
+		}
+	}
+	return {};
+}
+
+std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_file)
+{
+	return ParseDefines(inc_file, std::filesystem::path());
+}
+
+std::map<std::string, std::string> AsmFile::ParseDefines(const std::string& inc_file, const std::filesystem::path& base_path)
+{
+	std::map<std::string, std::string> defines;
+	std::set<std::filesystem::path> visited;
+	ParseDefinesInto(inc_file, base_path, defines, visited);
+	return defines;
+}
+
+std::vector<std::filesystem::path> AsmFile::CollectDefineIncludes(const std::filesystem::path& main_asm, const std::string& defines_label)
+{
+	std::vector<std::filesystem::path> result;
+	std::ifstream ifs(main_asm);
+	std::string line;
+	static const std::regex label_re("^(\\w+):");
+	static const std::regex inc_re("include\\s+\"([^\"]+)\"", std::regex_constants::ECMAScript | std::regex_constants::icase);
+	std::smatch matches;
+	bool in_defines = false;
+	while (std::getline(ifs, line))
+	{
+		if (!in_defines)
+		{
+			if (std::regex_search(line, matches, label_re) && matches[1].str() == defines_label)
+			{
+				in_defines = true;
+				if (std::regex_search(line, matches, inc_re))
+				{
+					result.push_back(ReformatPath(matches[1].str()));
+				}
+			}
+		}
+		else if (std::regex_search(line, matches, inc_re))
+		{
+			result.push_back(ReformatPath(matches[1].str()));
+		}
+		else if (line.find_first_not_of(" \t\r\n") != std::string::npos)
+		{
+			// First non-blank, non-include line (e.g. "org") ends the Defines block.
+			break;
+		}
+	}
+	return result;
+}
+
+std::map<std::string, std::string> AsmFile::LoadDefines(const std::filesystem::path& main_asm, const std::filesystem::path& base_path, const std::string& defines_label)
+{
+	std::map<std::string, std::string> defines;
+	for (const auto& inc : CollectDefineIncludes(main_asm, defines_label))
+	{
+		auto parsed = ParseDefines((base_path / inc).string(), base_path);
+		defines.insert(parsed.cbegin(), parsed.cend());
 	}
 	return defines;
 }
@@ -521,6 +816,24 @@ bool AsmFile::Read(IncludeFile& value)
 	return ret;
 }
 
+bool AsmFile::Read(Define& value)
+{
+	bool ret = false;
+	if (m_readptr != m_data.end())
+	{
+		try
+		{
+			value = std::get<Define>(*m_readptr++);
+			ret = true;
+		}
+		catch (const std::bad_variant_access&)
+		{
+			return false;
+		}
+	}
+	return ret;
+}
+
 bool AsmFile::Read(Label& value)
 {
 	std::size_t pos = m_readptr - m_data.begin();
@@ -581,6 +894,18 @@ bool AsmFile::Write(const std::string& data)
 	return true;
 }
 
+bool AsmFile::Write(const String& data)
+{
+	if (!m_nextline.instruction.empty())
+	{
+		PushNextLine();
+	}
+	m_nextline.instruction = FindMapKey(INSTRUCTIONS, Inst::DC)->first;
+	m_nextline.width = FindMapKey(WIDTHS, Width::B)->first;
+	m_nextline.operand = FormatStringLiteral(data.value);
+	return true;
+}
+
 bool AsmFile::Write(const Label& label)
 {
 	PushNextLine();
@@ -612,6 +937,27 @@ bool AsmFile::Write(const IncludeFile& file)
 	m_nextline.operand = "\"";
 	m_nextline.operand += file.path.string();
 	m_nextline.operand += "\"";
+	return true;
+}
+
+bool AsmFile::Write(const Define& define)
+{
+	// The name is emitted as the line's label, so this always starts a fresh line.
+	PushNextLine();
+	m_nextline.label = define.name;
+	m_nextline.instruction = FindMapKey(INSTRUCTIONS, Inst::EQU)->first;
+	switch (define.width)
+	{
+	case Width::B:
+		m_nextline.operand = ToAsmValue(static_cast<uint8_t>(define.value), AsmFile::Base::HEX);
+		break;
+	case Width::W:
+		m_nextline.operand = ToAsmValue(static_cast<uint16_t>(define.value), AsmFile::Base::HEX);
+		break;
+	default:
+		m_nextline.operand = ToAsmValue(static_cast<uint32_t>(define.value), AsmFile::Base::HEX);
+		break;
+	}
 	return true;
 }
 
@@ -681,7 +1027,7 @@ bool AsmFile::ParseLine(AsmFile::AsmLine& line, const std::string& str)
 {
 	std::string s(str);
 	size_t end = 0;
-	end = s.find(";");
+	end = FindUnquoted(s, ';');
 	if (end != std::string::npos)
 	{
 		line.comment = Trim(s.substr(end));
@@ -743,9 +1089,43 @@ int64_t AsmFile::ParseValue(std::string val, const std::map<std::string, std::st
 	int64_t num = -1;
 	bool neg = false;
 
-	if (defines.count(val) > 0)
+	// Chase chained symbol definitions (e.g. "A: equ B", "B: equ C") to their final value,
+	// guarding against cycles.
+	std::set<std::string> visited;
+	while (defines.count(val) > 0 && visited.insert(val).second)
 	{
 		val = defines.at(val);
+	}
+
+	// A simple parenthesised binary expression, as produced by equ definitions that compute one
+	// symbol relative to another (e.g. "ITM_EKEEKE: equ (SPR_EKEEKE-ITEMS_BEGIN)"). Only a single
+	// top-level +/- is supported - enough for the offset-from-base pattern used in practice.
+	if (val.size() > 2 && val.front() == '(' && val.back() == ')')
+	{
+		const std::string inner = val.substr(1, val.size() - 2);
+		int depth = 0;
+		for (std::size_t i = 0; i < inner.size(); ++i)
+		{
+			const char c = inner[i];
+			if (c == '(')
+			{
+				++depth;
+			}
+			else if (c == ')')
+			{
+				--depth;
+			}
+			else if (depth == 0 && i > 0 && (c == '+' || c == '-'))
+			{
+				const int64_t lhs = ParseValue(inner.substr(0, i), defines);
+				const int64_t rhs = ParseValue(inner.substr(i + 1), defines);
+				if (lhs == -1 || rhs == -1)
+				{
+					return -1;
+				}
+				return (c == '+') ? (lhs + rhs) : (lhs - rhs);
+			}
+		}
 	}
 
 	if (val.length() == 0)
@@ -849,11 +1229,17 @@ bool AsmFile::ProcessInst<AsmFile::Inst::DC>(const AsmFile::AsmLine& line)
 	{
 		return false;
 	}
-	std::string word;
-	std::stringstream ss(line.operand);
-	while (ss.good())
+	for (const std::string& word : SplitOperands(line.operand))
 	{
-		std::getline(ss, word, ',');
+		std::string literal;
+		if (width == Width::B && ParseStringLiteral(word, literal))
+		{
+			for (const unsigned char c : literal)
+			{
+				m_data.emplace_back(static_cast<uint8_t>(c));
+			}
+			continue;
+		}
 		auto result = ParseValue(word);
 		if (result != -1)
 		{
@@ -990,6 +1376,25 @@ bool AsmFile::ProcessInst<AsmFile::Inst::SCRIPTJUMP>(const AsmFile::AsmLine& lin
 }
 
 template<>
+bool AsmFile::ProcessInst<AsmFile::Inst::EQU>(const AsmFile::AsmLine& line)
+{
+	// The symbol being defined is this line's label. A bodyless `equ` is malformed, and
+	// a value that will not resolve (a forward reference, an expression referring to a
+	// symbol from another file) is left out rather than stored as a bogus number.
+	if (line.label.empty())
+	{
+		return false;
+	}
+	const int64_t value = ParseValue(line.operand);
+	if (value < 0)
+	{
+		return false;
+	}
+	m_data.push_back(Define(line.label, value));
+	return true;
+}
+
+template<>
 bool AsmFile::ProcessInst<AsmFile::Inst::GENERIC>(const AsmFile::AsmLine& line)
 {
 	auto ins = Instruction::FromAsmLine(line);
@@ -1018,6 +1423,7 @@ bool AsmFile::ProcessLine(const AsmFile::AsmLine& line)
 	case Inst::ALIGN:      return ProcessInst<Inst::ALIGN>(line);
 	case Inst::SCRIPTID:   return ProcessInst<Inst::SCRIPTID>(line);
 	case Inst::SCRIPTJUMP: return ProcessInst<Inst::SCRIPTJUMP>(line);
+	case Inst::EQU:        return ProcessInst<Inst::EQU>(line);
 	default:			   return false;
 	}
 }
@@ -1151,6 +1557,19 @@ void AsmFile::AsmLine::Clear()
 std::ostream& operator<<(std::ostream& stream, AsmFile& file)
 {
 	return file.PrintFile(stream);
+}
+
+bool AsmFile::Define::operator==(const Define& rhs) const
+{
+	// Width is a formatting hint rather than part of the symbol, and reading always
+	// yields Width::L, so comparing it would make a written Define differ from the same
+	// Define read back.
+	return this->name == rhs.name && this->value == rhs.value;
+}
+
+bool AsmFile::Define::operator!=(const Define& rhs) const
+{
+	return !(*this == rhs);
 }
 
 bool AsmFile::ScriptId::operator==(const ScriptId& rhs) const

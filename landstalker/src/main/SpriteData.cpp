@@ -3,9 +3,13 @@
 #include <set>
 #include <numeric>
 #include <queue>
+#include <cmath>
+#include <fstream>
+#include <functional>
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
 #include <landstalker/misc/Literals.h>
+#include <landstalker/sprites/SpriteFrame.h>
 #include <yaml-cpp/yaml.h>
 
 namespace Landstalker {
@@ -71,6 +75,51 @@ std::vector<uint8_t> SerialiseFixedWidth(const std::vector<std::array<uint8_t, N
 		}
 	}
 	return result;
+}
+
+// The input-playback table is a raw byte blob framed by a 0xFF end-of-table marker and padded
+// with 0xFF to an even length (the table body itself always ends on a 0x80 end-of-sequence byte,
+// so trailing 0xFFs are never part of it). These keep the in-memory copy holding just the body:
+// strip the framing on load, re-apply it on save.
+static ByteVector StripInputPlaybackFraming(ByteVector bytes)
+{
+	while (!bytes.empty() && bytes.back() == 0xFF)
+	{
+		bytes.pop_back();
+	}
+	return bytes;
+}
+
+static ByteVector FrameInputPlayback(ByteVector bytes)
+{
+	bytes.push_back(0xFF);
+	if ((bytes.size() & 1) == 1)
+	{
+		bytes.push_back(0xFF);
+	}
+	return bytes;
+}
+
+namespace
+{
+	// The damage.inc modifier constants, in ROM order: the four charged-sword attack boosts
+	// (ChargedSwordBoost table) followed by the five armour defences (ArmourDefence table). The
+	// names match the disassembly's equ labels; the values are the engine defaults, used to seed
+	// ROM-only projects and to backfill any constant a project's damage.inc omits.
+	struct DamageConstantDef { const char* name; uint16_t value; };
+	constexpr std::size_t NUM_SWORD_BOOSTS = 4;   // first four -> ChargedSwordBoost
+	constexpr std::size_t NUM_ARMOUR_DEFENCES = 5; // remaining -> ArmourDefence
+	const std::array<DamageConstantDef, NUM_SWORD_BOOSTS + NUM_ARMOUR_DEFENCES> DAMAGE_CONSTANTS = {{
+		{ "MAGIC_SWORD_BOOST",      0x01C0 },
+		{ "ICE_SWORD_BOOST",        0x0180 },
+		{ "THUNDER_SWORD_BOOST",    0x0200 },
+		{ "GAIA_SWORD_BOOST",       0x0140 },
+		{ "LEATHER_BREAST_DEFENCE", 0x0100 },
+		{ "STEEL_BREAST_DEFENCE",   0x00E6 },
+		{ "CHROME_BREAST_DEFENCE",  0x00CC },
+		{ "SHELL_BREAST_DEFENCE",   0x00B3 },
+		{ "HYPER_BREAST_DEFENCE",   0x0080 },
+	}};
 }
 
 template <std::size_t N>
@@ -353,7 +402,7 @@ bool SpriteData::HasBeenModified() const
 	{
 		return true;
 	}
-	if (m_sprite_volume_orig != m_sprite_volume)
+	if (m_sprite_max_tile_count_orig != m_sprite_max_tile_count)
 	{
 		return true;
 	}
@@ -429,11 +478,32 @@ bool SpriteData::HasBeenModified() const
 	{
 		return true;
 	}
-	if (m_room_entities_orig != m_room_entities)
+	if (m_room_entities_orig != m_room_entities ||
+		m_room_entity_table_size_orig != m_room_entity_table_size)
 	{
 		return true;
 	}
 	if (m_item_properties_orig != m_item_properties)
+	{
+		return true;
+	}
+	if (m_inventory_items_orig != m_inventory_items)
+	{
+		return true;
+	}
+	if (m_equip_inventory_layout_orig != m_equip_inventory_layout)
+	{
+		return true;
+	}
+	if (m_input_playback_orig != m_input_playback)
+	{
+		return true;
+	}
+	if (m_friday_animations_orig != m_friday_animations)
+	{
+		return true;
+	}
+	if (m_damage_constants_orig != m_damage_constants)
 	{
 		return true;
 	}
@@ -475,17 +545,197 @@ std::wstring SpriteData::GetSpriteDisplayName(uint8_t id)
 	return Labels::Get(Labels::C_SPRITES, id).value_or(StrWPrintf(RomLabels::Sprites::SPRITE_GFX, id));
 }
 
+std::vector<SpriteData::AnimationRole> SpriteData::ComputeSpriteAnimationRoles(uint8_t id) const
+{
+	std::vector<AnimationRole> roles;
+	auto it = m_animations.find(id);
+	if (it == m_animations.cend())
+	{
+		return roles;
+	}
+	const int count = static_cast<int>(it->second.size());
+
+	const AnimationFlags af = GetSpriteAnimationFlags(id);
+	const bool ext = af.has_full_animations;
+	const bool dedicated_idle = af.idle_animation_source == AnimationFlags::IdleAnimationSource::DEDICATED;
+	const bool has_jump = af.jump_animation_source == AnimationFlags::JumpAnimationSource::DEDICATED;
+	const bool has_damage = af.take_damage_animation_source == AnimationFlags::TakeDamageAnimationSource::DEDICATED;
+
+	// Base ordinals (AnimationIndex / 4) each action loads in UpdateSpriteFrame. The extended
+	// set (bit 6) relocates walk/attack/jump; dedicated idle (bit 1) shifts idle by one bank;
+	// the alternate damage frame (used when a jump animation exists) shares the jump bank.
+	const int walk_base = ext ? 2 : 0;
+	const int idle_base = dedicated_idle ? 2 : 0;
+	const int attack_base = ext ? 14 : 2;
+	const int jump_base = ext ? 8 : 4;
+	const int dmg_base = has_jump ? 8 : 6;
+
+	const int walk_frames = ext ? 8
+		: (af.walk_animation_frame_count == AnimationFlags::WalkAnimationFrameCount::TWO_FRAMES ? 2 : 4);
+	const int idle_frames = af.idle_animation_frames == AnimationFlags::IdleAnimationFrameCount::ONE_FRAME ? 1 : 2;
+
+	struct Slot
+	{
+		std::vector<std::string> names;
+		int expected = 0;      // max fixed frame expectation among roles here; 0 = variable/none
+		bool has_idle = false;
+		bool has_attack = false;
+	};
+	std::vector<Slot> slots(count);
+
+	// Every base ordinal here is even, so a slot's parity alone fixes its facing bank.
+	auto add_role = [&](int base, const char* name, int expected_frames, bool variable, bool is_idle, bool is_attack)
+	{
+		for (int d = 0; d < 2; ++d)
+		{
+			const int o = base + d;
+			if (o < 0 || o >= count)
+			{
+				continue;
+			}
+			slots[o].names.emplace_back(name);
+			if (!variable)
+			{
+				slots[o].expected = std::max(slots[o].expected, expected_frames);
+			}
+			slots[o].has_idle = slots[o].has_idle || is_idle;
+			slots[o].has_attack = slots[o].has_attack || is_attack;
+		}
+	};
+
+	// Idle and walk always exist; the action-specific banks only when their flag is set.
+	add_role(idle_base, "Idle", idle_frames, false, true, false);
+	add_role(walk_base, "Walk", walk_frames, false, false, false);
+	add_role(attack_base, "Attack", 0, true, false, true);
+	if (has_jump)
+	{
+		add_role(jump_base, "Jump", 1, false, false, false);
+	}
+	if (has_damage)
+	{
+		add_role(dmg_base, "Damage", 1, false, false, false);
+	}
+
+	// "Full animation" (extended set) sprites drive several extra banks directly from the player
+	// code (gamelogic4.asm) rather than through UpdateSpriteFrame, so they never show up in the
+	// flag-derived roles above. They sit, in order, after the auto-detected banks. Climb is a
+	// single slot with no SW bank, which offsets the NE/SW pairing, so each name carries its own
+	// facing rather than relying on ordinal parity.
+	static const char* const kFullAnimExtraRoles[] = {
+		"Pick up NE", "Pick up SW",
+		"Carry NE", "Carry SW",
+		"Jump+Carry NE", "Jump+Carry SW",
+		"Throw NE", "Throw SW",
+		"Climb NE",
+		"Damage+Faint NE", "Damage+Faint SW",
+	};
+	constexpr int kFullAnimExtraCount = static_cast<int>(sizeof(kFullAnimExtraRoles) / sizeof(kFullAnimExtraRoles[0]));
+
+	roles.resize(count);
+	int no_role_seq = 0;   // running index over slots with no flag-derived role
+	int extra_num = 0;     // running number for genuinely-uncategorised "Extra" slots
+	for (int o = 0; o < count; ++o)
+	{
+		Slot& s = slots[o];
+		// A slot holding a dedicated idle belongs to a non-combat sprite that never reaches the
+		// attack handler, so idle wins the shared idle/attack bank rather than mislabelling it.
+		if (s.has_idle && s.has_attack)
+		{
+			s.names.erase(std::remove(s.names.begin(), s.names.end(), std::string("Attack")), s.names.end());
+		}
+		AnimationRole& role = roles[o];
+		if (!s.names.empty())
+		{
+			role.unused = false;
+			role.expected_frames = s.expected;
+			// A shared idle/walk bank legitimately holds just the idle frames, so treat any count
+			// down to the idle length as fine and only warn on a genuinely short walk/action.
+			role.min_ok_frames = s.has_idle ? idle_frames : 0;
+			std::string joined;
+			for (std::size_t i = 0; i < s.names.size(); ++i)
+			{
+				joined += (i ? "/" : "") + s.names[i];
+			}
+			role.label = joined + ((o % 2 == 0) ? " NE" : " SW");
+			continue;
+		}
+
+		const int k = no_role_seq++;
+		role.expected_frames = 0;
+		role.min_ok_frames = 0;
+		if (ext && k < kFullAnimExtraCount)
+		{
+			// Named extra bank - these are called directly from code, so treat them as known.
+			role.unused = false;
+			role.label = kFullAnimExtraRoles[k];
+		}
+		else
+		{
+			// Genuinely uncategorised bank, also reached only by direct calls from code.
+			role.unused = true;
+			role.label = "Extra " + std::to_string(++extra_num);
+		}
+	}
+	return roles;
+}
+
 std::wstring SpriteData::GetSpriteAnimationDisplayName(uint8_t id, const std::string& name) const
 {
 	const auto& anims = m_animations.at(id);
-	int anim_id = std::distance(anims.cbegin(), std::find(anims.cbegin(), anims.cend(), name));
-	return Labels::Get(Labels::C_SPRITE_ANIMATIONS, (id << 8) | anim_id).value_or(std::wstring(name.cbegin(), name.cend()));
+	int anim_id = static_cast<int>(std::distance(anims.cbegin(), std::find(anims.cbegin(), anims.cend(), name)));
+	std::wstring base = Labels::Get(Labels::C_SPRITE_ANIMATIONS, (id << 8) | anim_id).value_or(std::wstring(name.cbegin(), name.cend()));
+
+	const auto roles = ComputeSpriteAnimationRoles(id);
+	if (anim_id >= 0 && anim_id < static_cast<int>(roles.size()))
+	{
+		const AnimationRole& role = roles[anim_id];
+		base += L" [" + std::wstring(role.label.cbegin(), role.label.cend()) + L"]";
+		if (!role.unused && role.expected_frames > 0)
+		{
+			const int actual = static_cast<int>(GetSpriteAnimationFrameCount(id, static_cast<uint8_t>(anim_id)));
+			if (actual < role.expected_frames && actual > role.min_ok_frames)
+			{
+				base += L" (missing: expects " + std::to_wstring(role.expected_frames) + L", has "
+					+ std::to_wstring(actual) + L")";
+			}
+		}
+	}
+	return base;
+}
+
+std::wstring SpriteData::GetSpriteAnimationFrameDisplayName(uint8_t id, uint8_t anim_id, int frame_pos, const std::string& name) const
+{
+	std::wstring base = GetSpriteFrameDisplayName(id, name);
+
+	const auto roles = ComputeSpriteAnimationRoles(id);
+	if (anim_id >= roles.size())
+	{
+		return base;
+	}
+	const AnimationRole& role = roles[anim_id];
+
+	std::wstring tag;
+	if (role.unused)
+	{
+		// Whole slot is an uncategorised extra animation - number its frames from 1.
+		tag = L"Extra " + std::to_wstring(frame_pos + 1);
+	}
+	else if (role.expected_frames > 0 && frame_pos >= role.expected_frames)
+	{
+		// Extra frame beyond what a known action plays.
+		tag = L"Unused " + std::to_wstring(frame_pos - role.expected_frames + 1);
+	}
+	else
+	{
+		tag = std::wstring(role.label.cbegin(), role.label.cend()) + L" " + std::to_wstring(frame_pos + 1);
+	}
+	return base + L" [" + tag + L"]";
 }
 
 std::wstring SpriteData::GetSpriteFrameDisplayName(uint8_t id, const std::string& name) const
 {
 	const auto& frames = m_sprite_frames.at(id);
-	int frame_id = std::distance(frames.cbegin(), std::find(frames.cbegin(), frames.cend(), name));
+	int frame_id = static_cast<int>(std::distance(frames.cbegin(), std::find(frames.cbegin(), frames.cend(), name)));
 	return Labels::Get(Labels::C_SPRITE_FRAMES, (id << 8) | frame_id).value_or(std::wstring(name.cbegin(), name.cend()));
 }
 
@@ -551,11 +801,11 @@ SpriteData::SpriteMetadata SpriteData::GetSpriteMetadata(uint8_t id) const
 			metadata.animations[anim_name] = {};
 			for(const auto& frame_name : m_animation_frames.at(anim_name))
 			{
-				int frame_index = std::distance(frame_names.cbegin(), std::find(frame_names.cbegin(), frame_names.cend(), frame_name));
+				int frame_index = static_cast<int>(std::distance(frame_names.cbegin(), std::find(frame_names.cbegin(), frame_names.cend(), frame_name)));
 				metadata.animations[anim_name].push_back(frame_index);
 			}
 		}
-		metadata.volume = m_sprite_volume.at(id);
+		metadata.max_tile_count = m_sprite_max_tile_count.at(id);
 	}
 
 	return metadata;
@@ -574,7 +824,7 @@ std::string SpriteData::GetSpriteMetadataYaml(uint8_t id) const
 	out << YAML::Key << "hitbox" << YAML::Value << YAML::Flow << YAML::BeginMap
 	                 << YAML::Key << "base" << YAML::Value << (static_cast<double>(metadata.hitbox.base) / 8.0)
 					 << YAML::Key << "height" << YAML::Value << (static_cast<double>(metadata.hitbox.height) / 16.0) << YAML::EndMap;
-	out << YAML::Key << "volume" << YAML::Value << (static_cast<double>(metadata.volume) / 16.0);
+	out << YAML::Key << "max_tile_count" << YAML::Value << static_cast<int>(metadata.max_tile_count);
 	out << YAML::Key << "compressed_frames" << YAML::Value << YAML::Flow << YAML::BeginSeq;
 	for (const auto& frame_index : metadata.compressed_frames)
 	{
@@ -604,6 +854,123 @@ std::string SpriteData::GetSpriteMetadataYaml(uint8_t id) const
 	return std::string(out.c_str());
 }
 
+SpriteData::SpriteSheet SpriteData::MakeSpriteSheet(uint8_t id, int columns) const
+{
+	SpriteSheet sheet;
+	if (!IsSprite(id))
+	{
+		throw std::runtime_error("Sprite ID does not exist");
+	}
+
+	// The same deduplicated frame ordering GetSpriteMetadata() indexes, so the sheet cells line up
+	// with the frame indices its YAML records for each animation.
+	std::set<std::string> included_frames;
+	std::vector<std::string> frame_names;
+	for (const auto& anim_name : m_animations.at(id))
+	{
+		for (const auto& frame_name : m_animation_frames.at(anim_name))
+		{
+			if (included_frames.count(frame_name) > 0)
+			{
+				continue;
+			}
+			included_frames.insert(frame_name);
+			frame_names.push_back(frame_name);
+		}
+	}
+	if (frame_names.empty())
+	{
+		return sheet;
+	}
+
+	Rect bounding_box;
+	for (const auto& frame_name : frame_names)
+	{
+		bounding_box = bounding_box.GetUnion(m_frames.at(frame_name)->GetData()->GetBoundingBox());
+	}
+	sheet.cell_width = bounding_box.GetWidth();
+	sheet.cell_height = bounding_box.GetHeight();
+	sheet.origin = Point(-bounding_box.GetLeft(), -bounding_box.GetTop());
+	sheet.frame_count = static_cast<unsigned int>(frame_names.size());
+
+	const int count = static_cast<int>(frame_names.size());
+	int cols = columns;
+	if (cols <= 0)
+	{
+		// Smallest square that holds every frame: ceil(sqrt(count)).
+		cols = 1;
+		while (cols * cols < count)
+		{
+			++cols;
+		}
+	}
+	// Never wider than the frames we have, so a small sprite is not padded with blank columns.
+	cols = std::min(cols, count);
+	const int rows = (count + cols - 1) / cols;
+	sheet.columns = cols;
+	sheet.rows = rows;
+
+	sheet.image = ImageBuffer(static_cast<std::size_t>(cols) * sheet.cell_width,
+		static_cast<std::size_t>(rows) * sheet.cell_height);
+	for (int i = 0; i < count; ++i)
+	{
+		const int col = i % cols;
+		const int row = i / cols;
+		const auto frame = m_frames.at(frame_names[i])->GetData();
+		// Drawing each frame at the shared origin (rather than its own top-left) is what aligns the
+		// cells, since the origin sits at the same spot in every cell.
+		sheet.image.InsertSprite(col * sheet.cell_width + sheet.origin.x,
+			row * sheet.cell_height + sheet.origin.y, 0, *frame);
+	}
+	return sheet;
+}
+
+std::shared_ptr<Palette> SpriteData::GetSpriteDisplayPalette(uint8_t id) const
+{
+	const auto entities = GetEntitiesFromSprite(id);
+	if (!entities.empty())
+	{
+		if (auto palette = GetEntityPalette(entities.front()))
+		{
+			return palette;
+		}
+	}
+	// A sprite no entity uses still renders, on the first sprite palette.
+	return GetSpritePalette(0);
+}
+
+SpriteData::SpriteSheetResult SpriteData::WriteSpriteSheet(uint8_t id, const std::filesystem::path& png_path,
+	const std::vector<std::shared_ptr<Palette>>& palettes, int columns, const std::string& prefix_yaml) const
+{
+	SpriteSheet sheet = MakeSpriteSheet(id, columns);
+	if (sheet.frame_count == 0 || sheet.image.GetWidth() == 0 || sheet.image.GetHeight() == 0)
+	{
+		return SpriteSheetResult::NoFrames;
+	}
+	if (!sheet.image.WritePNG(png_path.string(), palettes, true))
+	{
+		return SpriteSheetResult::ImageWriteFailed;
+	}
+
+	const std::filesystem::path yaml_path = std::filesystem::path(png_path).replace_extension(".yaml");
+	std::ofstream yaml(yaml_path.string(), std::ios::binary);
+	// An optional caller-supplied block (e.g. entity metadata) precedes the sprite's own metadata.
+	if (!prefix_yaml.empty())
+	{
+		yaml << prefix_yaml << "\n";
+	}
+	yaml << GetSpriteMetadataYaml(id);
+	// Grid layout so a frame index (as the animations reference) maps to a cell, row-major.
+	yaml << "\nspritesheet:\n";
+	yaml << "  image: " << png_path.filename().string() << "\n";
+	yaml << "  columns: " << sheet.columns << "\n";
+	yaml << "  rows: " << sheet.rows << "\n";
+	yaml << "  cell_width: " << sheet.cell_width << "\n";
+	yaml << "  cell_height: " << sheet.cell_height << "\n";
+	yaml << "  origin: [" << sheet.origin.x << ", " << sheet.origin.y << "]\n";
+	return yaml ? SpriteSheetResult::Written : SpriteSheetResult::MetadataWriteFailed;
+}
+
 SpriteData::EntityMetadata SpriteData::GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const
 {
 	EntityMetadata metadata;
@@ -614,11 +981,11 @@ SpriteData::EntityMetadata SpriteData::GetEntityMetadata(uint8_t id, std::shared
 	auto palettes = GetEntityPaletteIdxs(id);
 	if(palettes.first >= 0)
 	{
-		metadata.low_palette = GetLoPalette(palettes.first)->GetName();
+		metadata.low_palette = GetLoPalette(static_cast<uint8_t>(palettes.first))->GetName();
 	}
 	if(palettes.second >= 0)
 	{
-		metadata.high_palette = GetHiPalette(palettes.second)->GetName();
+		metadata.high_palette = GetHiPalette(static_cast<uint8_t>(palettes.second))->GetName();
 	}
 	auto sfx = sd->GetEntityTalkSound(id);
 	if(sfx > 0)
@@ -711,6 +1078,132 @@ std::vector<uint8_t> SpriteData::GetEntitiesFromSprite(uint8_t id) const
 	return results;
 }
 
+std::size_t SpriteData::GetEntityCount() const
+{
+	return m_sprite_to_entity_lookup.size();
+}
+
+std::vector<uint8_t> SpriteData::GetEntityIds() const
+{
+	std::vector<uint8_t> result;
+	result.reserve(m_sprite_to_entity_lookup.size());
+	// m_sprite_to_entity_lookup is keyed by entity id, so it iterates in ascending id order.
+	for (const auto& e : m_sprite_to_entity_lookup)
+	{
+		result.push_back(e.first);
+	}
+	return result;
+}
+
+std::optional<uint8_t> SpriteData::GetFreeEntityId() const
+{
+	for (int id = 0; id < FIRST_ITEM_ENTITY; ++id)
+	{
+		if (m_sprite_to_entity_lookup.find(static_cast<uint8_t>(id)) == m_sprite_to_entity_lookup.cend())
+		{
+			return static_cast<uint8_t>(id);
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<uint8_t> SpriteData::AddEntity(uint8_t sprite_id, int lo_palette, int hi_palette)
+{
+	if (!IsSprite(sprite_id))
+	{
+		return std::nullopt;
+	}
+	const auto id = GetFreeEntityId();
+	if (!id)
+	{
+		return std::nullopt;
+	}
+	m_sprite_to_entity_lookup[*id] = sprite_id;
+	SetEntityPalette(*id, lo_palette, hi_palette);
+	return id;
+}
+
+bool SpriteData::IsEntityUsedInRooms(uint8_t id) const
+{
+	return std::any_of(m_room_entities.cbegin(), m_room_entities.cend(),
+		[id](const auto& room)
+		{
+			return std::any_of(room.second.cbegin(), room.second.cend(),
+				[id](const Entity& e) { return e.GetType() == id; });
+		});
+}
+
+std::vector<uint16_t> SpriteData::GetRoomsUsingEntity(uint8_t id) const
+{
+	std::vector<uint16_t> result;
+	for (const auto& room : m_room_entities)
+	{
+		if (std::any_of(room.second.cbegin(), room.second.cend(),
+			[id](const Entity& e) { return e.GetType() == id; }))
+		{
+			result.push_back(room.first);
+		}
+	}
+	return result;
+}
+
+bool SpriteData::DeleteEntity(uint8_t id, const std::shared_ptr<StringData>& strings)
+{
+	if (IsEntityItem(id) || !IsEntity(id) || IsEntityUsedInRooms(id))
+	{
+		return false;
+	}
+	m_sprite_to_entity_lookup.erase(id);
+	m_lo_palette_lookup.erase(id);
+	m_hi_palette_lookup.erase(id);
+	m_enemy_stats.erase(id);
+	if (strings)
+	{
+		// Zero clears the entry rather than storing a real sound.
+		strings->SetEntityTalkSound(id, 0);
+	}
+	Labels::Remap(Labels::C_ENTITIES, { { id, -1 } });
+	return true;
+}
+
+bool SpriteData::SwapEntities(uint8_t a, uint8_t b, const std::shared_ptr<StringData>& strings)
+{
+	if (a == b || IsEntityItem(a) || IsEntityItem(b) || !IsEntity(a) || !IsEntity(b))
+	{
+		return false;
+	}
+	// Presence-aware swap for an id-keyed map: afterwards a holds what b held and vice versa,
+	// "absent" included, so an entity with no palette/stats override stays without one.
+	const auto swap_in = [a, b](auto& table)
+	{
+		const auto ia = table.find(a);
+		const auto ib = table.find(b);
+		const bool has_a = ia != table.end();
+		const bool has_b = ib != table.end();
+		typename std::decay_t<decltype(table)>::mapped_type va{}, vb{};
+		if (has_a) va = ia->second;
+		if (has_b) vb = ib->second;
+		table.erase(a);
+		table.erase(b);
+		if (has_b) table[a] = vb;
+		if (has_a) table[b] = va;
+	};
+	swap_in(m_sprite_to_entity_lookup);
+	swap_in(m_lo_palette_lookup);
+	swap_in(m_hi_palette_lookup);
+	swap_in(m_enemy_stats);
+	if (strings)
+	{
+		const uint8_t sa = strings->GetEntityTalkSound(a);
+		const uint8_t sb = strings->GetEntityTalkSound(b);
+		strings->SetEntityTalkSound(a, sb);
+		strings->SetEntityTalkSound(b, sa);
+	}
+	// Remap reads all sources before writing, so the two labels cross over in one call.
+	Labels::Remap(Labels::C_ENTITIES, { { a, b }, { b, a } });
+	return true;
+}
+
 SpriteData::Hitbox SpriteData::GetSpriteHitbox(uint8_t id) const
 {
 	assert(m_sprite_dimensions.find(id) != m_sprite_dimensions.cend());
@@ -726,6 +1219,105 @@ SpriteData::Hitbox SpriteData::GetEntityHitbox(uint8_t id) const
 	}
 	uint8_t sprite_id = GetSpriteFromEntity(id);
 	return GetSpriteHitbox(sprite_id);
+}
+
+std::vector<SpriteData::PaletteSlotClash> SpriteData::FindPaletteClashes(const std::vector<Entity>& entities) const
+{
+	struct SlotOwner
+	{
+		bool set = false;
+		int palette_idx = -1;
+		std::size_t entity_index = 0;
+	};
+	SlotOwner pal1_low, pal1_high, pal3_low;
+	std::vector<PaletteSlotClash> result;
+
+	auto claim = [&result](SlotOwner& owner, int palette_idx, SpritePaletteSlot slot, std::size_t index)
+	{
+		if (palette_idx < 0)
+		{
+			return;
+		}
+		if (!owner.set)
+		{
+			owner.set = true;
+			owner.palette_idx = palette_idx;
+			owner.entity_index = index;
+			return;
+		}
+		if (owner.palette_idx != palette_idx)
+		{
+			result.push_back({ slot, owner.entity_index, index });
+		}
+	};
+
+	for (std::size_t i = 0; i < entities.size(); ++i)
+	{
+		uint8_t palette_mode = entities[i].GetPalette();
+		if ((palette_mode != 1 && palette_mode != 3) || !IsEntity(entities[i].GetType()))
+		{
+			continue;
+		}
+		auto [lo, hi] = GetEntityPaletteIdxs(entities[i].GetType());
+		if (palette_mode == 1)
+		{
+			claim(pal1_low, lo, SpritePaletteSlot::Palette1Low, i);
+			claim(pal1_high, hi, SpritePaletteSlot::Palette1High, i);
+		}
+		else
+		{
+			claim(pal3_low, lo, SpritePaletteSlot::Palette3Low, i);
+		}
+	}
+	return result;
+}
+
+int SpriteData::GetRoomSpriteVramTileUsage(const std::vector<Entity>& entities) const
+{
+	int total = PLAYER_FIXED_VRAM_TILES;
+	for (const auto& entity : entities)
+	{
+		if (!IsEntity(entity.GetType()) || entity.IsTileCopySet())
+		{
+			continue;
+		}
+		auto frame = GetDefaultEntityFrame(entity.GetType());
+		if (frame && frame->GetData())
+		{
+			total += static_cast<int>(frame->GetData()->GetTileCount());
+		}
+	}
+	return total;
+}
+
+int SpriteData::GetRoomSpritePieceUsage(const std::vector<Entity>& entities) const
+{
+	int total = 0;
+	auto add_frame_pieces = [&total](const std::shared_ptr<SpriteFrameEntry>& frame)
+	{
+		if (frame && frame->GetData())
+		{
+			total += static_cast<int>(frame->GetData()->GetSubSpriteCount());
+		}
+	};
+
+	// The player is always sprite 0 (not a room entity), so its default frame is looked up
+	// the same way GetDefaultEntityFrame picks one for a non-item sprite: animation 1 if it
+	// has a walk/idle split, otherwise animation 0.
+	constexpr uint8_t kPlayerSpriteId = 0;
+	add_frame_pieces(GetSpriteAnimationCount(kPlayerSpriteId) > 1
+		? GetSpriteFrame(kPlayerSpriteId, 1, 0)
+		: GetSpriteFrame(kPlayerSpriteId, 0, 0));
+
+	for (const auto& entity : entities)
+	{
+		if (!IsEntity(entity.GetType()))
+		{
+			continue;
+		}
+		add_frame_pieces(GetDefaultEntityFrame(entity.GetType()));
+	}
+	return total;
 }
 
 void SpriteData::SetSpriteHitbox(uint8_t id, const Hitbox& hitbox)
@@ -772,7 +1364,12 @@ void SpriteData::AddSpriteFrame(uint8_t sprite_id, const std::string& name)
 	{
 		std::shared_ptr<SpriteFrameEntry> entry = SpriteFrameEntry::Create(this, name, std::filesystem::path(RomLabels::Sprites::SPRITE_FRAME_FILE).parent_path() / (name + ".frm"));
 		entry->SetSprite(sprite_id);
-		entry->GetData()->AddSubSpriteBefore(0);
+		auto& subsprite = entry->GetData()->AddSubSpriteBefore(0);
+		// The default subsprite sits with its top-left on the origin, so it hangs down and to
+		// the right of it. Lift it up by its own height so its bottom-left rests on the origin
+		// instead - the origin is a sprite's ground anchor, and a sprite should stand on it
+		// rather than dangle below.
+		subsprite.y = -static_cast<int>(subsprite.h * entry->GetData()->GetTileHeight());
 		entry->GetData()->PrepareSubSprites();
 
 		m_frames[name] = entry;
@@ -869,6 +1466,1201 @@ void SpriteData::MoveSpriteAnimationFrame(const std::string& animation_name, int
 	}
 }
 
+bool SpriteData::IsValidSpriteName(const std::string& name)
+{
+	// The sprite name becomes an assembly label: at most 30 characters, starting with a
+	// letter, then letters, digits and underscores. The same rule the map and tileset names
+	// use, inlined rather than reaching into RoomData for one predicate.
+	if (name.empty() || name.size() > 30 ||
+		!((name.front() >= 'A' && name.front() <= 'Z') ||
+		  (name.front() >= 'a' && name.front() <= 'z')))
+	{
+		return false;
+	}
+	return std::all_of(std::next(name.cbegin()), name.cend(), [](const char c)
+	{
+		return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+			(c >= '0' && c <= '9') || c == '_';
+	});
+}
+
+bool SpriteData::IsSpriteNameInUse(const std::string& name) const
+{
+	// Sprites, animations and frames all share one label namespace.
+	return m_ids.count(name) != 0 || SpriteAnimationExists(name) || SpriteFrameExists(name);
+}
+
+std::optional<uint8_t> SpriteData::AddSprite(const std::string& name)
+{
+	if (!IsValidSpriteName(name) || IsSpriteNameInUse(name) || m_animations.size() >= MAX_SPRITES)
+	{
+		return std::nullopt;
+	}
+	// Ids are dense by contract - the game indexes the animation offset table directly - so
+	// the next free id is one past the last, and a new sprite is appended there.
+	const auto id = static_cast<uint8_t>(m_animations.size());
+
+	// Seed every id-keyed table the sprite needs to exist. AddSpriteFrame and
+	// AddSpriteAnimation assume these are already present, and GetSpriteHitbox asserts on the
+	// dimensions entry, so a sprite that skipped it would trip the metadata export.
+	m_names[id] = name;
+	m_ids[name] = id;
+	m_animations[id] = {};
+	m_sprite_frames[id] = {};
+	m_sprite_dimensions[id] = { 0, 0 };
+	m_sprite_max_tile_count[id] = 0;
+
+	// One empty frame with a single 1x1 subsprite - AddSpriteFrame's default subsprite is
+	// exactly that. The names are derived from the sprite name, which is unique, rather than
+	// the id, which a later delete or move could hand to a different sprite.
+	std::string frame_name = name + "Frame00";
+	for (unsigned int suffix = 1; SpriteFrameExists(frame_name); ++suffix)
+	{
+		frame_name = StrPrintf("%sFrame00_%u", name.c_str(), suffix);
+	}
+	AddSpriteFrame(id, frame_name);
+
+	std::string anim_name = name + "Anim00";
+	for (unsigned int suffix = 1; SpriteAnimationExists(anim_name); ++suffix)
+	{
+		anim_name = StrPrintf("%sAnim00_%u", name.c_str(), suffix);
+	}
+	AddSpriteAnimation(id, anim_name);
+
+	// Reserve enough VRAM for what the frame actually holds - a single tile - rather than
+	// leaving the max tile count at zero, which would allocate nothing.
+	const auto frame = m_frames.find(frame_name);
+	const auto tiles = frame != m_frames.cend() && frame->second->GetData()
+		? frame->second->GetData()->GetTileCount() : 1;
+	m_sprite_max_tile_count[id] = static_cast<uint16_t>(std::max<std::size_t>(1, tiles));
+	return id;
+}
+
+bool SpriteData::RenameSprite(uint8_t id, const std::string& new_name)
+{
+	if (!IsSprite(id) || !IsValidSpriteName(new_name))
+	{
+		return false;
+	}
+	const auto old_name = m_names.at(id);
+	if (old_name == new_name)
+	{
+		return true;
+	}
+	if (IsSpriteNameInUse(new_name))
+	{
+		return false;
+	}
+	// Only the sprite's own label moves; its frames and animations keep their names, which
+	// are independent labels the pointer tables reference directly.
+	m_ids.erase(old_name);
+	m_names[id] = new_name;
+	m_ids[new_name] = id;
+	return true;
+}
+
+bool SpriteData::IsSpriteUsedByEntities(uint8_t id) const
+{
+	return std::any_of(m_sprite_to_entity_lookup.cbegin(), m_sprite_to_entity_lookup.cend(),
+		[&](const auto& lookup) { return lookup.second == id; });
+}
+
+void SpriteData::RemapSprites(const std::map<uint8_t, int>& mapping, bool remap_entity_references)
+{
+	const auto remapped = [&](uint8_t id)
+	{
+		const auto entry = mapping.find(id);
+		return entry == mapping.cend() ? static_cast<int>(id) : entry->second;
+	};
+
+	// The animation and frame counts are needed to renumber the composite label ids, and
+	// they have to be read before the tables are rebuilt - including for an id being deleted,
+	// whose entries are dropped below.
+	std::map<uint8_t, std::size_t> anim_counts;
+	std::map<uint8_t, std::size_t> frame_counts;
+	for (const auto& entry : mapping)
+	{
+		anim_counts[entry.first] = m_animations.count(entry.first) ? m_animations.at(entry.first).size() : 0;
+		frame_counts[entry.first] = m_sprite_frames.count(entry.first) ? m_sprite_frames.at(entry.first).size() : 0;
+	}
+
+	// Drop the animations and frames of every sprite being deleted before the id-keyed
+	// tables are rebuilt, so nothing is left pointing at graphics that have gone.
+	for (const auto& entry : mapping)
+	{
+		if (entry.second >= 0)
+		{
+			continue;
+		}
+		if (m_animations.count(entry.first))
+		{
+			for (const auto& anim : m_animations.at(entry.first))
+			{
+				m_animation_frames.erase(anim);
+			}
+		}
+		if (m_sprite_frames.count(entry.first))
+		{
+			for (const auto& frame : m_sprite_frames.at(entry.first))
+			{
+				m_frames.erase(frame);
+			}
+		}
+	}
+
+	// Every id-keyed table is rebuilt wholesale rather than edited in place: the mapping is a
+	// permutation, so an in-place pass would collide with keys it has not visited yet.
+	const auto remap_map = [&](auto& table)
+	{
+		std::remove_reference_t<decltype(table)> rebuilt;
+		for (auto& item : table)
+		{
+			const auto updated = remapped(item.first);
+			if (updated >= 0)
+			{
+				rebuilt.emplace(static_cast<uint8_t>(updated), std::move(item.second));
+			}
+		}
+		table = std::move(rebuilt);
+	};
+	remap_map(m_names);
+	remap_map(m_animations);
+	remap_map(m_animations_orig);
+	remap_map(m_sprite_frames);
+	remap_map(m_sprite_max_tile_count);
+	remap_map(m_sprite_max_tile_count_orig);
+	remap_map(m_sprite_dimensions);
+	remap_map(m_sprite_dimensions_orig);
+	remap_map(m_sprite_animation_flags);
+	remap_map(m_sprite_animation_flags_orig);
+
+	// m_ids is just the inverse of m_names, so rebuild it rather than remap it.
+	m_ids.clear();
+	for (const auto& name : m_names)
+	{
+		m_ids.emplace(name.second, name.first);
+	}
+
+	// Each frame entry carries the id of the sprite that owns it; refresh from the rebuilt
+	// ownership rather than tracking every frame through the permutation.
+	for (const auto& sprite : m_sprite_frames)
+	{
+		for (const auto& frame_name : sprite.second)
+		{
+			const auto frame = m_frames.find(frame_name);
+			if (frame != m_frames.cend())
+			{
+				frame->second->SetSprite(sprite.first);
+			}
+		}
+	}
+
+	// Entities reference sprites by id, so the values of the entity -> sprite lookup follow
+	// the move. A sprite being deleted has no entities (DeleteSprite refuses otherwise), so
+	// a -1 here would only arise from misuse; drop the entry rather than store a bad id.
+	// A content swap skips this: leaving the references put is what makes the two sprites
+	// change places in the entities that draw them.
+	if (remap_entity_references)
+	{
+		for (auto it = m_sprite_to_entity_lookup.begin(); it != m_sprite_to_entity_lookup.end();)
+		{
+			const auto updated = remapped(it->second);
+			if (updated < 0)
+			{
+				it = m_sprite_to_entity_lookup.erase(it);
+			}
+			else
+			{
+				it->second = static_cast<uint8_t>(updated);
+				++it;
+			}
+		}
+	}
+
+	// The display-name categories key off the same ids, animations and frames through
+	// composite ids that embed the sprite in their high byte.
+	std::map<int, int> sprite_labels;
+	std::map<int, int> anim_labels;
+	std::map<int, int> frame_labels;
+	for (const auto& entry : mapping)
+	{
+		sprite_labels.emplace(entry.first, entry.second);
+		for (std::size_t anim = 0; anim < anim_counts[entry.first]; ++anim)
+		{
+			anim_labels.emplace((entry.first << 8) | static_cast<int>(anim),
+				entry.second < 0 ? -1 : ((entry.second << 8) | static_cast<int>(anim)));
+		}
+		for (std::size_t frame = 0; frame < frame_counts[entry.first]; ++frame)
+		{
+			frame_labels.emplace((entry.first << 8) | static_cast<int>(frame),
+				entry.second < 0 ? -1 : ((entry.second << 8) | static_cast<int>(frame)));
+		}
+	}
+	Labels::Remap(Labels::C_SPRITES, sprite_labels);
+	Labels::Remap(Labels::C_SPRITE_ANIMATIONS, anim_labels);
+	Labels::Remap(Labels::C_SPRITE_FRAMES, frame_labels);
+}
+
+bool SpriteData::SwapSprites(uint8_t a, uint8_t b)
+{
+	if (!IsSprite(a) || !IsSprite(b))
+	{
+		return false;
+	}
+	if (a == b)
+	{
+		return true;
+	}
+	// A two-way mapping swaps the two sprites' content; with entity references left alone the
+	// entities keep the ids they point at, so the two sprites change places in the entities that
+	// draw them.
+	std::map<uint8_t, int> mapping;
+	mapping.emplace(a, static_cast<int>(b));
+	mapping.emplace(b, static_cast<int>(a));
+	RemapSprites(mapping, false);
+	return true;
+}
+
+bool SpriteData::DeleteSprite(uint8_t id)
+{
+	if (!IsSprite(id) || m_animations.size() <= 1 || IsSpriteUsedByEntities(id))
+	{
+		return false;
+	}
+	// Pull every higher id down so the numbering stays dense: the game reads the animation
+	// offset table by id, so a hole would be loaded as a real sprite. RemapSprites drops the
+	// deleted sprite's own frames and animations.
+	const auto count = static_cast<int>(m_animations.size());
+	std::map<uint8_t, int> mapping;
+	mapping.emplace(id, -1);
+	for (int slot = id + 1; slot < count; ++slot)
+	{
+		mapping.emplace(static_cast<uint8_t>(slot), slot - 1);
+	}
+	RemapSprites(mapping);
+	return true;
+}
+
+namespace
+{
+	// Decodes an "animation_flags" YAML block (as GetSpriteMetadataYaml emits) into AnimationFlags.
+	SpriteData::AnimationFlags ParseAnimationFlags(const YAML::Node& flags)
+	{
+		using AF = SpriteData::AnimationFlags;
+		AF af;
+		af.idle_animation_frames = flags["idle_frame_count"].as<int>(2) == 1
+			? AF::IdleAnimationFrameCount::ONE_FRAME : AF::IdleAnimationFrameCount::TWO_FRAMES;
+		af.idle_animation_source = flags["dedicated_idle_frames"].as<bool>(false)
+			? AF::IdleAnimationSource::DEDICATED : AF::IdleAnimationSource::USE_WALK_FRAMES;
+		af.jump_animation_source = flags["dedicated_jump_frames"].as<bool>(false)
+			? AF::JumpAnimationSource::DEDICATED : AF::JumpAnimationSource::USE_IDLE_FRAMES;
+		af.walk_animation_frame_count = flags["walk_frame_count"].as<int>(4) == 2
+			? AF::WalkAnimationFrameCount::TWO_FRAMES : AF::WalkAnimationFrameCount::FOUR_FRAMES;
+		af.take_damage_animation_source = flags["dedicated_damage_frames"].as<bool>(false)
+			? AF::TakeDamageAnimationSource::DEDICATED : AF::TakeDamageAnimationSource::USE_IDLE_FRAMES;
+		af.do_not_rotate = flags["no_rotate"].as<bool>(false);
+		af.has_full_animations = flags["full_animations"].as<bool>(false);
+		return af;
+	}
+
+	// Finds the first top-level block whose map contains `id_key`, so a combined sprite-sheet YAML
+	// (entity + sprite + spritesheet blocks) yields the right one. Returns a null node if none.
+	YAML::Node FindMetadataBlock(const YAML::Node& root, const char* id_key)
+	{
+		if (root.IsMap())
+		{
+			for (const auto& entry : root)
+			{
+				const auto& value = entry.second;
+				if (value.IsMap() && value[id_key])
+				{
+					return value;
+				}
+			}
+		}
+		return YAML::Node(YAML::NodeType::Undefined);
+	}
+
+	// The subsprite budget the packer aims for. The hardware allows 8 (SpriteFrame::MAX_SUBSPRITES),
+	// but a sprite has a shared subsprite pool as well as a tile pool, so imports and the optimiser
+	// leave headroom by targeting 6 per frame.
+	constexpr std::size_t IMPORT_MAX_SUBSPRITES = 6;
+
+	// A rectangle of tiles in a frame's tile grid: top-left (r0, c0) and size (h, w), all in tiles.
+	struct CellRect { int r0; int c0; int h; int w; };
+
+	// Exact branch-and-bound cover of the filled tiles: at most MAX_SUBSPRITES non-overlapping
+	// rectangles, each at most 4x4 tiles, that together cover every filled tile while minimising
+	// (total area, rectangle count) lexicographically. Because the rectangles never overlap, total
+	// area == filled + empty-covered, so minimising area is exactly "waste as few blank tiles as
+	// possible" - the subsprite packing the hardware wants. Fills `out` and returns true on success;
+	// returns false when no cover fits the caps, or when the search is abandoned after a node budget
+	// (the caller then falls back to a plain 4x4 tiling). Mirrors the reference segmentiser.
+	bool SegmentizeFilledCells(const std::vector<std::vector<uint8_t>>& cells, std::vector<CellRect>& out)
+	{
+		const int n_rows = static_cast<int>(cells.size());
+		const int n_cols = n_rows ? static_cast<int>(cells[0].size()) : 0;
+		constexpr int MAX_DIM = 4;
+		const int max_seg = static_cast<int>(IMPORT_MAX_SUBSPRITES);
+
+		std::vector<std::pair<int, int>> filled;
+		for (int r = 0; r < n_rows; ++r)
+		{
+			for (int c = 0; c < n_cols; ++c)
+			{
+				if (cells[r][c])
+				{
+					filled.emplace_back(r, c);
+				}
+			}
+		}
+		if (filled.empty())
+		{
+			out = { CellRect{ 0, 0, 1, 1 } };
+			return true;
+		}
+
+		std::vector<std::vector<char>> covered(n_rows, std::vector<char>(n_cols, 0));
+		std::vector<CellRect> placed;
+		bool have_best = false;
+		int best_area = 0;
+		int best_count = 0;
+		std::vector<CellRect> best;
+		long nodes = 0;
+		const long node_budget = 500000;
+		bool aborted = false;
+
+		std::function<void(int)> search = [&](int area)
+		{
+			if (aborted)
+			{
+				return;
+			}
+			if (++nodes > node_budget)
+			{
+				aborted = true;
+				return;
+			}
+			// The first uncovered filled tile in row-major order fixes the next rectangle's top edge.
+			int pr = -1, pc = -1;
+			for (int r = 0; r < n_rows && pr < 0; ++r)
+			{
+				for (int c = 0; c < n_cols; ++c)
+				{
+					if (cells[r][c] && !covered[r][c])
+					{
+						pr = r;
+						pc = c;
+						break;
+					}
+				}
+			}
+			if (pr < 0)
+			{
+				const int count = static_cast<int>(placed.size());
+				if (!have_best || area < best_area || (area == best_area && count < best_count))
+				{
+					have_best = true;
+					best_area = area;
+					best_count = count;
+					best = placed;
+				}
+				return;
+			}
+			if (static_cast<int>(placed.size()) >= max_seg)
+			{
+				return;
+			}
+			// Admissible lower bounds: every uncovered tile needs at least one more covered cell, and
+			// at least ceil(uncovered / 16) more rectangles. Prune when even that cannot beat the best.
+			int uncovered = 0;
+			for (const auto& f : filled)
+			{
+				if (!covered[f.first][f.second])
+				{
+					++uncovered;
+				}
+			}
+			const int area_lb = area + uncovered;
+			const int count_lb = static_cast<int>(placed.size()) +
+				(uncovered + MAX_DIM * MAX_DIM - 1) / (MAX_DIM * MAX_DIM);
+			if (have_best && (area_lb > best_area || (area_lb == best_area && count_lb >= best_count)))
+			{
+				return;
+			}
+
+			for (int h = 1; h <= MAX_DIM; ++h)
+			{
+				if (pr + h > n_rows)
+				{
+					break;
+				}
+				for (int w = 1; w <= MAX_DIM; ++w)
+				{
+					// The top edge is pinned to the pivot's row, but columns may start left of it to
+					// catch filled tiles in the rectangle's lower rows.
+					for (int c0 = std::max(0, pc - w + 1); c0 <= pc; ++c0)
+					{
+						if (c0 + w > n_cols)
+						{
+							continue;
+						}
+						bool overlap = false;
+						int fill = 0;
+						for (int dr = 0; dr < h && !overlap; ++dr)
+						{
+							for (int dc = 0; dc < w; ++dc)
+							{
+								if (covered[pr + dr][c0 + dc])
+								{
+									overlap = true;
+									break;
+								}
+								fill += cells[pr + dr][c0 + dc];
+							}
+						}
+						if (overlap)
+						{
+							continue;
+						}
+						// A rectangle covering a single filled tile is dominated by the 1x1 at the
+						// pivot, so only try 1x1 or rectangles that cover two or more filled tiles.
+						if ((h != 1 || w != 1) && fill < 2)
+						{
+							continue;
+						}
+						for (int dr = 0; dr < h; ++dr)
+						{
+							for (int dc = 0; dc < w; ++dc)
+							{
+								covered[pr + dr][c0 + dc] = 1;
+							}
+						}
+						placed.push_back(CellRect{ pr, c0, h, w });
+						search(area + h * w);
+						placed.pop_back();
+						for (int dr = 0; dr < h; ++dr)
+						{
+							for (int dc = 0; dc < w; ++dc)
+							{
+								covered[pr + dr][c0 + dc] = 0;
+							}
+						}
+						if (aborted)
+						{
+							return;
+						}
+					}
+				}
+			}
+		};
+
+		search(0);
+		if (have_best)
+		{
+			out = best;
+			return true;
+		}
+		return false;
+	}
+
+	// Reconstructs one frame's .frm byte stream from a single cell of the sheet. Cell pixels are read
+	// relative to `origin` (the shared origin the YAML records), so cell-local (origin.x+fx, origin.y+fy)
+	// becomes frame coordinate (fx, fy). The non-transparent content is snapped outward to the 8px tile
+	// grid, then covered by <=4x4-tile subsprites arranged to waste as few blank tiles as possible
+	// (SegmentizeFilledCells), falling back to a plain 4x4 tiling. Tiles run column-major within a
+	// subsprite, matching InsertSprite. Returns nullopt if the content needs more than MAX_SUBSPRITES.
+	std::optional<std::vector<uint8_t>> BuildFrameBitsFromCell(const std::vector<uint8_t>& sheet,
+		std::size_t sheet_w, std::size_t sheet_h, int cell_x0, int cell_y0, int cell_w, int cell_h,
+		const Point& origin)
+	{
+		const auto sample = [&](int cx, int cy) -> uint8_t {
+			const int sx = cell_x0 + cx;
+			const int sy = cell_y0 + cy;
+			if (sx < 0 || sy < 0 || sx >= static_cast<int>(sheet_w) || sy >= static_cast<int>(sheet_h))
+			{
+				return 0;
+			}
+			return sheet[static_cast<std::size_t>(sy) * sheet_w + sx];
+		};
+
+		// Non-transparent (index != 0) content bounding box, in cell-local pixels.
+		int minx = cell_w, miny = cell_h, maxx = -1, maxy = -1;
+		for (int cy = 0; cy < cell_h; ++cy)
+		{
+			for (int cx = 0; cx < cell_w; ++cx)
+			{
+				if (sample(cx, cy) != 0)
+				{
+					minx = std::min(minx, cx);
+					maxx = std::max(maxx, cx);
+					miny = std::min(miny, cy);
+					maxy = std::max(maxy, cy);
+				}
+			}
+		}
+
+		SpriteFrame frame;
+		std::vector<SpriteFrame::SubSprite> subs;
+		if (maxx < 0)
+		{
+			// A wholly transparent cell still needs one subsprite to be a valid, drawable frame.
+			subs.emplace_back(0, 0, 1, 1);
+			frame.SetSubSprites(subs);
+			return frame.GetBits(false);
+		}
+
+		// Round the content box down/up to whole 8px tiles, in origin-relative frame coordinates.
+		const auto floordiv8 = [](int a) {
+			return (a >= 0) ? (a / 8) : -((-a + 7) / 8);
+		};
+		const int tx0 = floordiv8(minx - origin.x);
+		const int ty0 = floordiv8(miny - origin.y);
+		const int tx1 = floordiv8(maxx - origin.x);
+		const int ty1 = floordiv8(maxy - origin.y);
+		const int wt = tx1 - tx0 + 1;
+		const int ht = ty1 - ty0 + 1;
+
+		// Which whole tiles actually hold pixels, so blank interior tiles can be left out of the cover.
+		std::vector<std::vector<uint8_t>> filled(ht, std::vector<uint8_t>(wt, 0));
+		for (int r = 0; r < ht; ++r)
+		{
+			for (int c = 0; c < wt; ++c)
+			{
+				const int base_x = origin.x + (tx0 + c) * 8;
+				const int base_y = origin.y + (ty0 + r) * 8;
+				bool any = false;
+				for (int py = 0; py < 8 && !any; ++py)
+				{
+					for (int pxl = 0; pxl < 8; ++pxl)
+					{
+						if (sample(base_x + pxl, base_y + py) != 0)
+						{
+							any = true;
+							break;
+						}
+					}
+				}
+				filled[r][c] = any ? 1 : 0;
+			}
+		}
+
+		// Prefer the minimum-waste subsprite cover; fall back to a plain 4x4 tiling if the search
+		// cannot fit the caps or is abandoned. Either way, more than 8 subsprites cannot be drawn.
+		std::vector<CellRect> rects;
+		if (!SegmentizeFilledCells(filled, rects))
+		{
+			const int cols = (wt + 3) / 4;
+			const int rows = (ht + 3) / 4;
+			if (static_cast<std::size_t>(cols * rows) > IMPORT_MAX_SUBSPRITES)
+			{
+				return std::nullopt;
+			}
+			rects.clear();
+			for (int by = 0; by < ht; by += 4)
+			{
+				for (int bx = 0; bx < wt; bx += 4)
+				{
+					rects.push_back(CellRect{ by, bx, std::min(4, ht - by), std::min(4, wt - bx) });
+				}
+			}
+		}
+		if (rects.size() > IMPORT_MAX_SUBSPRITES)
+		{
+			return std::nullopt;
+		}
+
+		for (const auto& rc : rects)
+		{
+			subs.emplace_back((tx0 + rc.c0) * 8, (ty0 + rc.r0) * 8, rc.w, rc.h);
+		}
+		frame.SetSubSprites(subs); // assigns tile_idx per subsprite and sizes the (zeroed) tileset
+
+		// Fill each tile from the sheet. Within a subsprite the tiles run column-major, so tile
+		// (xi, yi) is at index tile_idx + xi*h + yi - the same order InsertSprite consumes them.
+		for (const auto& s : frame.GetSubSprites())
+		{
+			std::size_t idx = s.tile_idx;
+			for (std::size_t xi = 0; xi < s.w; ++xi)
+			{
+				for (std::size_t yi = 0; yi < s.h; ++yi)
+				{
+					auto& px = frame.GetTilePixels(static_cast<int>(idx));
+					for (int py = 0; py < 8; ++py)
+					{
+						for (int pxl = 0; pxl < 8; ++pxl)
+						{
+							const int fx = s.x + static_cast<int>(xi) * 8 + pxl;
+							const int fy = s.y + static_cast<int>(yi) * 8 + py;
+							px[static_cast<std::size_t>(py) * 8 + pxl] = sample(fx + origin.x, fy + origin.y);
+						}
+					}
+					++idx;
+				}
+			}
+		}
+		return frame.GetBits(false);
+	}
+}
+
+std::optional<std::vector<SpriteFrame::SubSprite>> SpriteData::ComputeOptimalSubsprites(
+	const std::string& frame_name)
+{
+	const auto it = m_frames.find(frame_name);
+	if (it == m_frames.end())
+	{
+		return std::nullopt;
+	}
+	const auto frame = it->second->GetData();
+	const int left = frame->GetLeft();
+	const int top = frame->GetTop();
+	const int w = frame->GetWidth();
+	const int h = frame->GetHeight();
+	if (w <= 0 || h <= 0)
+	{
+		return std::nullopt;
+	}
+
+	// Flatten the frame's current tiles into a raw index buffer (origin at -left,-top), then hand it
+	// to the same reconstruction the sheet import uses so the subsprites are re-packed optimally.
+	std::vector<uint8_t> buf(static_cast<std::size_t>(w) * h, 0);
+	for (const auto& s : frame->GetSubSprites())
+	{
+		std::size_t idx = s.tile_idx;
+		for (std::size_t xi = 0; xi < s.w; ++xi)
+		{
+			for (std::size_t yi = 0; yi < s.h; ++yi)
+			{
+				if (idx < frame->GetTileCount())
+				{
+					const auto& px = frame->GetTilePixels(static_cast<int>(idx));
+					for (int py = 0; py < 8; ++py)
+					{
+						for (int pxl = 0; pxl < 8; ++pxl)
+						{
+							const int bx = s.x + static_cast<int>(xi) * 8 + pxl - left;
+							const int by = s.y + static_cast<int>(yi) * 8 + py - top;
+							if (bx >= 0 && by >= 0 && bx < w && by < h && px[static_cast<std::size_t>(py) * 8 + pxl] != 0)
+							{
+								buf[static_cast<std::size_t>(by) * w + bx] = px[static_cast<std::size_t>(py) * 8 + pxl];
+							}
+						}
+					}
+				}
+				++idx;
+			}
+		}
+	}
+
+	const Point origin{ -left, -top };
+	auto bits = BuildFrameBitsFromCell(buf, static_cast<std::size_t>(w), static_cast<std::size_t>(h),
+		0, 0, w, h, origin);
+	if (!bits)
+	{
+		return std::nullopt;
+	}
+	// Parse the packed layout back into subsprites without disturbing the real frame; the caller
+	// applies them through the editor so the canvas re-derives the tiles and undo can capture it.
+	SpriteFrame packed;
+	packed.SetBits(*bits);
+	return packed.GetSubSprites();
+}
+
+std::optional<uint8_t> SpriteData::ImportSprite(const std::string& new_name, const std::string& yaml_data,
+	const std::filesystem::path& frame_dir)
+{
+	if (!IsValidSpriteName(new_name) || IsSpriteNameInUse(new_name))
+	{
+		return std::nullopt;
+	}
+	try
+	{
+		const auto root = YAML::Load(yaml_data);
+		if (!root.IsMap() || root.size() != 1)
+		{
+			return std::nullopt;
+		}
+		// The single top-level key is the sprite's original name, which is also the stem the
+		// matching export uses for its frame files.
+		const auto entry = *root.begin();
+		const auto stem = entry.first.as<std::string>();
+		const auto body = entry.second;
+		const auto frame_count = body["frame_count"].as<unsigned int>(0u);
+		if (frame_count == 0)
+		{
+			return std::nullopt;
+		}
+
+		// Read every frame binary up front, so a missing file aborts before anything is
+		// added rather than leaving a half-built sprite behind.
+		std::vector<ByteVector> frame_bytes;
+		for (unsigned int i = 0; i < frame_count; ++i)
+		{
+			const auto path = frame_dir / StrPrintf("%s_frm%02u.frm", stem.c_str(), i);
+			if (!std::filesystem::exists(path))
+			{
+				return std::nullopt;
+			}
+			frame_bytes.push_back(ReadBytes(path));
+		}
+
+		const auto new_sprite = static_cast<uint8_t>(m_animations.size());
+		if (m_animations.size() >= MAX_SPRITES)
+		{
+			return std::nullopt;
+		}
+		m_names[new_sprite] = new_name;
+		m_ids[new_name] = new_sprite;
+		m_animations[new_sprite] = {};
+		m_sprite_frames[new_sprite] = {};
+
+		// Frames first, in the order the export listed them, so the animation frame indices
+		// below line up. Named after the new sprite to keep the label namespace clean.
+		std::vector<std::string> frame_names;
+		for (unsigned int i = 0; i < frame_count; ++i)
+		{
+			std::string frame_name = StrPrintf("%sFrame%02u", new_name.c_str(), i);
+			for (unsigned int suffix = 1; SpriteFrameExists(frame_name); ++suffix)
+			{
+				frame_name = StrPrintf("%sFrame%02u_%u", new_name.c_str(), i, suffix);
+			}
+			auto frame = SpriteFrameEntry::Create(this, frame_bytes[i], frame_name,
+				std::filesystem::path(RomLabels::Sprites::SPRITE_FRAME_FILE).parent_path() / (frame_name + ".frm"));
+			frame->SetSprite(new_sprite);
+			m_frames[frame_name] = frame;
+			m_sprite_frames[new_sprite].insert(frame_name);
+			frame_names.push_back(frame_name);
+		}
+
+		// Then the animations, each a list of frame indices into the frames just created.
+		unsigned int anim_index = 0;
+		for (const auto& anim : body["animations"])
+		{
+			std::string anim_name = StrPrintf("%sAnim%02u", new_name.c_str(), anim_index++);
+			for (unsigned int suffix = 1; SpriteAnimationExists(anim_name); ++suffix)
+			{
+				anim_name = StrPrintf("%sAnim%02u_%u", new_name.c_str(), anim_index - 1, suffix);
+			}
+			std::vector<std::string> frames;
+			for (const auto& idx : anim.second)
+			{
+				const auto frame_index = idx.as<unsigned int>();
+				if (frame_index < frame_names.size())
+				{
+					frames.push_back(frame_names[frame_index]);
+				}
+			}
+			if (frames.empty())
+			{
+				frames.push_back(frame_names.front());
+			}
+			m_animation_frames[anim_name] = frames;
+			m_animations[new_sprite].push_back(anim_name);
+		}
+		if (m_animations[new_sprite].empty())
+		{
+			// A sprite has to have at least one animation to be drawable.
+			const auto anim_name = new_name + "Anim00";
+			m_animation_frames[anim_name] = { frame_names.front() };
+			m_animations[new_sprite].push_back(anim_name);
+		}
+
+		// Metadata: max tile count, hitbox and animation flags. Defaults keep a sprite valid when
+		// the YAML omits them; the tile reservation is never allowed below the largest frame.
+		std::size_t largest_frame_tiles = 1;
+		for (const auto& frame_name : frame_names)
+		{
+			largest_frame_tiles = std::max(largest_frame_tiles, m_frames[frame_name]->GetData()->GetTileCount());
+		}
+		m_sprite_max_tile_count[new_sprite] = static_cast<uint16_t>(
+			std::max<std::size_t>(body["max_tile_count"].as<std::size_t>(0), largest_frame_tiles));
+		const auto hitbox = body["hitbox"];
+		m_sprite_dimensions[new_sprite] = {
+			static_cast<uint8_t>(std::lround(hitbox["base"].as<double>(0.0) * 8.0)),
+			static_cast<uint8_t>(std::lround(hitbox["height"].as<double>(0.0) * 16.0)) };
+
+		const auto flags = body["animation_flags"];
+		if (flags && flags.IsMap())
+		{
+			const auto af = ParseAnimationFlags(flags);
+			if (!af.IsDefault())
+			{
+				m_sprite_animation_flags[new_sprite] = af;
+			}
+		}
+
+		// Restore which frames were stored compressed.
+		for (const auto& idx : body["compressed_frames"])
+		{
+			const auto frame_index = idx.as<unsigned int>();
+			if (frame_index < frame_names.size())
+			{
+				m_frames[frame_names[frame_index]]->GetData()->SetCompressed(true);
+			}
+		}
+		return new_sprite;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return std::nullopt;
+}
+
+void SpriteData::PopulateSpriteFromSheet(uint8_t id, const std::string& prefix,
+	const SpriteSheetContent& content)
+{
+	// Frames first, in grid order, so the animation frame indices below line up. Named after the
+	// sprite to keep the label namespace tidy.
+	std::vector<std::string> frame_names;
+	for (std::size_t i = 0; i < content.frame_bytes.size(); ++i)
+	{
+		std::string frame_name = StrPrintf("%sFrame%02u", prefix.c_str(), static_cast<unsigned int>(i));
+		for (unsigned int suffix = 1; SpriteFrameExists(frame_name); ++suffix)
+		{
+			frame_name = StrPrintf("%sFrame%02u_%u", prefix.c_str(), static_cast<unsigned int>(i), suffix);
+		}
+		auto frame = SpriteFrameEntry::Create(this, content.frame_bytes[i], frame_name,
+			std::filesystem::path(RomLabels::Sprites::SPRITE_FRAME_FILE).parent_path() / (frame_name + ".frm"));
+		frame->SetSprite(id);
+		m_frames[frame_name] = frame;
+		m_sprite_frames[id].insert(frame_name);
+		frame_names.push_back(frame_name);
+	}
+
+	// Animations from the metadata block if present; otherwise a single animation that walks every
+	// frame, so the sprite is drawable and each frame is reachable.
+	unsigned int anim_index = 0;
+	for (const auto& indices : content.animations)
+	{
+		std::string anim_name = StrPrintf("%sAnim%02u", prefix.c_str(), anim_index++);
+		for (unsigned int suffix = 1; SpriteAnimationExists(anim_name); ++suffix)
+		{
+			anim_name = StrPrintf("%sAnim%02u_%u", prefix.c_str(), anim_index - 1, suffix);
+		}
+		std::vector<std::string> frames;
+		for (const int idx : indices)
+		{
+			if (idx >= 0 && idx < static_cast<int>(frame_names.size()))
+			{
+				frames.push_back(frame_names[idx]);
+			}
+		}
+		if (frames.empty())
+		{
+			frames.push_back(frame_names.front());
+		}
+		m_animation_frames[anim_name] = frames;
+		m_animations[id].push_back(anim_name);
+	}
+	if (m_animations[id].empty())
+	{
+		const auto anim_name = prefix + "Anim00";
+		m_animation_frames[anim_name] = frame_names;
+		m_animations[id].push_back(anim_name);
+	}
+
+	// Metadata: keep the reservation at least as large as the biggest frame, then let the YAML raise
+	// it, and restore hitbox / animation flags when the block carried them.
+	std::size_t largest_frame_tiles = 1;
+	for (const auto& frame_name : frame_names)
+	{
+		largest_frame_tiles = std::max(largest_frame_tiles, m_frames[frame_name]->GetData()->GetTileCount());
+	}
+	m_sprite_max_tile_count[id] = static_cast<uint16_t>(
+		std::max<std::size_t>(content.max_tile_count, largest_frame_tiles));
+	// A sprite must always have a dimensions entry: GetSpriteHitbox indexes the map directly, so a
+	// missing entry is undefined behaviour. Default to a zero hitbox (as AddSprite does) when the
+	// source carried none.
+	m_sprite_dimensions[id] = content.has_hitbox
+		? std::array<uint8_t, 2>{ content.hitbox_base, content.hitbox_height }
+		: std::array<uint8_t, 2>{ 0, 0 };
+	if (content.has_flags)
+	{
+		m_sprite_animation_flags[id] = content.flags;
+	}
+}
+
+bool SpriteData::ReadSpriteSheetInfo(const std::filesystem::path& yaml_path, SpriteSheetInfo& out)
+{
+	if (!std::filesystem::exists(yaml_path))
+	{
+		return false;
+	}
+	try
+	{
+		const auto root = YAML::LoadFile(yaml_path.string());
+		const auto sheet = root["spritesheet"];
+		if (!sheet || !sheet.IsMap())
+		{
+			return false;
+		}
+		const int columns = sheet["columns"].as<int>(0);
+		const int rows = sheet["rows"].as<int>(0);
+		out.cell_width = sheet["cell_width"].as<int>(0);
+		out.cell_height = sheet["cell_height"].as<int>(0);
+		if (sheet["origin"] && sheet["origin"].IsSequence() && sheet["origin"].size() == 2)
+		{
+			out.origin_x = sheet["origin"][0].as<int>(0);
+			out.origin_y = sheet["origin"][1].as<int>(0);
+		}
+		const auto body = FindMetadataBlock(root, "sprite_id");
+		// Prefer the metadata block's frame count; fall back to a full grid.
+		int frame_count = (body && body.IsMap()) ? body["frame_count"].as<int>(0) : 0;
+		if (frame_count <= 0)
+		{
+			frame_count = columns * rows;
+		}
+		out.frame_count = frame_count;
+
+		if (body && body.IsMap())
+		{
+			if (body["animations"])
+			{
+				for (const auto& anim : body["animations"])
+				{
+					out.animation_names.push_back(anim.first.as<std::string>(""));
+					std::vector<int> indices;
+					for (const auto& idx : anim.second)
+					{
+						indices.push_back(idx.as<int>(-1));
+					}
+					out.animations.push_back(std::move(indices));
+				}
+			}
+			out.max_tile_count = body["max_tile_count"].as<uint16_t>(0);
+			if (body["hitbox"] && body["hitbox"].IsMap())
+			{
+				const auto hitbox = body["hitbox"];
+				out.has_hitbox = true;
+				out.hitbox_base = static_cast<uint8_t>(std::lround(hitbox["base"].as<double>(0.0) * 8.0));
+				out.hitbox_height = static_cast<uint8_t>(std::lround(hitbox["height"].as<double>(0.0) * 16.0));
+			}
+			if (body["animation_flags"] && body["animation_flags"].IsMap())
+			{
+				const auto af = ParseAnimationFlags(body["animation_flags"]);
+				if (!af.IsDefault())
+				{
+					out.has_flags = true;
+					out.flags = af;
+				}
+			}
+		}
+		out.found = out.cell_width > 0 && out.cell_height > 0;
+		return out.found;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
+}
+
+bool SpriteData::BuildSheetContentFromPixels(const std::vector<uint8_t>& pixels, int img_width,
+	int img_height, int cell_width, int cell_height, int frame_count, const Point& origin,
+	const SpriteSheetInfo& info, SpriteSheetContent& out, SpriteSheetImportResult& result) const
+{
+	if (cell_width <= 0 || cell_height <= 0 || img_width <= 0 || img_height <= 0)
+	{
+		result = SpriteSheetImportResult::PngWrongSize;
+		return false;
+	}
+	const int columns = img_width / cell_width;
+	if (columns <= 0 || frame_count <= 0)
+	{
+		result = SpriteSheetImportResult::NoFrames;
+		return false;
+	}
+
+	// Cut every requested cell to a frame up front, so a too-complex cell aborts before anything is
+	// touched. Row-major, matching the export and the dialog's preview grid.
+	out.frame_bytes.clear();
+	out.frame_bytes.reserve(frame_count);
+	for (int i = 0; i < frame_count; ++i)
+	{
+		const int col = i % columns;
+		const int row = i / columns;
+		auto bits = BuildFrameBitsFromCell(pixels, static_cast<std::size_t>(img_width),
+			static_cast<std::size_t>(img_height), col * cell_width, row * cell_height,
+			cell_width, cell_height, origin);
+		if (!bits)
+		{
+			result = SpriteSheetImportResult::FrameTooComplex;
+			return false;
+		}
+		out.frame_bytes.push_back(std::move(*bits));
+	}
+
+	// Restore the animations and metadata from the YAML when one was read; otherwise the sprite gets
+	// a single all-frames animation and a zero hitbox (PopulateSpriteFromSheet's defaults).
+	if (info.found)
+	{
+		out.animations = info.animations;
+		out.max_tile_count = info.max_tile_count;
+		out.has_hitbox = info.has_hitbox;
+		out.hitbox_base = info.hitbox_base;
+		out.hitbox_height = info.hitbox_height;
+		out.has_flags = info.has_flags;
+		out.flags = info.flags;
+	}
+	return true;
+}
+
+std::optional<uint8_t> SpriteData::ImportSpriteSheetPixels(const std::string& new_name,
+	const std::vector<uint8_t>& pixels, int img_width, int img_height,
+	int cell_width, int cell_height, int frame_count, const Point& origin,
+	const SpriteSheetInfo& info, SpriteSheetImportResult& result)
+{
+	result = SpriteSheetImportResult::YamlInvalid;
+	if (!IsValidSpriteName(new_name) || IsSpriteNameInUse(new_name))
+	{
+		result = SpriteSheetImportResult::BadName;
+		return std::nullopt;
+	}
+	SpriteSheetContent content;
+	if (!BuildSheetContentFromPixels(pixels, img_width, img_height, cell_width, cell_height,
+		frame_count, origin, info, content, result))
+	{
+		return std::nullopt;
+	}
+	if (m_animations.size() >= MAX_SPRITES)
+	{
+		result = SpriteSheetImportResult::IdSpaceFull;
+		return std::nullopt;
+	}
+	const auto new_sprite = static_cast<uint8_t>(m_animations.size());
+	m_names[new_sprite] = new_name;
+	m_ids[new_name] = new_sprite;
+	m_animations[new_sprite] = {};
+	m_sprite_frames[new_sprite] = {};
+	PopulateSpriteFromSheet(new_sprite, new_name, content);
+	result = SpriteSheetImportResult::Success;
+	return new_sprite;
+}
+
+bool SpriteData::ImportSpriteSheetIntoExistingPixels(uint8_t id, const std::vector<uint8_t>& pixels,
+	int img_width, int img_height, int cell_width, int cell_height, int frame_count,
+	const Point& origin, const SpriteSheetInfo& info, SpriteSheetImportResult& result)
+{
+	result = SpriteSheetImportResult::YamlInvalid;
+	if (!IsSprite(id))
+	{
+		result = SpriteSheetImportResult::BadName;
+		return false;
+	}
+	SpriteSheetContent content;
+	if (!BuildSheetContentFromPixels(pixels, img_width, img_height, cell_width, cell_height,
+		frame_count, origin, info, content, result))
+	{
+		return false;
+	}
+	// Tear the sprite's current frames and animations down, then rebuild - keeping its id, name,
+	// display label and entity links (all keyed elsewhere).
+	for (const auto& frame_name : m_sprite_frames[id])
+	{
+		m_frames.erase(frame_name);
+	}
+	m_sprite_frames[id].clear();
+	for (const auto& anim_name : m_animations[id])
+	{
+		m_animation_frames.erase(anim_name);
+	}
+	m_animations[id].clear();
+	PopulateSpriteFromSheet(id, GetSpriteName(id), content);
+	result = SpriteSheetImportResult::Success;
+	return true;
+}
+
+bool SpriteData::ApplySpriteMetadataYaml(uint8_t id, const std::string& yaml_data)
+{
+	if (!IsSprite(id))
+	{
+		return false;
+	}
+	try
+	{
+		const auto body = FindMetadataBlock(YAML::Load(yaml_data), "sprite_id");
+		if (!body || !body.IsMap())
+		{
+			return false;
+		}
+		if (body["max_tile_count"])
+		{
+			SetSpriteMaxTileCount(id, body["max_tile_count"].as<uint16_t>(1));
+		}
+		if (body["hitbox"] && body["hitbox"].IsMap())
+		{
+			const auto hb = body["hitbox"];
+			SetSpriteHitbox(id, Hitbox(
+				static_cast<uint8_t>(std::lround(hb["base"].as<double>(0.0) * 8.0)),
+				static_cast<uint8_t>(std::lround(hb["height"].as<double>(0.0) * 16.0))));
+		}
+		if (body["animation_flags"] && body["animation_flags"].IsMap())
+		{
+			SetSpriteAnimationFlags(id, ParseAnimationFlags(body["animation_flags"]));
+		}
+		return true;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
+}
+
+bool SpriteData::ApplyEntityMetadataYaml(uint8_t id, const std::string& yaml_data, std::shared_ptr<StringData> sd)
+{
+	if (!IsEntity(id))
+	{
+		return false;
+	}
+	try
+	{
+		const auto body = FindMetadataBlock(YAML::Load(yaml_data), "entity_id");
+		if (!body || !body.IsMap())
+		{
+			return false;
+		}
+		// Palettes are set as a pair; keep whichever side the YAML omits.
+		if (body["low_palette"] || body["high_palette"])
+		{
+			const auto current = GetEntityPaletteIdxs(id);
+			SetEntityPalette(id,
+				body["low_palette"].as<int>(current.first),
+				body["high_palette"].as<int>(current.second));
+		}
+		if (body["talk_sfx"] && sd)
+		{
+			sd->SetEntityTalkSound(id, static_cast<uint8_t>(body["talk_sfx"].as<int>()));
+		}
+		if (body["item_properties"] && body["item_properties"].IsMap() && IsEntityItem(id))
+		{
+			const auto ip = body["item_properties"];
+			ItemProperties props;
+			props.verb = static_cast<uint8_t>(ip["use_verb"].as<int>(12));
+			props.equipment_index = static_cast<uint8_t>(ip["equipment_index"].as<int>(0));
+			props.max_quantity = static_cast<uint8_t>(ip["max_quantity"].as<int>(0));
+			props.price = static_cast<uint16_t>(ip["price"].as<int>(0));
+			SetItemProperties(id, props);
+		}
+		if (body["enemy_stats"] && body["enemy_stats"].IsMap())
+		{
+			const auto es = body["enemy_stats"];
+			EnemyStats stats;
+			stats.health = static_cast<uint8_t>(es["health"].as<int>(0));
+			stats.attack = static_cast<uint8_t>(es["attack"].as<int>(0));
+			stats.defence = static_cast<uint8_t>(es["defence"].as<int>(0));
+			stats.gold_drop = static_cast<uint8_t>(es["gold_drop"].as<int>(0));
+			stats.item_drop = static_cast<uint8_t>(es["item_drop"].as<int>(0));
+			stats.drop_probability = static_cast<EnemyStats::DropProbability>(
+				std::clamp(es["item_drop_probability"].as<int>(6), 0, 7));
+			SetEnemyStats(id, stats);
+		}
+		return true;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
+}
+
 bool SpriteData::IsEntity(uint8_t id) const
 {
 	return (m_sprite_to_entity_lookup.find(id) != m_sprite_to_entity_lookup.cend());
@@ -882,7 +2674,12 @@ bool SpriteData::IsSprite(uint8_t id) const
 bool SpriteData::IsItem(uint8_t sprite_id) const
 {
 	auto entities = GetEntitiesFromSprite(sprite_id);
-	return std::all_of(entities.cbegin(), entities.cend(), [this](const auto& e) { return IsEntityItem(e); });
+	// A sprite is an item only when every entity that draws it is an item - and only if some entity
+	// does. Without the emptiness guard std::all_of is vacuously true, so a sprite no entity uses
+	// (e.g. a freshly imported one) would be mistaken for an item and treated as a single, static
+	// frame - which stops its animation preview from ever advancing.
+	return !entities.empty() &&
+		std::all_of(entities.cbegin(), entities.cend(), [this](const auto& e) { return IsEntityItem(e); });
 }
 
 bool SpriteData::IsEntityItem(uint8_t entity_id) const
@@ -928,7 +2725,7 @@ uint8_t SpriteData::GetSpriteId(const std::string& name) const
 uint32_t SpriteData::GetSpriteAnimationCount(uint8_t id) const
 {
 	assert(m_animations.find(id) != m_animations.cend());
-	return m_animations.find(id)->second.size();
+	return static_cast<uint32_t>(m_animations.find(id)->second.size());
 }
 
 std::vector<std::string> SpriteData::GetSpriteAnimations(uint8_t id) const
@@ -947,7 +2744,7 @@ std::vector<std::string> SpriteData::GetSpriteAnimations(const std::string& name
 uint32_t SpriteData::GetSpriteFrameCount(uint8_t id) const
 {
 	assert(m_sprite_frames.find(id) != m_sprite_frames.cend());
-	return m_sprite_frames.find(id)->second.size();
+	return static_cast<uint32_t>(m_sprite_frames.find(id)->second.size());
 }
 
 std::vector<std::string> SpriteData::GetSpriteFrames(uint8_t id) const
@@ -1097,14 +2894,14 @@ uint32_t SpriteData::GetSpriteAnimationFrameCount(uint8_t id, uint8_t anim_id) c
 	}
 	else
 	{
-		return GetSpriteAnimationFrames(id, anim_id).size();
+		return static_cast<uint32_t>(GetSpriteAnimationFrames(id, anim_id).size());
 	}
 }
 
 uint32_t SpriteData::GetSpriteAnimationFrameCount(const std::string& name) const
 {
 	assert(m_animation_frames.find(name) != m_animation_frames.cend());
-	return m_animation_frames.find(name)->second.size();
+	return static_cast<uint32_t>(m_animation_frames.find(name)->second.size());
 }
 
 std::vector<std::string> SpriteData::GetSpriteAnimationFrames(uint8_t id, uint8_t anim_id) const
@@ -1151,11 +2948,11 @@ void SpriteData::SetSpriteAnimationFlags(uint8_t id, const AnimationFlags& flags
 	}
 }
 
-uint16_t SpriteData::GetSpriteVolume(uint8_t id) const
+uint16_t SpriteData::GetSpriteMaxTileCount(uint8_t id) const
 {
-	if (m_sprite_volume.count(id) > 0)
+	if (m_sprite_max_tile_count.count(id) > 0)
 	{
-		return m_sprite_volume.at(id);
+		return m_sprite_max_tile_count.at(id);
 	}
 	else
 	{
@@ -1163,9 +2960,9 @@ uint16_t SpriteData::GetSpriteVolume(uint8_t id) const
 	}
 }
 
-void SpriteData::SetSpriteVolume(uint8_t id, uint16_t val)
+void SpriteData::SetSpriteMaxTileCount(uint8_t id, uint16_t val)
 {
-	m_sprite_volume[id] = val;
+	m_sprite_max_tile_count[id] = val;
 }
 
 std::vector<Entity> SpriteData::GetRoomEntities(uint16_t room) const
@@ -1183,7 +2980,46 @@ std::vector<Entity> SpriteData::GetRoomEntities(uint16_t room) const
 
 void SpriteData::SetRoomEntities(uint16_t room, const std::vector<Entity>& entities)
 {
+	// Writing back an unchanged list has to be a no-op. Rooms with no entities have no
+	// entry at all, so storing an empty vector for one would insert a new element and
+	// leave the project looking modified without anything having been edited.
+	const auto existing = m_room_entities.find(room);
+	if (existing == m_room_entities.cend() ? entities.empty() : existing->second == entities)
+	{
+		return;
+	}
 	m_room_entities[room] = entities;
+}
+
+std::size_t SpriteData::GetRoomEntityTableSize() const
+{
+	return m_room_entity_table_size;
+}
+
+void SpriteData::SetRoomEntityTableSize(std::size_t rooms)
+{
+	m_room_entity_table_size = rooms;
+}
+
+void SpriteData::RemapRooms(const RoomIndexMap& mapping)
+{
+	if (!IsValidRoomRenumbering(mapping))
+	{
+		return;
+	}
+	RemapRoomKeys(mapping, m_room_entities);
+	RemapRoomRecords(mapping, m_sprite_visibility_flags, { &EntityFlag::room });
+	RemapRoomRecords(mapping, m_one_time_event_flags, { &OneTimeEventFlag::room });
+	RemapRoomRecords(mapping, m_room_clear_flags, { &RoomClearFlag::room });
+	RemapRoomRecords(mapping, m_locked_door_flags, { &RoomClearFlag::room });
+	RemapRoomRecords(mapping, m_permanent_switch_flags, { &RoomClearFlag::room });
+	RemapRoomRecords(mapping, m_sacred_tree_flags, { &SacredTreeFlag::room });
+	// The entity offset table is sized by room count, so it shrinks with the room list.
+	const auto deleted = CountDeletedRooms(mapping);
+	if (deleted > 0 && m_room_entity_table_size >= deleted)
+	{
+		m_room_entity_table_size -= deleted;
+	}
 }
 
 std::vector<EntityFlag> SpriteData::GetEntityVisibilityFlagsForRoom(uint16_t room)
@@ -1349,6 +3185,148 @@ std::shared_ptr<PaletteEntry> SpriteData::GetHiPalette(uint8_t idx) const
 	return m_hi_palettes[idx];
 }
 
+bool SpriteData::IsLoPaletteUsed(uint8_t index) const
+{
+	return std::any_of(m_lo_palette_lookup.cbegin(), m_lo_palette_lookup.cend(),
+		[index](const auto& e) { return e.second && e.second->GetIndex() == index; });
+}
+
+bool SpriteData::IsHiPaletteUsed(uint8_t index) const
+{
+	return std::any_of(m_hi_palette_lookup.cbegin(), m_hi_palette_lookup.cend(),
+		[index](const auto& e) { return e.second && e.second->GetIndex() == index; });
+}
+
+std::vector<uint8_t> SpriteData::GetEntitiesUsingLoPalette(uint8_t index) const
+{
+	std::vector<uint8_t> result;
+	for (const auto& e : m_lo_palette_lookup)
+	{
+		if (e.second && e.second->GetIndex() == index)
+		{
+			result.push_back(e.first);
+		}
+	}
+	return result;
+}
+
+std::vector<uint8_t> SpriteData::GetEntitiesUsingHiPalette(uint8_t index) const
+{
+	std::vector<uint8_t> result;
+	for (const auto& e : m_hi_palette_lookup)
+	{
+		if (e.second && e.second->GetIndex() == index)
+		{
+			result.push_back(e.first);
+		}
+	}
+	return result;
+}
+
+std::optional<uint8_t> SpriteData::AddSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+	Palette::Type type, const std::string& name_format)
+{
+	if (pals.size() >= MAX_SPRITE_PALETTES)
+	{
+		return std::nullopt;
+	}
+	std::string name = StrPrintf(name_format, pals.size() + 1);
+	for (unsigned int suffix = 1; m_palettes_by_name.count(name) != 0; ++suffix)
+	{
+		name = StrPrintf(name_format, pals.size() + 1) + "_" + std::to_string(suffix);
+	}
+	// Put the new file beside an existing sprite palette so it follows the project's layout.
+	std::filesystem::path fpath;
+	if (!pals.empty())
+	{
+		const std::filesystem::path sibling(pals.front()->GetFilename());
+		fpath = (sibling.parent_path() / (name + sibling.extension().string()));
+		fpath = std::filesystem::path(fpath.generic_string());
+	}
+	else
+	{
+		fpath = "assets_packed/sprites/palettes/" + name + ".bin";
+	}
+	const auto bytes = Palette(name, type).GetBytes();
+	const auto entry = PaletteEntry::Create(this, bytes, name, fpath, type);
+	const auto index = static_cast<uint8_t>(pals.size());
+	entry->SetIndex(index);
+	pals.push_back(entry);
+	m_palettes_by_name.insert({ name, entry });
+	return index;
+}
+
+bool SpriteData::DeleteSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+	const std::wstring& label_category, uint8_t index, bool used)
+{
+	if (index >= pals.size() || pals.size() <= 1 || used)
+	{
+		return false;
+	}
+	m_palettes_by_name.erase(pals[index]->GetName());
+	pals.erase(pals.begin() + index);
+	// Re-index the entries above the hole; the entity lookups hold pointers to these entries and
+	// read their index through GetIndex(), so they follow the shift without being touched here.
+	std::map<int, int> label_map;
+	label_map.emplace(index, -1);
+	for (std::size_t slot = index; slot < pals.size(); ++slot)
+	{
+		pals[slot]->SetIndex(static_cast<int>(slot));
+		label_map.emplace(static_cast<int>(slot) + 1, static_cast<int>(slot));
+	}
+	Labels::Remap(label_category, label_map);
+	return true;
+}
+
+bool SpriteData::SwapSpritePalettes(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+	const std::wstring& label_category, uint8_t a, uint8_t b)
+{
+	if (a >= pals.size() || b >= pals.size())
+	{
+		return false;
+	}
+	if (a == b)
+	{
+		return true;
+	}
+	// Swap the colours in place so both entries keep their index - every entity lookup still
+	// resolves to the same slot - then swap the display labels so the moved palette's name
+	// follows it.
+	std::swap(*pals[a]->GetData(), *pals[b]->GetData());
+	Labels::Remap(label_category, { { a, b }, { b, a } });
+	return true;
+}
+
+std::optional<uint8_t> SpriteData::AddLoPalette()
+{
+	return AddSpritePalette(m_lo_palettes, Palette::Type::SPRITE_LOW, RomLabels::Sprites::PALETTE_LO);
+}
+
+std::optional<uint8_t> SpriteData::AddHiPalette()
+{
+	return AddSpritePalette(m_hi_palettes, Palette::Type::SPRITE_HIGH, RomLabels::Sprites::PALETTE_HI);
+}
+
+bool SpriteData::DeleteLoPalette(uint8_t index)
+{
+	return DeleteSpritePalette(m_lo_palettes, Labels::C_LOW_PALETTES, index, IsLoPaletteUsed(index));
+}
+
+bool SpriteData::DeleteHiPalette(uint8_t index)
+{
+	return DeleteSpritePalette(m_hi_palettes, Labels::C_HIGH_PALETTES, index, IsHiPaletteUsed(index));
+}
+
+bool SpriteData::SwapLoPalettes(uint8_t a, uint8_t b)
+{
+	return SwapSpritePalettes(m_lo_palettes, Labels::C_LOW_PALETTES, a, b);
+}
+
+bool SpriteData::SwapHiPalettes(uint8_t a, uint8_t b)
+{
+	return SwapSpritePalettes(m_hi_palettes, Labels::C_HIGH_PALETTES, a, b);
+}
+
 uint8_t SpriteData::GetProjectile1PaletteCount() const
 {
 	return static_cast<uint8_t>(m_projectile1_palettes.size());
@@ -1407,6 +3385,205 @@ void SpriteData::ClearEnemyStats(uint8_t entity_index)
 	m_enemy_stats.erase(entity_index);
 }
 
+const ByteVector& SpriteData::GetInventoryItems() const
+{
+	return m_inventory_items;
+}
+
+void SpriteData::SetInventoryItems(const ByteVector& data)
+{
+	m_inventory_items = data;
+}
+
+const ByteVector& SpriteData::GetEquipInventoryLayout() const
+{
+	return m_equip_inventory_layout;
+}
+
+void SpriteData::SetEquipInventoryLayout(const ByteVector& data)
+{
+	m_equip_inventory_layout = data;
+}
+
+const ByteVector& SpriteData::GetInputPlayback() const
+{
+	return m_input_playback;
+}
+
+void SpriteData::SetInputPlayback(const ByteVector& data)
+{
+	m_input_playback = data;
+}
+
+SpriteData::FridayAnimation::FridayAnimation(const ByteVector& bytes)
+{
+	auto read16 = [&bytes](std::size_t offset) -> uint16_t
+	{
+		return static_cast<uint16_t>((bytes[offset] << 8) | bytes[offset + 1]);
+	};
+	if (bytes.size() < 4)
+	{
+		return; // no header - treat as an empty path
+	}
+	start_y = read16(0);
+	start_x = read16(2);
+	std::size_t i = 4;
+	while (i + 2 <= bytes.size())
+	{
+		const uint16_t steps = read16(i);
+		if ((steps & 0x8000) != 0)
+		{
+			break; // negative word terminates the path
+		}
+		i += 2;
+		Waypoint wp;
+		wp.frames = static_cast<uint16_t>(steps + 1);
+		if (i + 4 <= bytes.size())
+		{
+			wp.x = read16(i);
+			wp.y = read16(i + 2);
+		}
+		i += 4;
+		waypoints.push_back(wp);
+	}
+}
+
+ByteVector SpriteData::FridayAnimation::Serialise() const
+{
+	ByteVector bytes;
+	bytes.reserve(4 + waypoints.size() * 6 + 2);
+	auto write16 = [&bytes](uint16_t value)
+	{
+		bytes.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
+		bytes.push_back(static_cast<uint8_t>(value & 0xFF));
+	};
+	write16(start_y);
+	write16(start_x);
+	for (const auto& wp : waypoints)
+	{
+		// frames-1 is the stored step count; clamp it below 0x8000 so it never reads as the
+		// negative end-of-path marker.
+		const uint16_t steps = (wp.frames > 0) ? static_cast<uint16_t>((wp.frames - 1) & 0x7FFF) : 0;
+		write16(steps);
+		write16(wp.x);
+		write16(wp.y);
+	}
+	write16(0xFFFF);
+	return bytes;
+}
+
+std::size_t SpriteData::GetFridayAnimationCount() const
+{
+	return m_friday_animations.size();
+}
+
+const ByteVector& SpriteData::GetFridayAnimation(std::size_t index) const
+{
+	return m_friday_animations.at(index);
+}
+
+void SpriteData::SetFridayAnimation(std::size_t index, const ByteVector& data)
+{
+	m_friday_animations.at(index) = data;
+}
+
+SpriteData::FridayAnimation SpriteData::GetFridayAnimationPath(std::size_t index) const
+{
+	return FridayAnimation(m_friday_animations.at(index));
+}
+
+void SpriteData::SetFridayAnimationPath(std::size_t index, const FridayAnimation& path)
+{
+	m_friday_animations.at(index) = path.Serialise();
+}
+
+const std::map<std::string, uint16_t>& SpriteData::GetDamageConstants() const
+{
+	return m_damage_constants;
+}
+
+void SpriteData::SetDamageConstants(const std::map<std::string, uint16_t>& constants)
+{
+	m_damage_constants = constants;
+}
+
+uint16_t SpriteData::GetDamageConstant(const std::string& name) const
+{
+	auto it = m_damage_constants.find(name);
+	return it == m_damage_constants.cend() ? 0 : it->second;
+}
+
+void SpriteData::SetDamageConstant(const std::string& name, uint16_t value)
+{
+	m_damage_constants[name] = value;
+}
+
+void SpriteData::SetDefaultDamageConstants()
+{
+	for (const auto& c : DAMAGE_CONSTANTS)
+	{
+		m_damage_constants.emplace(c.name, c.value);
+	}
+}
+
+bool SpriteData::AsmLoadDamageConstants()
+{
+	// Start from the engine defaults so a missing file or an incomplete damage.inc still yields a
+	// complete, ROM-consistent set of nine constants.
+	m_damage_constants.clear();
+	SetDefaultDamageConstants();
+	if (!m_damage_constants_file.empty())
+	{
+		const auto path = GetBasePath() / m_damage_constants_file;
+		if (std::filesystem::exists(path))
+		{
+			const auto defines = AsmFile::ParseDefines(path.string(), GetBasePath());
+			for (const auto& c : DAMAGE_CONSTANTS)
+			{
+				auto it = defines.find(c.name);
+				if (it != defines.cend())
+				{
+					m_damage_constants[c.name] = static_cast<uint16_t>(AsmFile::ParseValue(it->second, defines));
+				}
+			}
+		}
+	}
+	m_damage_constants_orig = m_damage_constants;
+	return true;
+}
+
+bool SpriteData::AsmSaveDamageConstants(const std::filesystem::path& dir)
+{
+	// ROM-loaded projects never had an include file; do not fabricate one - the ROM tables are the
+	// authority in that case (they are patched directly by RomPrepareInjectSpriteData).
+	if (m_damage_constants_file.empty())
+	{
+		return true;
+	}
+	try
+	{
+		AsmFile file;
+		file.WriteFileHeader(m_damage_constants_file, "Damage Modifiers");
+		file << AsmFile::Comment(" Magic Sword Attacks");
+		for (std::size_t i = 0; i < DAMAGE_CONSTANTS.size(); ++i)
+		{
+			if (i == NUM_SWORD_BOOSTS)
+			{
+				file << AsmFile::NewLine() << AsmFile::Comment(" Armour");
+			}
+			const auto& name = DAMAGE_CONSTANTS[i].name;
+			auto it = m_damage_constants.find(name);
+			const uint16_t value = (it != m_damage_constants.cend()) ? it->second : DAMAGE_CONSTANTS[i].value;
+			file << AsmFile::Define(name, value, AsmFile::Width::W);
+		}
+		return file.WriteFile(dir / m_damage_constants_file);
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
+}
+
 std::map<int, std::string> SpriteData::GetScriptNames() const
 {
 	std::map<int, std::string> names;
@@ -1445,7 +3622,7 @@ void SpriteData::CommitAllChanges()
 	m_frames_orig = m_frames;
 	m_animations_orig = m_animations;
 	m_animation_frames_orig = m_animation_frames;
-	m_sprite_volume_orig = m_sprite_volume;
+	m_sprite_max_tile_count_orig = m_sprite_max_tile_count;
 	m_lo_palettes_orig = m_lo_palettes;
 	m_hi_palettes_orig = m_hi_palettes;
 	m_projectile1_palettes_orig = m_projectile1_palettes;
@@ -1462,7 +3639,13 @@ void SpriteData::CommitAllChanges()
 	m_enemy_stats_orig = m_enemy_stats;
 	m_sprite_to_entity_lookup_orig = m_sprite_to_entity_lookup;
 	m_room_entities_orig = m_room_entities;
+	m_room_entity_table_size_orig = m_room_entity_table_size;
 	m_item_properties_orig = m_item_properties;
+	m_inventory_items_orig = m_inventory_items;
+	m_equip_inventory_layout_orig = m_equip_inventory_layout;
+	m_input_playback_orig = m_input_playback;
+	m_friday_animations_orig = m_friday_animations;
+	m_damage_constants_orig = m_damage_constants;
 	m_sprite_behaviours_orig = m_sprite_behaviours;
 	m_sprite_animation_flags_orig = m_sprite_animation_flags;
 	m_pending_writes.clear();
@@ -1487,6 +3670,28 @@ bool SpriteData::LoadAsmFilenames()
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::ENEMY_STATS, m_enemy_stats_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::ROOM_SPRITE_TABLE, m_room_sprite_table_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::ITEM_PROPERTIES, m_item_properties_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::INVENTORY_ITEMS, m_inventory_items_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT, m_equip_inventory_layout_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::INPUT_PLAYBACK, m_input_playback_file);
+		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::FRIDAY_ANIMATION_DATA, m_friday_animation_data_file);
+		// The Friday table filenames live one level down, in the fridayanimationdata.asm include.
+		AsmFile fa(GetBasePath() / m_friday_animation_data_file);
+		m_friday_animation_files.clear();
+		for (std::size_t i = 1; i <= NUM_FRIDAY_ANIMATIONS; ++i)
+		{
+			std::filesystem::path path;
+			retval = retval && GetFilenameFromAsm(fa, StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i), path);
+			if (path.empty())
+			{
+				path = StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i);
+			}
+			m_friday_animation_files.push_back(path);
+		}
+		// damage.inc is a nested constants include, not a labelled data block, so it has no entry in
+		// the main asm to look up - resolve it by walking the Defines include tree, and do not fail
+		// the load if the project does not ship one.
+		m_damage_constants_file = AsmFile::FindDefineInclude(GetAsmFilename(), GetBasePath(),
+			RomLabels::DEFINES_SECTION, RomLabels::Sprites::DAMAGE_CONSTANTS_FILE);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::SPRITE_BEHAVIOUR_OFFSETS, m_sprite_behaviour_offset_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::SPRITE_BEHAVIOUR_TABLE, m_sprite_behaviour_table_file);
 		retval = retval && GetFilenameFromAsm(f, RomLabels::Sprites::SPRITE_FRAMES_DATA, m_sprite_frames_data_file);
@@ -1519,6 +3724,17 @@ void SpriteData::SetDefaultFilenames()
 	if (m_enemy_stats_file.empty())                  m_enemy_stats_file               = RomLabels::Sprites::ENEMY_STATS_FILE;
 	if (m_room_sprite_table_file.empty())            m_room_sprite_table_file         = RomLabels::Sprites::ROOM_SPRITE_TABLE_FILE;
 	if (m_item_properties_file.empty())              m_item_properties_file           = RomLabels::Sprites::ITEM_PROPERTIES_FILE;
+	if (m_inventory_items_file.empty())              m_inventory_items_file           = RomLabels::Sprites::INVENTORY_ITEMS_FILE;
+	if (m_equip_inventory_layout_file.empty())       m_equip_inventory_layout_file    = RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT_FILE;
+	if (m_input_playback_file.empty())               m_input_playback_file            = RomLabels::Sprites::INPUT_PLAYBACK_FILE;
+	if (m_friday_animation_data_file.empty())        m_friday_animation_data_file     = RomLabels::Sprites::FRIDAY_ANIMATION_DATA_FILE;
+	if (m_friday_animation_files.empty())
+	{
+		for (std::size_t i = 1; i <= NUM_FRIDAY_ANIMATIONS; ++i)
+		{
+			m_friday_animation_files.push_back(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i));
+		}
+	}
 	if (m_sprite_behaviour_offset_file.empty())      m_sprite_behaviour_offset_file   = RomLabels::Sprites::SPRITE_BEHAVIOUR_OFFSET_FILE;
 	if (m_sprite_behaviour_table_file.empty())       m_sprite_behaviour_table_file    = RomLabels::Sprites::SPRITE_BEHAVIOUR_TABLE_FILE;
 	if (m_palette_data_file.empty())                 m_palette_data_file              = RomLabels::Sprites::PALETTE_DATA_FILE;
@@ -1547,6 +3763,18 @@ bool SpriteData::CreateDirectoryStructure(const std::filesystem::path& dir)
 	retval = retval && CreateDirectoryTree(dir / m_enemy_stats_file);
 	retval = retval && CreateDirectoryTree(dir / m_room_sprite_table_file);
 	retval = retval && CreateDirectoryTree(dir / m_item_properties_file);
+	retval = retval && CreateDirectoryTree(dir / m_inventory_items_file);
+	retval = retval && CreateDirectoryTree(dir / m_equip_inventory_layout_file);
+	retval = retval && CreateDirectoryTree(dir / m_input_playback_file);
+	retval = retval && CreateDirectoryTree(dir / m_friday_animation_data_file);
+	for (const auto& p : m_friday_animation_files)
+	{
+		retval = retval && CreateDirectoryTree(dir / p);
+	}
+	if (!m_damage_constants_file.empty())
+	{
+		retval = retval && CreateDirectoryTree(dir / m_damage_constants_file);
+	}
 	retval = retval && CreateDirectoryTree(dir / m_sprite_behaviour_offset_file);
 	retval = retval && CreateDirectoryTree(dir / m_sprite_behaviour_table_file);
 	retval = retval && CreateDirectoryTree(dir / m_palette_data_file);
@@ -1573,7 +3801,7 @@ void SpriteData::InitCache()
 	m_animations_orig = m_animations;
 	m_animation_frames_orig = m_animation_frames;
 	m_frames_orig = m_frames;
-	m_sprite_volume_orig = m_sprite_volume;
+	m_sprite_max_tile_count_orig = m_sprite_max_tile_count;
 	m_lo_palettes_orig = m_lo_palettes;
 	m_hi_palettes_orig = m_hi_palettes;
 	m_projectile1_palettes_orig = m_projectile1_palettes;
@@ -1590,7 +3818,13 @@ void SpriteData::InitCache()
 	m_enemy_stats_orig = m_enemy_stats;
 	m_sprite_to_entity_lookup_orig = m_sprite_to_entity_lookup;
 	m_room_entities_orig = m_room_entities;
+	m_room_entity_table_size_orig = m_room_entity_table_size;
 	m_item_properties_orig = m_item_properties;
+	m_inventory_items_orig = m_inventory_items;
+	m_equip_inventory_layout_orig = m_equip_inventory_layout;
+	m_input_playback_orig = m_input_playback;
+	m_friday_animations_orig = m_friday_animations;
+	m_damage_constants_orig = m_damage_constants;
 	m_sprite_behaviours_orig = m_sprite_behaviours;
 	m_sprite_animation_flags_orig = m_sprite_animation_flags;
 }
@@ -1692,6 +3926,7 @@ std::vector<std::shared_ptr<PaletteEntry>> SpriteData::DeserialisePalArray(const
 
 void SpriteData::DeserialiseRoomEntityTable(const ByteVector& offsets, const ByteVector& bytes)
 {
+	m_room_entity_table_size = std::max(m_room_entity_table_size, offsets.size() / 2);
 	for (uint16_t i = 0; (i * 2) < static_cast<uint16_t>(offsets.size()); ++i)
 	{
 		uint16_t offset = (offsets[i * 2] << 8) | offsets[i * 2 + 1];
@@ -1714,9 +3949,15 @@ void SpriteData::DeserialiseRoomEntityTable(const ByteVector& offsets, const Byt
 std::pair<ByteVector, ByteVector> SpriteData::SerialiseRoomEntityTable() const
 {
 	ByteVector bytes, offsets;
-	offsets.reserve((m_room_entities.rbegin()->first + 1) * sizeof(uint16_t));
-	for (uint16_t i = 0; i <= m_room_entities.rbegin()->first; ++i)
+	// The table must span every room, not just up to the last one that has entities,
+	// otherwise a trailing entity-less room makes the game index past the end of it.
+	const std::size_t last_populated = m_room_entities.empty() ? std::size_t{ 0 } :
+		static_cast<std::size_t>(m_room_entities.rbegin()->first) + 1;
+	const std::size_t table_size = std::max(m_room_entity_table_size, last_populated);
+	offsets.reserve(table_size * sizeof(uint16_t));
+	for (std::size_t idx = 0; idx < table_size; ++idx)
 	{
+		const uint16_t i = static_cast<uint16_t>(idx);
 		auto res = m_room_entities.find(i);
 		if (res == m_room_entities.cend())
 		{
@@ -1789,7 +4030,7 @@ bool SpriteData::AsmLoadSpritePointers()
 			}
 			m_names.insert({ spr, sprname });
 			m_ids.insert({ sprname, spr });
-			m_sprite_volume[spr] = lut[spr].second;
+			m_sprite_max_tile_count[spr] = lut[spr].second;
 			m_animations.insert({ spr, std::vector<std::string>() });
 			int anim_end = 0xFFFF;
 			if (spr < (lut.size() - 1))
@@ -1891,6 +4132,15 @@ bool SpriteData::AsmLoadSpriteData()
 	m_permanent_switch_flags   = DecodeFlags<RoomClearFlag>(DeserialiseFixedWidth<4>(ReadBytes(GetBasePath() / m_permanent_switch_flags_file)));
 	m_sacred_tree_flags        = DecodeFlags<SacredTreeFlag>(DeserialiseFixedWidth<4>(ReadBytes(GetBasePath() / m_sacred_tree_flags_file)));
 	m_item_properties          = DeserialiseFixedWidth<4>(ReadBytes(GetBasePath() / m_item_properties_file));
+	m_inventory_items          = ReadBytes(GetBasePath() / m_inventory_items_file);
+	m_equip_inventory_layout   = ReadBytes(GetBasePath() / m_equip_inventory_layout_file);
+	m_input_playback           = StripInputPlaybackFraming(ReadBytes(GetBasePath() / m_input_playback_file));
+	m_friday_animations.clear();
+	for (const auto& p : m_friday_animation_files)
+	{
+		m_friday_animations.push_back(ReadBytes(GetBasePath() / p));
+	}
+	AsmLoadDamageConstants();
 	m_enemy_stats              = DeserialiseMap<5>(ReadBytes(GetBasePath() / m_enemy_stats_file));
 	m_sprite_dimensions        = DeserialiseMap<2>(ReadBytes(GetBasePath() / m_sprite_dimensions_lookup_file));
 	m_sprite_to_entity_lookup  = DeserialiseMap(ReadBytes(GetBasePath() / m_sprite_gfx_idx_lookup_file), true);
@@ -1957,7 +4207,7 @@ bool SpriteData::RomLoadSpriteFrames(const Rom& rom)
 	{
 		int sprite_frame_count = 0;
 		std::string sprname = StrPrintf(RomLabels::Sprites::SPRITE_GFX, i);
-		m_sprite_volume.insert({ i, offset_table[i * 2 + 1] });
+		m_sprite_max_tile_count.insert({ i, offset_table[i * 2 + 1] });
 		m_names.insert({ i, sprname });
 		m_ids.insert({ sprname, i });
 		uint16_t anim_count;
@@ -2081,6 +4331,11 @@ bool SpriteData::RomLoadSpriteData(const Rom& rom)
 {
 	const uint32_t items_begin = Disasm::ReadOffset16(rom, RomLabels::Sprites::ITEM_PROPERTIES);
 	const uint32_t items_size = rom.get_section(RomLabels::Sprites::ITEM_PROPERTIES_SECTION).end - items_begin;
+	// The inventory layout tables are pc-relative incbin blobs with no pointer to follow,
+	// so they are read straight out of their fixed sections.
+	const auto inventory_items_section = rom.get_section(RomLabels::Sprites::INVENTORY_ITEMS_SECTION);
+	const auto equip_layout_section = rom.get_section(RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT_SECTION);
+	const auto input_playback_section = rom.get_section(RomLabels::Sprites::INPUT_PLAYBACK_SECTION);
 	const uint32_t anim_flags_begin = Disasm::ReadOffset16(rom, RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP);
 	const uint32_t anim_flags_size = rom.get_section(RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP_SECTION).end - anim_flags_begin;
 
@@ -2123,6 +4378,54 @@ bool SpriteData::RomLoadSpriteData(const Rom& rom)
 	m_permanent_switch_flags = DecodeFlags<RoomClearFlag>(DeserialiseFixedWidth<4>(rom.read_array<uint8_t>(permanent_switch_begin, permanent_switch_size)));
 	m_sacred_tree_flags = DecodeFlags<SacredTreeFlag>(DeserialiseFixedWidth<4>(rom.read_array<uint8_t>(trees_begin, trees_size)));
 	m_item_properties = DeserialiseFixedWidth<4>(rom.read_array<uint8_t>(items_begin, items_size));
+	m_inventory_items = rom.read_array<uint8_t>(inventory_items_section.begin, inventory_items_section.size());
+	m_equip_inventory_layout = rom.read_array<uint8_t>(equip_layout_section.begin, equip_layout_section.size());
+	m_input_playback = StripInputPlaybackFraming(rom.read_array<uint8_t>(input_playback_section.begin, input_playback_section.size()));
+
+	// The 15 Friday animation tables are addressed by 15 individual pc-relative lea pointers. Each
+	// table runs from its own pointer up to the next pointer (or the section end); computed by
+	// nearest-greater boundary so the read is robust to the tables being reordered.
+	const uint32_t friday_end = rom.get_section(RomLabels::Sprites::FRIDAY_ANIMATION_SECTION).end;
+	std::array<uint32_t, NUM_FRIDAY_ANIMATIONS> friday_starts{};
+	for (std::size_t i = 0; i < NUM_FRIDAY_ANIMATIONS; ++i)
+	{
+		friday_starts[i] = Disasm::ReadOffset16(rom, StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i + 1));
+	}
+	m_friday_animations.clear();
+	m_friday_animation_files.clear();
+	for (std::size_t i = 0; i < NUM_FRIDAY_ANIMATIONS; ++i)
+	{
+		uint32_t next = friday_end;
+		for (uint32_t s : friday_starts)
+		{
+			if (s > friday_starts[i] && s < next)
+			{
+				next = s;
+			}
+		}
+		m_friday_animations.push_back(rom.read_array<uint8_t>(friday_starts[i], next - friday_starts[i]));
+		m_friday_animation_files.push_back(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i + 1));
+	}
+
+	// The damage modifiers live in two fixed pc-relative word tables - four charged-sword boosts
+	// then five armour defences - keyed here by the same constant names damage.inc uses in ASM mode.
+	{
+		const auto sword_section = rom.get_section(RomLabels::Sprites::CHARGED_SWORD_BOOST_SECTION);
+		const auto armour_section = rom.get_section(RomLabels::Sprites::ARMOUR_DEFENCE_SECTION);
+		const auto sword_values = rom.read_array<uint16_t>(sword_section.begin, sword_section.size() / sizeof(uint16_t));
+		const auto armour_values = rom.read_array<uint16_t>(armour_section.begin, armour_section.size() / sizeof(uint16_t));
+		m_damage_constants.clear();
+		SetDefaultDamageConstants();
+		for (std::size_t i = 0; i < DAMAGE_CONSTANTS.size(); ++i)
+		{
+			const auto& values = (i < NUM_SWORD_BOOSTS) ? sword_values : armour_values;
+			const std::size_t idx = (i < NUM_SWORD_BOOSTS) ? i : (i - NUM_SWORD_BOOSTS);
+			if (idx < values.size())
+			{
+				m_damage_constants[DAMAGE_CONSTANTS[i].name] = values[idx];
+			}
+		}
+	}
 	m_enemy_stats = DeserialiseMap<5>(rom.read_array<uint8_t>(enemy_data_begin, enemy_data_size));
 	m_sprite_dimensions = DeserialiseMap<2>(rom.read_array<uint8_t>(sprite_dims_begin, sprite_dims_size));
 	m_sprite_to_entity_lookup = DeserialiseMap(rom.read_array<uint8_t>(sprite_ent_lut_begin, sprite_ent_lut_size), true);
@@ -2186,8 +4489,8 @@ bool SpriteData::AsmSaveSpritePointers(const std::filesystem::path& dir)
 		{
 			lut.push_back((anim_count >> 8) & 0xFF);
 			lut.push_back(anim_count & 0xFF);
-			lut.push_back((m_sprite_volume[spr.first] >> 8) & 0xFF);
-			lut.push_back(m_sprite_volume[spr.first] & 0xFF);
+			lut.push_back((m_sprite_max_tile_count[spr.first] >> 8) & 0xFF);
+			lut.push_back(m_sprite_max_tile_count[spr.first] & 0xFF);
 			anim_count += static_cast<uint16_t>(spr.second.size());
 		}
 		WriteBytes(lut, dir / m_sprite_lut_file);
@@ -2250,6 +4553,9 @@ bool SpriteData::AsmSaveSpriteData(const std::filesystem::path& dir)
 	WriteBytes(SerialiseFixedWidth<4>(EncodeFlags(m_permanent_switch_flags)), dir / m_permanent_switch_flags_file);
 	WriteBytes(SerialiseFixedWidth<4>(EncodeFlags(m_sacred_tree_flags)), dir / m_sacred_tree_flags_file);
 	WriteBytes(SerialiseFixedWidth<4>(m_item_properties, false), dir / m_item_properties_file);
+	WriteBytes(m_inventory_items, dir / m_inventory_items_file);
+	WriteBytes(m_equip_inventory_layout, dir / m_equip_inventory_layout_file);
+	WriteBytes(FrameInputPlayback(m_input_playback), dir / m_input_playback_file);
 	WriteBytes(SerialiseMap<5>(m_enemy_stats), dir / m_enemy_stats_file);
 	WriteBytes(SerialiseMap<2>(m_sprite_dimensions), dir / m_sprite_dimensions_lookup_file);
 	WriteBytes(SerialiseMap(m_sprite_to_entity_lookup, true), dir / m_sprite_gfx_idx_lookup_file);
@@ -2259,14 +4565,41 @@ bool SpriteData::AsmSaveSpriteData(const std::filesystem::path& dir)
 	auto result = SerialiseRoomEntityTable();
 	WriteBytes(result.first, dir / m_room_sprite_table_file);
 	WriteBytes(result.second, dir / m_room_sprite_table_offsets_file);
-	return true;
+	bool retval = AsmSaveFridayAnimations(dir);
+	retval = AsmSaveDamageConstants(dir) && retval;
+	return retval;
+}
+
+bool SpriteData::AsmSaveFridayAnimations(const std::filesystem::path& dir)
+{
+	try
+	{
+		AsmFile file;
+		file.WriteFileHeader(m_friday_animation_data_file, "Friday Animation Data");
+		for (std::size_t i = 0; i < m_friday_animations.size(); ++i)
+		{
+			std::filesystem::path path = (i < m_friday_animation_files.size())
+				? m_friday_animation_files[i]
+				: std::filesystem::path(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION_FILE, i + 1));
+			file << AsmFile::Label(StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i + 1))
+			     << AsmFile::IncludeFile(path, AsmFile::FileType::BINARY);
+			file << AsmFile::Align(2);
+			WriteBytes(m_friday_animations[i], dir / path);
+		}
+		file.WriteFile(dir / m_friday_animation_data_file);
+		return true;
+	}
+	catch (const std::exception&)
+	{
+	}
+	return false;
 }
 
 bool SpriteData::RomPrepareInjectSpriteFrames(const Rom& rom)
 {
 	uint32_t begin = rom.get_section(RomLabels::Sprites::SPRITE_SECTION).begin;
-	uint32_t lut_size = m_animations.size() * 2 * sizeof(uint16_t);
-	uint32_t anim_ptr_table_size = m_animation_frames.size() * sizeof(uint32_t);
+	uint32_t lut_size = static_cast<uint32_t>(m_animations.size() * 2 * sizeof(uint16_t));
+	uint32_t anim_ptr_table_size = static_cast<uint32_t>(m_animation_frames.size() * sizeof(uint32_t));
 	uint32_t frame_ptr_table_size = std::accumulate(m_animation_frames.cbegin(), m_animation_frames.cend(), 0,
 		[](int sum, const auto& elem) {
 			return sum + static_cast<int>(elem.second.size());
@@ -2295,14 +4628,14 @@ bool SpriteData::RomPrepareInjectSpriteFrames(const Rom& rom)
 	for (const auto& spr : m_animations)
 	{
 		it = Insert<uint16_t>(it, anim_count);
-		it = Insert<uint16_t>(it, m_sprite_volume[spr.first]);
+		it = Insert<uint16_t>(it, m_sprite_max_tile_count[spr.first]);
 		anim_count += static_cast<uint16_t>(spr.second.size());
 	}
 	uint32_t frame_count = 0;
 	for (const auto& anim : m_animation_frames)
 	{
 		it = Insert<uint32_t>(it, frame_count * sizeof(uint32_t) + frame_ptrs_begin);
-		frame_count += anim.second.size();
+		frame_count += static_cast<uint32_t>(anim.second.size());
 	}
 	for (const auto& anim : m_animation_frames)
 	{
@@ -2327,13 +4660,13 @@ bool SpriteData::RomPrepareInjectSpritePalettes(const Rom& rom)
 
 	uint32_t pal_lut_begin = rom.get_section(RomLabels::Sprites::PALETTE_DATA).begin;
 	auto bytes = std::make_shared<ByteVector>(SerialisePaletteLUT());
-	uint32_t lo_pals_begin = pal_lut_begin + bytes->size();
+	uint32_t lo_pals_begin = pal_lut_begin + static_cast<uint32_t>(bytes->size());
 	for (const auto& p : m_lo_palettes)
 	{
 		auto b = p->GetBytes();
 		bytes->insert(bytes->end(), b->cbegin(), b->cend());
 	}
-	uint32_t hi_pals_begin = pal_lut_begin + bytes->size();
+	uint32_t hi_pals_begin = pal_lut_begin + static_cast<uint32_t>(bytes->size());
 	for (const auto& p : m_hi_palettes)
 	{
 		auto b = p->GetBytes();
@@ -2366,6 +4699,12 @@ bool SpriteData::RomPrepareInjectSpriteData(const Rom& rom)
 	uint32_t item_begin = rom.get_section(RomLabels::Sprites::ITEM_PROPERTIES_SECTION).begin;
 	auto item_bytes = std::make_shared<ByteVector>(SerialiseFixedWidth<4>(m_item_properties, false));
 
+	// The inventory layout tables are referenced pc-relative, so they have no pointer to
+	// patch - they are written back in place at their fixed sections.
+	auto inventory_items_bytes = std::make_shared<ByteVector>(m_inventory_items);
+	auto equip_layout_bytes = std::make_shared<ByteVector>(m_equip_inventory_layout);
+	auto input_playback_bytes = std::make_shared<ByteVector>(FrameInputPlayback(m_input_playback));
+
 	std::vector<std::array<uint8_t, 2>> anim_flags;
 	std::transform(m_sprite_animation_flags.cbegin(), m_sprite_animation_flags.cend(), std::back_inserter<std::vector<std::array<uint8_t, 2>>>(anim_flags), [](const auto& elem)
 		{
@@ -2376,37 +4715,37 @@ bool SpriteData::RomPrepareInjectSpriteData(const Rom& rom)
 
 	uint32_t behavoff_begin = rom.get_section(RomLabels::Sprites::SPRITE_BEHAVIOUR_SECTION).begin;
 	auto behav_bytes = std::make_shared<ByteVector>(behaviour_bytes.first);
-	uint32_t behavtab_begin = behavoff_begin + behav_bytes->size();
+	uint32_t behavtab_begin = behavoff_begin + static_cast<uint32_t>(behav_bytes->size());
 	behav_bytes->insert(behav_bytes->end(), behaviour_bytes.second.cbegin(), behaviour_bytes.second.cend());
 
 	uint32_t visib_begin = rom.get_section(RomLabels::Sprites::SPRITE_DATA_SECTION).begin;
 	auto data_bytes = std::make_shared<ByteVector>(SerialiseFixedWidth<4>(EncodeFlags(m_sprite_visibility_flags)));
 
-	uint32_t onetime_begin = data_bytes->size() + visib_begin;
+	uint32_t onetime_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto onetime_bytes = SerialiseFixedWidth<6>(EncodeFlags(m_one_time_event_flags));
 	data_bytes->insert(data_bytes->end(), onetime_bytes.cbegin(), onetime_bytes.cend());
 
-	uint32_t clear_begin = data_bytes->size() + visib_begin;
+	uint32_t clear_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto clear_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_room_clear_flags));
 	data_bytes->insert(data_bytes->end(), clear_bytes.cbegin(), clear_bytes.cend());
 
-	uint32_t door_begin = data_bytes->size() + visib_begin;
+	uint32_t door_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto door_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_locked_door_flags));
 	data_bytes->insert(data_bytes->end(), door_bytes.cbegin(), door_bytes.cend());
 
-	uint32_t switch_begin = data_bytes->size() + visib_begin;
+	uint32_t switch_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto switch_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_permanent_switch_flags));
 	data_bytes->insert(data_bytes->end(), switch_bytes.cbegin(), switch_bytes.cend());
 
-	uint32_t tree_begin = data_bytes->size() + visib_begin;
+	uint32_t tree_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto tree_bytes = SerialiseFixedWidth<4>(EncodeFlags(m_sacred_tree_flags));
 	data_bytes->insert(data_bytes->end(), tree_bytes.cbegin(), tree_bytes.cend());
 
-	uint32_t sprent_begin = data_bytes->size() + visib_begin;
+	uint32_t sprent_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto sprent_bytes = SerialiseMap(m_sprite_to_entity_lookup, true);
 	data_bytes->insert(data_bytes->end(), sprent_bytes.cbegin(), sprent_bytes.cend());
 
-	uint32_t hitbox_begin = data_bytes->size() + visib_begin;
+	uint32_t hitbox_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto hitbox_bytes = SerialiseMap<2>(m_sprite_dimensions);
 	data_bytes->insert(data_bytes->end(), hitbox_bytes.cbegin(), hitbox_bytes.cend());
 	if ((data_bytes->size() & 1) == 1)
@@ -2414,18 +4753,53 @@ bool SpriteData::RomPrepareInjectSpriteData(const Rom& rom)
 		data_bytes->push_back(0xFF);
 	}
 
-	uint32_t offsets_begin = data_bytes->size() + visib_begin;
+	uint32_t offsets_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	data_bytes->insert(data_bytes->end(), room_entities.second.cbegin(), room_entities.second.cend());
 
-	uint32_t enemy_begin = data_bytes->size() + visib_begin;
+	uint32_t enemy_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	auto enemy_bytes = SerialiseMap<5>(m_enemy_stats);
 	data_bytes->insert(data_bytes->end(), enemy_bytes.cbegin(), enemy_bytes.cend());
 
-	uint32_t table_begin = data_bytes->size() + visib_begin;
+	uint32_t table_begin = static_cast<uint32_t>(data_bytes->size()) + visib_begin;
 	data_bytes->insert(data_bytes->end(), room_entities.first.cbegin(), room_entities.first.cend());
 
 	m_pending_writes.push_back({ RomLabels::Sprites::ITEM_PROPERTIES_SECTION, item_bytes });
 	m_pending_writes.push_back(Asm::WriteOffset8(rom, RomLabels::Sprites::ITEM_PROPERTIES, item_begin));
+	m_pending_writes.push_back({ RomLabels::Sprites::INVENTORY_ITEMS_SECTION, inventory_items_bytes });
+	m_pending_writes.push_back({ RomLabels::Sprites::EQUIP_INVENTORY_LAYOUT_SECTION, equip_layout_bytes });
+	m_pending_writes.push_back({ RomLabels::Sprites::INPUT_PLAYBACK_SECTION, input_playback_bytes });
+
+	// The damage modifiers are two fixed pc-relative word tables (four sword boosts, then five
+	// armour defences), so like the inventory tables they are written back in place with no pointer
+	// to patch. Words are big-endian, taken from m_damage_constants in the canonical order.
+	auto sword_boost_bytes = std::make_shared<ByteVector>();
+	auto armour_defence_bytes = std::make_shared<ByteVector>();
+	for (std::size_t i = 0; i < DAMAGE_CONSTANTS.size(); ++i)
+	{
+		auto it = m_damage_constants.find(DAMAGE_CONSTANTS[i].name);
+		const uint16_t value = (it != m_damage_constants.cend()) ? it->second : DAMAGE_CONSTANTS[i].value;
+		auto& dst = (i < NUM_SWORD_BOOSTS) ? *sword_boost_bytes : *armour_defence_bytes;
+		dst.push_back(static_cast<uint8_t>(value >> 8));
+		dst.push_back(static_cast<uint8_t>(value & 0xFF));
+	}
+	m_pending_writes.push_back({ RomLabels::Sprites::CHARGED_SWORD_BOOST_SECTION, sword_boost_bytes });
+	m_pending_writes.push_back({ RomLabels::Sprites::ARMOUR_DEFENCE_SECTION, armour_defence_bytes });
+
+	// Lay the 15 Friday tables out contiguously in their section (kept 2-byte aligned) and patch
+	// each animation's pc-relative lea to point at its new start.
+	const uint32_t friday_begin = rom.get_section(RomLabels::Sprites::FRIDAY_ANIMATION_SECTION).begin;
+	auto friday_bytes = std::make_shared<ByteVector>();
+	for (std::size_t i = 0; i < m_friday_animations.size(); ++i)
+	{
+		const uint32_t addr = friday_begin + static_cast<uint32_t>(friday_bytes->size());
+		friday_bytes->insert(friday_bytes->end(), m_friday_animations[i].cbegin(), m_friday_animations[i].cend());
+		if ((friday_bytes->size() & 1) == 1)
+		{
+			friday_bytes->push_back(0xFF);
+		}
+		m_pending_writes.push_back(Asm::WriteOffset16(rom, StrPrintf(RomLabels::Sprites::FRIDAY_ANIMATION, i + 1), addr));
+	}
+	m_pending_writes.push_back({ RomLabels::Sprites::FRIDAY_ANIMATION_SECTION, friday_bytes });
 	m_pending_writes.push_back({ RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP_SECTION, unk_bytes });
 	m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Sprites::SPRITE_ANIM_FLAGS_LOOKUP, unk_begin));
 	m_pending_writes.push_back({ RomLabels::Sprites::SPRITE_BEHAVIOUR_SECTION, behav_bytes });

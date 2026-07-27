@@ -114,6 +114,7 @@ std::vector<Behaviours::Command> BehaviourYamlConverter::FromYaml(const std::str
                 cmd.params.push_back({ p.first, -1, Behaviours::ParamType::NONE });
             }
             auto params = c.begin()->second;
+            std::size_t param_pos = 0;
             for (const auto& p : params)
             {
                 const auto& pname = p.first.as<std::string>();
@@ -121,6 +122,13 @@ std::vector<Behaviours::Command> BehaviourYamlConverter::FromYaml(const std::str
                     {
                         return v.first == pname;
                     });
+                if (pdef == cmddef.params.cend() && param_pos < cmddef.params.size())
+                {
+                    // Legacy YAML may use a parameter's old name (e.g. "Unknown"
+                    // from before the command was decoded): fall back to
+                    // matching by position.
+                    pdef = cmddef.params.cbegin() + param_pos;
+                }
                 if (pdef != cmddef.params.end())
                 {
                     auto pindex = std::distance(cmddef.params.cbegin(), pdef);
@@ -147,6 +155,7 @@ std::vector<Behaviours::Command> BehaviourYamlConverter::FromYaml(const std::str
                         });
                     throw std::runtime_error(err);
                 }
+                ++param_pos;
             }
             if (!std::all_of(params_set.begin(), params_set.end(), [](bool p) {return p; }))
             {

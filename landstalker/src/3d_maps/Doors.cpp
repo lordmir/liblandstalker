@@ -55,7 +55,7 @@ std::pair< std::vector<uint8_t>, std::vector<uint8_t>> Doors::GetData(int roomco
 		if (m_doors.count(i) > 0)
 		{
 			offsets.push_back(static_cast<uint8_t>(lastsz + 1));
-			lastsz = m_doors.at(i).size() * 2 + 1;
+			lastsz = static_cast<int>(m_doors.at(i).size()) * 2 + 1;
 			for (const auto& d : m_doors.at(i))
 			{
 				auto b = d.GetBytes();
@@ -91,7 +91,11 @@ bool Doors::RoomHasDoors(uint16_t room) const
 
 void Doors::SetRoomDoors(uint16_t room, const std::vector<Door>& swaps)
 {
-	if (m_doors.count(room) > 0)
+	if (swaps.empty())
+	{
+		m_doors.erase(room);
+	}
+	else if (m_doors.count(room) > 0)
 	{
 		m_doors[room] = swaps;
 	}
@@ -99,6 +103,11 @@ void Doors::SetRoomDoors(uint16_t room, const std::vector<Door>& swaps)
 	{
 		m_doors.insert({room, swaps});
 	}
+}
+
+void Doors::RemapRooms(const RoomIndexMap& mapping)
+{
+	RemapRoomKeys(mapping, m_doors);
 }
 
 Door::Door(uint8_t b1, uint8_t b2)

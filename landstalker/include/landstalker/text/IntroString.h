@@ -1,6 +1,7 @@
 #ifndef _INTRO_STRING_H_
 #define _INTRO_STRING_H_
 
+#include <landstalker/main/RomOffsets.h>
 #include <landstalker/text/LSString.h>
 
 namespace Landstalker {
@@ -14,6 +15,12 @@ public:
 
 	bool operator==(const IntroString& rhs) const;
 	bool operator!=(const IntroString& rhs) const;
+
+	// There are two intro fonts. The French and German ROMs share one that appends a single extra
+	// glyph; every other region uses the shorter one. The two agree on every glyph they have in
+	// common, and the renderer indexes them by the character code itself - see LoadIntroChar in
+	// loadisometricblocks2.asm.
+	static const CharacterSet& GetDefaultCharset(RomOffsets::Region region = RomOffsets::Region::US);
 
 	virtual size_t Decode(const uint8_t* buffer, size_t size);
 	virtual size_t Encode(uint8_t* buffer, size_t size) const;

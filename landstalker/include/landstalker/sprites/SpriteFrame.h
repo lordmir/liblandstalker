@@ -93,7 +93,7 @@ public:
 	void       SetSubSprites(const std::vector<SubSprite>& subs);
 	void       PrepareSubSprites();
 
-	static const std::size_t MAX_SUBSPRITES = 16;
+	static const std::size_t MAX_SUBSPRITES = 8;
 
 private:
 	std::vector<SubSprite> m_subsprites;

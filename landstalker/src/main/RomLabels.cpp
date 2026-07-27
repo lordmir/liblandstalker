@@ -24,6 +24,29 @@ namespace RomLabels
 		const std::string ITEM_FUNCS_SECTION("ShopSpecialItemsFuncs");
 		const std::string FLAG_PROGRESS_SECTION("ScriptProgressFlags");
 
+		const std::string ITEM_ARTICLES_SECTION("ItemArticles");
+		const std::string ITEM_FOUND_ARTICLE_TABLE_SECTION("ItemFoundStringOffsets");
+		const std::string ITEM_USE_ARTICLE_TABLE_SECTION("ItemUseStringOffsets");
+
+		// Cutscene action code ("Cutscenes"): the CSA_xxxx handlers and their bra.w dispatch
+		// table - distinct from the CutsceneScriptFuncs script-VM layer above.
+		const std::string CUTSCENE_ACTIONS_SECTION("CutsceneFuncs");
+		const std::string CUTSCENE_JUMPTABLE_SECTION("CutsceneJumpTable");
+		const std::string CUTSCENE_ACTION_DISPATCH_LABEL("CustomScriptActionTable");
+
+		const std::string TRIGGER_ACTIONS_SECTION("BehaviourTriggerFuncs");
+		const std::string TRIGGER_JUMPTABLE_SECTION("BehaviourTriggerJumpTable");
+		const std::string TRIGGER_ACTION_DISPATCH_LABEL("TriggerActionJumpTable");
+
+		const std::string ROOM_ACTIONS1_SECTION("CustomRoomActions1");
+		const std::string ROOM_ACTIONS2_SECTION("CustomRoomActions2");
+		const std::string ROOM_ACTION_CHAIN_LABEL("DoCustomRoomActions");
+
+		const std::string ITEM_PREUSE_TABLE_SECTION("ItemPreUseTable");
+		const std::string ITEM_POSTUSE_TABLE_SECTION("ItemPostUseTable");
+		const std::string ITEM_USE1_SECTION("ItemFuncs1");
+		const std::string ITEM_USE2_SECTION("ItemFuncs2");
+
 		const std::string SCRIPT_FILE("assets_packed/script/script.bin");
 		const std::string CUTSCENE_TABLE_FILE("code/script/cutscenes/script_cutscenetable.asm");
 		const std::string CHAR_TABLE_FILE("code/script/characters/script_charactertable.asm");
@@ -35,6 +58,24 @@ namespace RomLabels
 		const std::string SHOP_FUNCS_FILE("code/script/shops/script_shops.asm");
 		const std::string ITEM_FUNCS_FILE("code/script/shops/script_shopspecialitems.asm");
 		const std::string FLAG_PROGRESS_FILE("code/script/scriptflagcheck.asm");
+		const std::string ITEM_ARTICLES_FILE("assets_packed/script/itemarticles/itemarticles.bin");
+		const std::string ITEM_FOUND_ARTICLE_TABLE_FILE("assets_packed/script/itemarticles/itemfound_offsets.bin");
+		const std::string ITEM_USE_ARTICLE_TABLE_FILE("assets_packed/script/itemarticles/itemuse_offsets.bin");
+
+		const std::string CUTSCENE_ACTIONS_FILE("code/scripthandling/dialogueactions.asm");
+		const std::string CUTSCENE_JUMPTABLE_FILE("code/scripthandling/dialogueactionjumptable.asm");
+
+		const std::string TRIGGER_ACTIONS_FILE("code/scripthandling/triggeractions.asm");
+		const std::string TRIGGER_JUMPTABLE_FILE("code/scripthandling/triggeractionjumptable.asm");
+
+		const std::string ROOM_ACTIONS1_FILE("code/maps/customroomactions1.asm");
+		const std::string ROOM_ACTIONS2_FILE("code/maps/customroomactions2.asm");
+
+		const std::string ITEM_PREUSE_TABLE_FILE("code/pointertables/items/items_preusejmptable.asm");
+		const std::string ITEM_POSTUSE_TABLE_FILE("code/pointertables/items/items_postusejmptable.asm");
+		const std::string ITEM_USE1_FILE("code/items/itemuse1.asm");
+		const std::string ITEM_USE2_FILE("code/items/itemuse2.asm");
+		const std::string ITEM_POSTUSE_FILE("code/items/itempostuse.asm");
 	}
 
 	namespace Sprites
@@ -89,6 +130,20 @@ namespace RomLabels
 		const std::string ENEMY_STATS("EnemyStats");
 		const std::string ROOM_SPRITE_TABLE("RoomSpriteTable");
 
+		const std::string INVENTORY_ITEMS("InventoryItems");
+		const std::string INVENTORY_ITEMS_SECTION("InventoryItemsSection");
+		const std::string EQUIP_INVENTORY_LAYOUT("EquipInventoryLayout");
+		const std::string EQUIP_INVENTORY_LAYOUT_SECTION("EquipInventoryLayoutSection");
+		const std::string INPUT_PLAYBACK("InputPlayback");
+		const std::string INPUT_PLAYBACK_SECTION("InputPlaybackSection");
+		const std::string FRIDAY_ANIMATION_DATA("FridayAnimationData");
+		const std::string FRIDAY_ANIMATION("FridayAnimation%d");
+		const std::string FRIDAY_ANIMATION_SECTION("FridayAnimationDataSection");
+		const std::string CHARGED_SWORD_BOOST("ChargedSwordBoost");
+		const std::string CHARGED_SWORD_BOOST_SECTION("ChargedSwordBoostSection");
+		const std::string ARMOUR_DEFENCE("ArmourDefence");
+		const std::string ARMOUR_DEFENCE_SECTION("ArmourDefenceSection");
+
 		const std::string SPRITE_ANIM_FLAGS_LOOKUP("SpriteAnimFlags");
 		const std::string SPRITE_ANIM_FLAGS_LOOKUP_SECTION("SpriteAnimFlagsSection");
 
@@ -118,6 +173,12 @@ namespace RomLabels
 		const std::string ROOM_SPRITE_TABLE_OFFSETS_FILE("assets_packed/spritedata/roomtableoffsets.bin");
 		const std::string ENEMY_STATS_FILE("assets_packed/spritedata/enemystats.bin");
 		const std::string ROOM_SPRITE_TABLE_FILE("assets_packed/spritedata/roomspritetable.bin");
+		const std::string INVENTORY_ITEMS_FILE("assets_packed/misc/inventory/inventoryitems.bin");
+		const std::string EQUIP_INVENTORY_LAYOUT_FILE("assets_packed/misc/inventory/inventoryequip.bin");
+		const std::string INPUT_PLAYBACK_FILE("assets_packed/misc/playbackinputtable.bin");
+		const std::string FRIDAY_ANIMATION_DATA_FILE("code/misc/fridayanimationdata.asm");
+		const std::string FRIDAY_ANIMATION_FILE("assets_packed/misc/fridayanim/fridayanim%02d.bin");
+		const std::string DAMAGE_CONSTANTS_FILE("code/include/constants/damage.inc");
 	}
 
 	namespace Strings
@@ -191,6 +252,8 @@ namespace RomLabels
 		const std::string INTRO_STRING_PTRS_FILE("code/pointertables/strings/introstringptrs.asm");
 		const std::string INTRO_STRING_FILE("assets_packed/strings/intro/string%02d.bin");
 		const std::string END_CREDIT_STRINGS_FILE("assets_packed/strings/ending/credits.bin");
+		const std::string CHARSET_DATA_FILE("metadata/charset_%s.yaml");
+		const std::string CHARSET_CONSTANTS_FILE("code/include/constants/charset/charset_%s.inc");
 		const std::string SPRITE_TALK_SFX_FILE("assets_packed/script/spritetalksfx.bin");
 		const std::string CHARACTER_TALK_SFX_FILE("assets_packed/script/charactertalksfx.bin");
 		const std::string CUTSCENE_SCRIPT_FILE("code/script/cutscenes/script_cutscenetable.asm");
@@ -318,6 +381,7 @@ namespace RomLabels
 		const std::string GAME_LOAD_ROUTINES_1("GameLoadScreenRoutines1");
 		const std::string GAME_LOAD_ROUTINES_2("GameLoadScreenRoutines2");
 		const std::string GAME_LOAD_ROUTINES_3("GameLoadScreenRoutines3");
+		const std::string GAME_LOAD_ROUTINES_4("GameLoadScreenRoutines4");
 		const std::string GAME_LOAD_PALETTE("GameStartPalette");
 		const std::string GAME_LOAD_PALETTE_LEA("GameLoadScreen");
 		const std::string GAME_LOAD_PLAYER_PALETTE("InitialPlayerPal");
@@ -380,7 +444,7 @@ namespace RomLabels
 		const std::string ISLAND_MAP_FRIDAY_FILE("assets_packed/graphics/static/islandmap/friday.lz77");
 		const std::string ISLAND_MAP_FG_PAL_FILE("assets_packed/graphics/static/islandmap/foreground.pal");
 		const std::string ISLAND_MAP_BG_PAL_FILE("assets_packed/graphics/static/islandmap/background.pal");
-		const std::string TITLE_DATA_FILE("code/graphics/staticimages/titlescreen.asm");
+		const std::string TITLE_DATA_FILE("code/title/titlescreen.asm");
 		const std::string TITLE_PALETTE_BLUE_FILE("assets_packed/graphics/static/titlescreen/blues.pal");
 		const std::string TITLE_PALETTE_YELLOW_FILE("assets_packed/graphics/static/titlescreen/yellows.pal");
 		const std::string TITLE_1_TILES_FILE("assets_packed/graphics/static/titlescreen/title1.lz77");
@@ -391,9 +455,9 @@ namespace RomLabels
 		const std::string TITLE_3_MAP_FILE("assets_packed/graphics/static/titlescreen/title3.rle");
 		const std::string TITLE_3_PAL_FILE("assets_packed/graphics/static/titlescreen/title3.pal");
 		const std::string TITLE_3_PAL_HIGHLIGHT_FILE("assets_packed/graphics/static/titlescreen/title3_highlight.pal");
-		const std::string TITLE_ROUTINES_1_FILE("code/graphics/staticimages/titlescreen1.asm");
-		const std::string TITLE_ROUTINES_2_FILE("code/graphics/staticimages/titlescreen2.asm");
-		const std::string TITLE_ROUTINES_3_FILE("code/graphics/staticimages/titlescreen3.asm");
+		const std::string TITLE_ROUTINES_1_FILE("code/title/titlescreen1.asm");
+		const std::string TITLE_ROUTINES_2_FILE("code/title/titlescreen2.asm");
+		const std::string TITLE_ROUTINES_3_FILE("code/title/titlescreen3.asm");
 		const std::string LITHOGRAPH_DATA_FILE("code/graphics/staticimages/lithographdata.asm");
 		const std::string LITHOGRAPH_PAL_FILE("assets_packed/graphics/static/lithograph/lithograph.pal");
 		const std::string LITHOGRAPH_TILES_FILE("assets_packed/graphics/static/lithograph/lithograph.lz77");
@@ -411,6 +475,7 @@ namespace RomLabels
 		const std::string GAME_LOAD_ROUTINES_1_FILE("code/title/gameloadscreen1.asm");
 		const std::string GAME_LOAD_ROUTINES_2_FILE("code/title/gameloadscreen2.asm");
 		const std::string GAME_LOAD_ROUTINES_3_FILE("code/title/gameloadscreen3.asm");
+		const std::string GAME_LOAD_ROUTINES_4_FILE("code/title/gameloadscreen4.asm");
 		const std::string GAME_LOAD_PALETTE_FILE("assets_packed/graphics/static/loadgame/loadgame.pal");
 		const std::string GAME_LOAD_PLAYER_PALETTE_FILE("assets_packed/graphics/static/loadgame/nigel.pal");
 		const std::string GAME_LOAD_CHARS_FILE("assets_packed/graphics/static/loadgame/chars.lz77");
@@ -535,6 +600,8 @@ namespace RomLabels
 		const std::string ROOM_VISIT_FLAGS_FILE("assets_packed/roomdata/flagactions/roomvisitflags.bin");
 		const std::string CHEST_CONTENTS_FILENAME("assets_packed/roomdata/chests/chestcontents.bin");
 		const std::string CHEST_OFFSETS_FILENAME("assets_packed/roomdata/chests/chestoffsets.bin");
+		const std::string ROOM_CONSTANTS_FILE("code/include/constants/rooms.inc");
+		const std::string ROOM_CONSTANTS_PREFIX("ROOM_");
 	}
 
 } // namespace RomOffsets

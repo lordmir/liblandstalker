@@ -14,7 +14,7 @@ const std::size_t MAXIMUM_CAPACITY = 0x400;
 template<class T>
 void HFlip(std::vector<T>& elems, int width)
 {
-    int height = elems.size() / width;
+    int height = static_cast<int>(elems.size()) / width;
     for (int i = 0; i < height; ++i)
     {
         auto source_it = elems.begin() + width * i;
@@ -25,7 +25,7 @@ void HFlip(std::vector<T>& elems, int width)
 template<class T>
 void VFlip(std::vector<T>& elems, int width)
 {
-    int height = elems.size() / width;
+    int height = static_cast<int>(elems.size()) / width;
     for (int i = 0; i < height / 2; ++i)
     {
         auto source_it = elems.begin() + width * i;
@@ -102,7 +102,7 @@ uint32_t Tileset::SetBits(const std::vector<uint8_t>& src, bool compressed)
     const std::size_t tile_size_bytes = m_width * m_height * m_bit_depth / 8;
     const std::vector<uint8_t>* input = &src;
     m_compressed = compressed;
-    uint32_t ret = src.size();
+    uint32_t ret = static_cast<uint32_t>(src.size());
 
 	std::vector<uint8_t> buffer;
     if (compressed == true)
@@ -112,7 +112,7 @@ uint32_t Tileset::SetBits(const std::vector<uint8_t>& src, bool compressed)
         dlen = LZ77::Decode(src.data(), src.size(), buffer.data(), elen);
         buffer.resize(dlen);
         input = &buffer;
-        ret = elen;
+        ret = static_cast<uint32_t>(elen);
     }
     const std::size_t num_tiles = (input->size() + (tile_size_bytes - 1)) / tile_size_bytes;
 
@@ -153,7 +153,7 @@ void Tileset::SetParams(std::size_t width, std::size_t height, uint8_t bit_depth
     m_tilewidth = width;
     m_tileheight = height;
     m_bit_depth = bit_depth;
-    if (m_colour_indicies.size() < static_cast<std::size_t>(1 << bit_depth))
+    if (m_colour_indicies.size() < static_cast<std::size_t>(static_cast<uint32_t>(1 << bit_depth)))
     {
         m_colour_indicies.clear();
     }
@@ -285,7 +285,10 @@ void Tileset::Reset(int size)
 {
     if (size != -1)
     {
-        m_tiles.resize(size);
+        // Grow with properly sized, zeroed tiles rather than empty vectors - a bare resize()
+        // leaves new tiles' pixel buffers empty, which the std::fill below cannot correct and
+        // which anything reading the tile later runs off the end of. Matches Resize / SetBits.
+        m_tiles.resize(size, std::vector<uint8_t>(m_width * m_height));
     }
     for (auto& elem : m_tiles)
     {
@@ -295,7 +298,11 @@ void Tileset::Reset(int size)
 
 void Tileset::Resize(int size)
 {
-    m_tiles.resize(size);
+    // Grow with properly sized, zeroed tiles rather than empty vectors. A bare
+    // m_tiles.resize() leaves each new tile's pixel buffer empty, so anything that later
+    // reads the tile - GetBits when a sprite frame is serialised for save or export - runs
+    // off the end of it. Matches how InsertTilesBefore and SetBits size their tiles.
+    m_tiles.resize(size, std::vector<uint8_t>(m_width * m_height));
 }
 
 std::vector<uint8_t> Tileset::GetTileRGB(const Tile& tile, const Palette& palette) const
@@ -387,7 +394,7 @@ void Tileset::SetColourIndicies(const std::vector<uint8_t>& colour_indicies)
 	{
 		m_colour_indicies.clear();
 	}
-    else if (colour_indicies.size() >= static_cast<std::size_t>(1 << m_bit_depth))
+    else if (colour_indicies.size() >= static_cast<std::size_t>(static_cast<uint32_t>(1 << m_bit_depth)))
     {
         bool ok = true;
         for (auto c : colour_indicies)
@@ -418,7 +425,7 @@ std::string Tileset::GetColourIndiciesAsString() const
 }
 std::vector<uint8_t> Tileset::GetDefaultColourIndicies() const
 {
-    std::vector<uint8_t> ret(1 << m_bit_depth);
+    std::vector<uint8_t> ret(static_cast<uint32_t>(1 << m_bit_depth));
     std::iota(ret.begin(), ret.end(), 0_u8);
     return ret;
 }
@@ -429,7 +436,7 @@ std::array<bool, 16> Tileset::GetLockedColours() const
     retval.fill(true);
     if (m_colour_indicies.empty())
     {
-        std::fill(retval.begin(), retval.begin() + (1 << m_bit_depth), false);
+        std::fill(retval.begin(), retval.begin() + static_cast<uint32_t>(1UL << m_bit_depth), false);
     }
     else
     {
@@ -548,6 +555,74 @@ void Tileset::SetTile(const Tile& src, const std::vector<uint8_t>& value)
     }
 }
 
+std::size_t Tileset::CountWholeTiles(std::size_t img_width, std::size_t img_height) const
+{
+    if (m_width == 0 || m_height == 0)
+    {
+        return 0;
+    }
+    // Integer division drops any partial column or row of pixels at the far right / bottom.
+    return (img_width / m_width) * (img_height / m_height);
+}
+
+int Tileset::MaxColourIndexInTiles(const std::vector<uint8_t>& pixels, std::size_t img_width,
+    std::size_t img_height, std::size_t tile_count) const
+{
+    const std::size_t cols = (m_width == 0) ? 0 : (img_width / m_width);
+    const std::size_t total = CountWholeTiles(img_width, img_height);
+    tile_count = std::min(tile_count, total);
+    if (cols == 0 || tile_count == 0)
+    {
+        return -1;
+    }
+    int max_index = -1;
+    for (std::size_t t = 0; t < tile_count; ++t)
+    {
+        const std::size_t base_x = (t % cols) * m_width;
+        const std::size_t base_y = (t / cols) * m_height;
+        for (std::size_t py = 0; py < m_height; ++py)
+        {
+            for (std::size_t px = 0; px < m_width; ++px)
+            {
+                const std::size_t idx = (base_y + py) * img_width + (base_x + px);
+                if (idx < pixels.size())
+                {
+                    max_index = std::max(max_index, static_cast<int>(pixels[idx]));
+                }
+            }
+        }
+    }
+    return max_index;
+}
+
+void Tileset::SetTilesFromIndexedImage(const std::vector<uint8_t>& pixels, std::size_t img_width,
+    std::size_t img_height, std::size_t tile_count)
+{
+    const std::size_t cols = (m_width == 0) ? 0 : (img_width / m_width);
+    const std::size_t total = CountWholeTiles(img_width, img_height);
+    tile_count = std::min(tile_count, total);
+    if (cols == 0 || tile_count == 0)
+    {
+        return;
+    }
+    const uint8_t mask = static_cast<uint8_t>((1u << m_bit_depth) - 1);
+    m_tiles.assign(tile_count, std::vector<uint8_t>(m_width * m_height, 0));
+    for (std::size_t t = 0; t < tile_count; ++t)
+    {
+        const std::size_t base_x = (t % cols) * m_width;
+        const std::size_t base_y = (t / cols) * m_height;
+        auto& tile = m_tiles[t];
+        for (std::size_t py = 0; py < m_height; ++py)
+        {
+            for (std::size_t px = 0; px < m_width; ++px)
+            {
+                const std::size_t idx = (base_y + py) * img_width + (base_x + px);
+                tile[py * m_width + px] = (idx < pixels.size()) ? (pixels[idx] & mask) : 0;
+            }
+        }
+    }
+}
+
 void Tileset::TransposeBlock()
 {
     if (m_blocktype == BlockType::NORMAL)
@@ -612,11 +687,6 @@ void Tileset::TransposeBlock()
     }
 }
 
-void Tileset::UntransposeBlock(std::vector<uint8_t>& /*bits*/)
-{
-    // const std::array<int, 24> untranspose4x6{ 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15,16,20,17,21,18,22,19,23};
-}
-
 std::vector<uint8_t> Tileset::GetTile(const Tile& tile) const
 {
     std::size_t idx = tile.GetIndex();
@@ -630,11 +700,11 @@ std::vector<uint8_t> Tileset::GetTile(const Tile& tile) const
     std::vector<uint8_t> ret(m_tiles[idx]);
     if (tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_VFLIP))
     {
-        VFlip(ret, m_width);
+        VFlip(ret, static_cast<int>(m_width));
     }
     if (tile.Attributes().getAttribute(TileAttributes::Attribute::ATTR_HFLIP))
     {
-        HFlip(ret, m_width);
+        HFlip(ret, static_cast<int>(m_width));
     }
     return ret;
 }

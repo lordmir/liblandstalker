@@ -209,6 +209,186 @@ void GameData::RefreshPendingWrites(const Rom& rom)
 		});
 }
 
+std::shared_ptr<Room> GameData::AddRoom(const std::string& map, const std::string& name,
+	const std::wstring& display_name, uint8_t tileset, uint8_t room_palette,
+	uint8_t pri_blockset, uint8_t sec_blockset, uint8_t room_z_begin,
+	uint8_t room_z_end, uint8_t bgm)
+{
+	if (!m_ready)
+	{
+		return nullptr;
+	}
+	std::lock_guard<std::mutex> guard(m_busy_lock);
+
+	// The visit flag has to be allocated before the room is created, so that running out
+	// of flags leaves the room list untouched rather than half-added.
+	const uint16_t visit_flag = m_sd->GetUnusedRoomVisitFlag();
+	if (visit_flag == StringData::INVALID_ROOM_VISIT_FLAG)
+	{
+		return nullptr;
+	}
+	auto room = m_rd->AddRoom(map, name, display_name, tileset, room_palette,
+		pri_blockset, sec_blockset, room_z_begin, room_z_end, bgm);
+	if (room == nullptr)
+	{
+		return nullptr;
+	}
+
+	const std::size_t room_count = m_rd->GetRoomCount();
+	// Both of these tables are indexed by room number with no bounds check by the game,
+	// so they have to grow in step with the room list. Everything else keyed off the
+	// room number (chests, doors, tile swaps, warps, per-room flags) is stored sparsely
+	// and sized from the room count when it is serialised, so it needs nothing here.
+	m_sd->SetRoomVisitFlag(room->index, visit_flag);
+	m_spd->SetRoomEntityTableSize(room_count);
+	return room;
+}
+
+bool GameData::MoveRoom(uint16_t room, uint16_t new_index)
+{
+	if (!m_ready)
+	{
+		return false;
+	}
+	std::lock_guard<std::mutex> guard(m_busy_lock);
+
+	const auto room_count = m_rd->GetRoomCount();
+	const auto mapping = MakeRoomMoveMap(room_count, room, new_index);
+	// Validate before touching anything. Every manager applies the same mapping, so a
+	// mapping any one of them would reject must not be applied by any of them - a
+	// half-applied reorder leaves references pointing at the wrong rooms with no way to
+	// tell which are stale. MakeRoomMoveMap returns an empty map on bad arguments, which
+	// fails both checks.
+	if (mapping.size() != room_count || !IsValidRoomIndexMap(mapping))
+	{
+		return false;
+	}
+	if (room == new_index)
+	{
+		return true;
+	}
+	// Labels are keyed by room number too, so the display names have to travel with the
+	// rooms. Do this first: it is the only step that can fail, and failing here leaves
+	// everything else untouched.
+	if (!Labels::Reorder(Labels::C_ROOMS, room, new_index, room_count))
+	{
+		return false;
+	}
+
+	m_rd->RemapRooms(mapping);
+	m_sd->RemapRooms(mapping);
+	m_spd->RemapRooms(mapping);
+	m_scd->RemapRooms(mapping);
+	return true;
+}
+
+bool GameData::DeleteRoom(uint16_t room)
+{
+	if (!m_ready)
+	{
+		return false;
+	}
+	std::lock_guard<std::mutex> guard(m_busy_lock);
+
+	const auto room_count = m_rd->GetRoomCount();
+	const auto mapping = MakeRoomDeleteMap(room_count, room);
+	// Same all-or-nothing rule as MoveRoom: validate before touching anything, so a
+	// mapping any manager would reject is applied by none of them.
+	if (mapping.size() != room_count || !IsValidRoomRenumbering(mapping) ||
+		CountDeletedRooms(mapping) != 1)
+	{
+		return false;
+	}
+	// Labels are keyed by room number, so drop this room's name and pull the rest down.
+	// Do it first - it is the only step that can fail.
+	if (!Labels::Erase(Labels::C_ROOMS, room, room_count))
+	{
+		return false;
+	}
+
+	m_rd->RemapRooms(mapping);
+	m_sd->RemapRooms(mapping);
+	m_spd->RemapRooms(mapping);
+	m_scd->RemapRooms(mapping);
+	return true;
+}
+
+bool GameData::IsRoomReferenced(uint16_t room) const
+{
+	if (!m_ready || room >= m_rd->GetRoomCount())
+	{
+		return false;
+	}
+	std::lock_guard<std::mutex> guard(m_busy_lock);
+
+	// Ordered cheapest-first so the common cases bail out early.
+	if (!m_rd->GetWarpsForRoom(room).empty() ||
+		m_rd->HasFallDestination(room) || m_rd->HasClimbDestination(room) ||
+		!m_rd->GetTransitions(room).empty() ||
+		!m_rd->GetChestsForRoom(room).empty() ||
+		!m_rd->GetNormalTileSwaps(room).empty() ||
+		!m_rd->GetLockedDoorTileSwaps(room).empty() ||
+		m_rd->HasTreeWarpFlag(room) || m_rd->HasLifestockSaleFlag(room) ||
+		m_rd->HasLanternFlag(room) ||
+		!m_rd->GetRoomConstantsForRoom(room).empty())
+	{
+		return true;
+	}
+	if (!m_spd->GetRoomEntities(room).empty() ||
+		!m_spd->GetEntityVisibilityFlagsForRoom(room).empty() ||
+		!m_spd->GetOneTimeEventFlagsForRoom(room).empty() ||
+		!m_spd->GetMultipleEntityHideFlagsForRoom(room).empty() ||
+		!m_spd->GetLockedDoorFlagsForRoom(room).empty() ||
+		!m_spd->GetPermanentSwitchFlagsForRoom(room).empty() ||
+		!m_spd->GetSacredTreeFlagsForRoom(room).empty())
+	{
+		return true;
+	}
+	const auto shops = m_scd->GetShopTable();
+	return shops && std::any_of(shops->cbegin(), shops->cend(),
+		[room](const auto& shop) { return shop.room == room; });
+}
+
+std::size_t GameData::RoomReferences::Total() const
+{
+	return warps + fall_climb_routes + transitions + entities + flags + chests + shops + constants;
+}
+
+GameData::RoomReferences GameData::CountRoomReferences(uint16_t room) const
+{
+	RoomReferences refs;
+	if (!m_ready || room >= m_rd->GetRoomCount())
+	{
+		return refs;
+	}
+	std::lock_guard<std::mutex> guard(m_busy_lock);
+
+	// Warps are held once but reachable from either end, so ask the room itself.
+	refs.warps = m_rd->GetWarpsForRoom(room).size();
+	refs.fall_climb_routes = (m_rd->HasFallDestination(room) ? 1u : 0u) +
+		(m_rd->HasClimbDestination(room) ? 1u : 0u);
+	// GetTransitions covers both directions - a transition into this room counts too.
+	refs.transitions = m_rd->GetTransitions(room).size();
+	refs.entities = m_spd->GetRoomEntities(room).size();
+	refs.flags = m_spd->GetEntityVisibilityFlagsForRoom(room).size() +
+		m_spd->GetOneTimeEventFlagsForRoom(room).size() +
+		m_spd->GetMultipleEntityHideFlagsForRoom(room).size() +
+		m_spd->GetLockedDoorFlagsForRoom(room).size() +
+		m_spd->GetPermanentSwitchFlagsForRoom(room).size() +
+		m_spd->GetSacredTreeFlagsForRoom(room).size() +
+		m_rd->GetNormalTileSwaps(room).size() +
+		m_rd->GetLockedDoorTileSwaps(room).size() +
+		(m_rd->HasTreeWarpFlag(room) ? 1u : 0u) +
+		(m_rd->HasLifestockSaleFlag(room) ? 1u : 0u) +
+		(m_rd->HasLanternFlag(room) ? 1u : 0u);
+	refs.chests = m_rd->GetChestsForRoom(room).size();
+	const auto shops = m_scd->GetShopTable();
+	refs.shops = shops ? static_cast<std::size_t>(std::count_if(shops->cbegin(), shops->cend(),
+		[room](const auto& shop) { return shop.room == room; })) : 0u;
+	refs.constants = m_rd->GetRoomConstantsForRoom(room).size();
+	return refs;
+}
+
 const std::map<std::string, std::shared_ptr<PaletteEntry>>& GameData::GetAllPalettes() const
 {
 	return m_palettes;
@@ -248,7 +428,11 @@ std::shared_ptr<TilesetEntry> GameData::GetTileset(const std::string& name) cons
 	{
 		return nullptr;
 	}
-	return m_tilesets.at(name);
+	// nullptr rather than the out_of_range that .at() would throw: callers reach here with
+	// a name from the navigation tree, which can name something the cache has not been
+	// told about yet. Matches GetPalette.
+	const auto tileset = m_tilesets.find(name);
+	return tileset == m_tilesets.cend() ? nullptr : tileset->second;
 }
 
 std::shared_ptr<AnimatedTilesetEntry> GameData::GetAnimatedTileset(const std::string& name) const
@@ -257,7 +441,8 @@ std::shared_ptr<AnimatedTilesetEntry> GameData::GetAnimatedTileset(const std::st
 	{
 		return nullptr;
 	}
-	return m_anim_tilesets.at(name);
+	const auto anim = m_anim_tilesets.find(name);
+	return anim == m_anim_tilesets.cend() ? nullptr : anim->second;
 }
 
 std::shared_ptr<Tilemap2DEntry> GameData::GetTilemap(const std::string& name) const
@@ -266,7 +451,23 @@ std::shared_ptr<Tilemap2DEntry> GameData::GetTilemap(const std::string& name) co
 	{
 		return nullptr;
 	}
-	return m_tilemaps.at(name);
+	const auto tilemap = m_tilemaps.find(name);
+	return tilemap == m_tilemaps.cend() ? nullptr : tilemap->second;
+}
+
+void GameData::RefreshCaches()
+{
+	if (!m_ready)
+	{
+		return;
+	}
+	// Cleared first: CacheData inserts, which leaves an existing key untouched, so a
+	// rebuild over the top would keep entries that have since been renamed or removed.
+	m_palettes.clear();
+	m_tilesets.clear();
+	m_anim_tilesets.clear();
+	m_tilemaps.clear();
+	CacheData();
 }
 
 void GameData::CacheData()

@@ -136,7 +136,7 @@ void Tilemap::SetTileValue(const TilePoint& point, uint16_t index)
 }
 
 
-void Tilemap::Fill(uint16_t base, std::size_t increment, int limit)
+void Tilemap::Fill(uint16_t base, uint16_t increment, int limit)
 {
 	uint16_t index = base;
 	std::size_t i = 0;
@@ -196,10 +196,10 @@ bool Tilemap::WriteBinaryFile(const std::string& filename, bool include_dimensio
 	{
 		if (include_dimensions)
 		{
-			uint16_t width = htons(m_width);
-			uint16_t height = htons(m_height);
-			uint16_t left = htons(m_left);
-			uint16_t top = htons(m_top);
+			uint16_t width = htons(static_cast<uint16_t>(m_width));
+			uint16_t height = htons(static_cast<uint16_t>(m_height));
+			uint16_t left = htons(static_cast<uint16_t>(m_left));
+			uint16_t top = htons(static_cast<uint16_t>(m_top));
 			outfile.write(reinterpret_cast<char*>(&width), sizeof(width));
 			outfile.write(reinterpret_cast<char*>(&height), sizeof(height));
 			outfile.write(reinterpret_cast<char*>(&left), sizeof(left));
@@ -264,8 +264,8 @@ bool Tilemap::ReadBinaryFile(const std::string& filename, bool dimensions_includ
 		}
 		else
 		{
-			width = m_width;
-			height = m_height;
+			width = static_cast<uint16_t>(m_width);
+			height = static_cast<uint16_t>(m_height);
 		}
 		vals.reserve(width * height);
 		for (std::size_t y = 0; y < m_height; ++y)
@@ -318,13 +318,13 @@ bool Tilemap::ReadCSVFile(const std::string& filename)
 		std::istringstream iss(line);
 
 		std::getline(iss, val, ',');
-		width  = std::stoul(val);
+		width  = static_cast<uint16_t>(std::stoul(val));
 		std::getline(iss, val, ',');
-		height = std::stoul(val);
+		height = static_cast<uint16_t>(std::stoul(val));
 		std::getline(iss, val, ',');
-		left   = std::stoul(val);
+		left   = static_cast<uint16_t>(std::stoul(val));
 		std::getline(iss, val, ',');
-		top    = std::stoul(val);
+		top    = static_cast<uint16_t>(std::stoul(val));
 		vals.reserve(width * height);
 		for (std::size_t y = 0; y < height; ++y)
 		{
@@ -333,7 +333,7 @@ bool Tilemap::ReadCSVFile(const std::string& filename)
 			for (std::size_t x = 0; x < width; ++x)
 			{
 				std::getline(iss, val, ',');
-				vals.push_back(std::stoul(val, nullptr, 16));
+				vals.push_back(static_cast<uint16_t>(std::stoul(val, nullptr, 16)));
 			}
 		}
 		retval = infile.good() && vals.size() == static_cast<std::size_t>(width * height);

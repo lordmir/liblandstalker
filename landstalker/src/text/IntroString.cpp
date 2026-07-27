@@ -1,4 +1,4 @@
-#include <landstalker/text/IntroString.h>
+﻿#include <landstalker/text/IntroString.h>
 
 #include <stdexcept>
 #include <sstream>
@@ -9,15 +9,38 @@
 
 namespace Landstalker {
 
-const LSString::CharacterSet INTRO_CHARSET = {
+const LSString::CharacterSet INTRO_DEFAULT_CHARSET = {
 	{ 0_u8, L" "}, { 1_u8, L"A"}, { 2_u8, L"B"}, { 3_u8, L"C"}, { 4_u8, L"D"}, { 5_u8, L"E"}, { 6_u8, L"F"}, { 7_u8, L"G"},
 	{ 8_u8, L"H"}, { 9_u8, L"I"}, {10_u8, L"J"}, {11_u8, L"K"}, {12_u8, L"L"}, {13_u8, L"M"}, {14_u8, L"N"}, {15_u8, L"O"},
 	{16_u8, L"P"}, {17_u8, L"Q"}, {18_u8, L"R"}, {19_u8, L"S"}, {20_u8, L"T"}, {21_u8, L"U"}, {22_u8, L"V"}, {23_u8, L"W"},
 	{24_u8, L"X"}, {25_u8, L"Y"}, {26_u8, L"Z"}, {27_u8, L"1"}, {28_u8, L"2"}, {29_u8, L"3"}
 };
 
+const LSString::CharacterSet INTRO_FRDE_CHARSET = {
+	{ 0_u8, L" "}, { 1_u8, L"A"}, { 2_u8, L"B"}, { 3_u8, L"C"}, { 4_u8, L"D"}, { 5_u8, L"E"}, { 6_u8, L"F"}, { 7_u8, L"G"},
+	{ 8_u8, L"H"}, { 9_u8, L"I"}, {10_u8, L"J"}, {11_u8, L"K"}, {12_u8, L"L"}, {13_u8, L"M"}, {14_u8, L"N"}, {15_u8, L"O"},
+	{16_u8, L"P"}, {17_u8, L"Q"}, {18_u8, L"R"}, {19_u8, L"S"}, {20_u8, L"T"}, {21_u8, L"U"}, {22_u8, L"V"}, {23_u8, L"W"},
+	{24_u8, L"X"}, {25_u8, L"Y"}, {26_u8, L"Z"}, {27_u8, L"1"}, {28_u8, L"2"}, {29_u8, L"3"}, {30_u8, L"Ä"}
+};
+
+const LSString::CharacterSet& IntroString::GetDefaultCharset(RomOffsets::Region region)
+{
+	switch (region)
+	{
+	case RomOffsets::Region::FR:
+	case RomOffsets::Region::DE:
+		return INTRO_FRDE_CHARSET;
+	case RomOffsets::Region::JP:
+	case RomOffsets::Region::US:
+	case RomOffsets::Region::UK:
+	case RomOffsets::Region::US_BETA:
+	default:
+		return INTRO_DEFAULT_CHARSET;
+	}
+}
+
 IntroString::IntroString()
-	: LSString(INTRO_CHARSET),
+	: LSString(GetDefaultCharset()),
 	  m_line1Y(0),
 	  m_line1X(0),
 	  m_line2Y(0),
@@ -27,7 +50,7 @@ IntroString::IntroString()
 }
 
 IntroString::IntroString(uint16_t line1_y, uint16_t line1_x, uint16_t line2_y, uint16_t line2_x, uint16_t display_time, IntroString::StringType line1, IntroString::StringType line2)
-	: LSString(line1, INTRO_CHARSET),
+	: LSString(line1, GetDefaultCharset()),
 	m_line1Y(line1_y),
 	m_line1X(line1_x),
 	m_line2Y(line2_y),
@@ -38,7 +61,7 @@ IntroString::IntroString(uint16_t line1_y, uint16_t line1_x, uint16_t line2_y, u
 }
 
 IntroString::IntroString(const IntroString::StringType& serialised)
-	: LSString(INTRO_CHARSET),
+	: LSString(GetDefaultCharset()),
 	  m_line1Y(0),
 	  m_line1X(0),
 	  m_line2Y(0),

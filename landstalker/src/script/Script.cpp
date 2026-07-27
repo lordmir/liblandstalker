@@ -210,18 +210,44 @@ std::wstring Script::GetAllScriptStrings(std::shared_ptr<GameData> gd) const
 	return lines;
 }
 
+static std::string ScriptRowComment(std::size_t index, const ScriptTableEntry& entry,
+	const std::shared_ptr<GameData>& gd)
+{
+	std::string comment = StrPrintf("0x%04X", static_cast<unsigned int>(index));
+	if (gd)
+	{
+		comment += " | " + wstr_to_utf8(entry.ToString(gd));
+	}
+	return comment;
+}
+
+static void EmitScriptEntry(YAML::Emitter& out, const ScriptTableEntry& entry,
+	const std::shared_ptr<GameData>& gd, std::size_t index)
+{
+	out << YAML::BeginMap;
+	entry.ToYaml(out, gd);
+	out << YAML::Comment(ScriptRowComment(index, entry, gd));
+	if (entry.GetClear())
+	{
+		out << YAML::Key << "Clear" << YAML::Value << true;
+	}
+	if (entry.GetEnd())
+	{
+		out << YAML::Key << "End" << YAML::Value << true;
+	}
+	out << YAML::EndMap;
+}
+
 std::wstring Script::ToYaml(std::shared_ptr<GameData> gd) const
 {
-	std::wstring lines;
-	std::size_t counter = 0;
-	for (const auto& line : m_table)
+	YAML::Emitter out;
+	out << YAML::BeginSeq;
+	for (std::size_t i = 0; i < m_table.size(); ++i)
 	{
-		lines += StrWPrintf(L"# ID: % 4d\n", counter++);
-		lines += line->ToYaml(gd);
-		lines += L"\n";
+		EmitScriptEntry(out, *m_table[i], gd, i);
 	}
-
-	return lines;
+	out << YAML::EndSeq;
+	return utf8_to_wstr(std::string(out.c_str()) + "\n");
 }
 
 static std::unique_ptr<ScriptTableEntry> DecodeYamlEntry(std::shared_ptr<GameData> gd, const std::string& type, std::optional<YAML::const_iterator> it = std::nullopt)
@@ -299,7 +325,7 @@ static std::unique_ptr<ScriptTableEntry> DecodeYamlEntry(std::shared_ptr<GameDat
 			case ScriptTableEntryType::INVALID:
 				{
 					auto& unk_entry = dynamic_cast<ScriptInvalidEntry&>(*entry);
-					unk_entry.bits = static_cast<uint8_t>(node[type.c_str()].as<uint8_t>());
+					unk_entry.bits = node[type.c_str()].as<uint16_t>();
 				}
 				break;
 			case ScriptTableEntryType::GIVE_ITEM:

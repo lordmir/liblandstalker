@@ -7,9 +7,6 @@
 #include <sstream>
 #include <exception>
 #include <vector>
-#include <string>
-#include <vector>
-#include <cstdint>
 
 #include <landstalker/misc/Utils.h>
 #include <landstalker/main/RomOffsets.h>
@@ -74,6 +71,7 @@ public:
 		return read<T>(read<uint32_t>(address) + offset * sizeof(T));
 	}
 
+	const std::string& get_filename() const { return m_filename; }
 	uint32_t get_address(const std::string& name) const;
 	RomOffsets::Section get_section(const std::string& name) const;
 	const uint8_t* data(uint32_t address = 0) const;
@@ -86,8 +84,8 @@ public:
 	static bool section_exists(const std::string& name);
 	static bool address_exists(const std::string& name);
 
-	uint16_t read_checksum();
-	uint16_t calc_checksum();
+	uint16_t read_checksum() const;
+	uint16_t calc_checksum() const;
 
 private:
 	void ValidateRomChecksum();
@@ -111,7 +109,7 @@ inline T Rom::read(uint32_t offset) const
 	for (uint32_t i = 0; i < sizeof(T); ++i)
 	{
 		retval <<= (8 % (8 * sizeof(T)));
-		retval |= m_rom[offset + i];
+		retval |= m_rom[static_cast<std::size_t>(offset) + i];
 	}
 
 	return retval;

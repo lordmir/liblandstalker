@@ -1,6 +1,8 @@
 #include <landstalker/script/ScriptTableEntry.h>
 #include <landstalker/main/GameData.h>
 
+#include <yaml-cpp/yaml.h>
+
 #include <codecvt>
 
 namespace Landstalker {
@@ -169,34 +171,14 @@ std::wstring ScriptStringEntry::ToString(std::shared_ptr<const GameData> gd) con
 	return formatted_string;
 }
 
-std::wstring ScriptStringEntry::ToYaml(std::shared_ptr<const GameData> gd) const
+void ScriptStringEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const
 {
-	std::wstring str_preview;
 	std::size_t string_idx = string;
 	if (gd)
 	{
-		str_preview = L"  # ";
 		string_idx += gd->GetScriptData()->GetStringStart();
-		if (string_idx < gd->GetStringData()->GetStringCount(StringData::Type::MAIN))
-		{
-			str_preview += gd->GetStringData()->GetString(StringData::Type::MAIN, string_idx).c_str();
-		}
-		else
-		{
-			str_preview += L"<INVALID>";
-		}
 	}
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: % 4d%ls%ls%ls",
-		GetWName().c_str(), string_idx, str_preview.c_str(), clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-	
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-	
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << string_idx;
 }
 
 uint16_t ScriptStringEntry::GetData() const
@@ -219,33 +201,10 @@ std::wstring ScriptItemLoadEntry::ToString(std::shared_ptr<const GameData> gd) c
 	return StrWPrintf(L"Load item %02d (%ls) into Slot %01d%ls%ls", item, gd->GetStringData()->GetItemName(item).c_str(), slot + 1, clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptItemLoadEntry::ToYaml(std::shared_ptr<const GameData> gd) const
+void ScriptItemLoadEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring str_preview;
-	if (gd)
-	{
-		str_preview = L"  # ";
-		if (item < gd->GetStringData()->GetStringCount(StringData::Type::ITEM_NAMES))
-		{
-			str_preview += gd->GetStringData()->GetString(StringData::Type::ITEM_NAMES, item).c_str();
-		}
-		else
-		{
-			str_preview += L"<INVALID>";
-		}
-	}
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: % 2d%ls\n"
-		L"  Slot: %d%ls%ls",
-		GetWName().c_str(), item, str_preview.c_str(), slot + 1, clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << static_cast<unsigned int>(item);
+	out << YAML::Key << "Slot" << YAML::Value << static_cast<unsigned int>(slot + 1);
 }
 
 uint16_t ScriptItemLoadEntry::GetData() const
@@ -274,33 +233,10 @@ std::wstring ScriptGlobalCharLoadEntry::ToString(std::shared_ptr<const GameData>
 	return StrWPrintf(L"Load global character %02d (%ls) into Slot %01d%ls%ls", chr, char_name.c_str(), slot, clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptGlobalCharLoadEntry::ToYaml(std::shared_ptr<const GameData> gd) const
+void ScriptGlobalCharLoadEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring str_preview;
-	if (gd)
-	{
-		str_preview = L"  # ";
-		if (chr < gd->GetStringData()->GetStringCount(StringData::Type::SPECIAL_NAMES))
-		{
-			str_preview += gd->GetStringData()->GetString(StringData::Type::SPECIAL_NAMES, chr).c_str();
-		}
-		else
-		{
-			str_preview += L"<INVALID>";
-		}
-	}
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: %3d%ls\n"
-		L"  Slot: %d%ls%ls",
-		GetWName().c_str(), chr, str_preview.c_str(), slot + 1, clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << static_cast<unsigned int>(chr);
+	out << YAML::Key << "Slot" << YAML::Value << static_cast<unsigned int>(slot + 1);
 }
 
 uint16_t ScriptGlobalCharLoadEntry::GetData() const
@@ -324,19 +260,9 @@ std::wstring ScriptNumLoadEntry::ToString(std::shared_ptr<const GameData> /*gd*/
 	return StrWPrintf(L"Load number % 5d into Slot 0 %ls%ls", num, clear_box ? L"[Clear] " : L"", end ? L"[End]" : L"");
 }
 
-std::wstring ScriptNumLoadEntry::ToYaml(std::shared_ptr<const GameData> /*gd*/) const
+void ScriptNumLoadEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: % 3d%ls%ls",
-		GetWName().c_str(), num, clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << num;
 }
 
 uint16_t ScriptNumLoadEntry::GetData() const
@@ -359,19 +285,9 @@ std::wstring ScriptSetFlagEntry::ToString(std::shared_ptr<const GameData> /*gd*/
 	return StrWPrintf(L"Set flag %03d%ls%ls", flag, clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptSetFlagEntry::ToYaml(std::shared_ptr<const GameData> /*gd*/) const
+void ScriptSetFlagEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: % 3d%ls%ls",
-		GetWName().c_str(), flag, clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << flag;
 }
 
 uint16_t ScriptSetFlagEntry::GetData() const
@@ -394,19 +310,9 @@ std::wstring ScriptGiveItemEntry::ToString(std::shared_ptr<const GameData> /*gd*
 	return StrWPrintf(L"Give item in Slot 0 to player%ls%ls", clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptGiveItemEntry::ToYaml(std::shared_ptr<const GameData> /*gd*/) const
+void ScriptGiveItemEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring yaml(StrWPrintf(
-		L"- %ls%ls%ls",
-		GetWName().c_str(), clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << YAML::Null;
 }
 
 uint16_t ScriptGiveItemEntry::GetData() const
@@ -428,19 +334,9 @@ std::wstring ScriptGiveMoneyEntry::ToString(std::shared_ptr<const GameData> /*gd
 	return StrWPrintf(L"Give money amount in Slot 0 to player%ls%ls", clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptGiveMoneyEntry::ToYaml(std::shared_ptr<const GameData> /*gd*/) const
+void ScriptGiveMoneyEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring yaml(StrWPrintf(
-		L"- %ls%ls%ls",
-		GetWName().c_str(), clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << YAML::Null;
 }
 
 uint16_t ScriptGiveMoneyEntry::GetData() const
@@ -462,29 +358,9 @@ std::wstring ScriptPlayBgmEntry::ToString(std::shared_ptr<const GameData> /*gd*/
 	return StrWPrintf(L"Play BGM track %01d (\"%d\")%ls%ls", bgm, BGMS[bgm % BGMS.size()], clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptPlayBgmEntry::ToYaml(std::shared_ptr<const GameData> /*gd*/) const
+void ScriptPlayBgmEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring str_preview;
-	str_preview = L"  # ";
-	if (bgm < BGMS.size() && Labels::Get(Labels::C_SOUNDS, bgm))
-	{
-		str_preview += *Labels::Get(Labels::C_SOUNDS , BGMS.at(bgm));
-	}
-	else
-	{
-		str_preview += L"<INVALID>";
-	}
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: %1d%ls%ls%ls",
-		GetWName().c_str(), bgm, str_preview.c_str(), clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << static_cast<unsigned int>(bgm);
 }
 
 uint16_t ScriptPlayBgmEntry::GetData() const
@@ -512,32 +388,9 @@ std::wstring ScriptSetSpeakerEntry::ToString(std::shared_ptr<const GameData> gd)
 	return StrWPrintf(L"Set speaker to regular character %03d (%ls)%ls%ls", chr, char_name.c_str(), clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptSetSpeakerEntry::ToYaml(std::shared_ptr<const GameData> gd) const
+void ScriptSetSpeakerEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring str_preview;
-	if (gd)
-	{
-		str_preview = L"  # ";
-		if (chr < gd->GetStringData()->GetStringCount(StringData::Type::NAMES))
-		{
-			str_preview += gd->GetStringData()->GetString(StringData::Type::NAMES, chr).c_str();
-		}
-		else
-		{
-			str_preview += gd->GetStringData()->GetString(StringData::Type::DEFAULT_NAME, 0).c_str();
-		}
-	}
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: %3d%ls%ls%ls",
-		GetWName().c_str(), chr, str_preview.c_str(), clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << chr;
 }
 
 uint16_t ScriptSetSpeakerEntry::GetData() const
@@ -565,32 +418,9 @@ std::wstring ScriptSetGlobalSpeakerEntry::ToString(std::shared_ptr<const GameDat
 	return StrWPrintf(L"Set speaker to global character %03d (%ls)%ls%ls", chr, char_name.c_str(), clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptSetGlobalSpeakerEntry::ToYaml(std::shared_ptr<const GameData> gd) const
+void ScriptSetGlobalSpeakerEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring str_preview;
-	if (gd)
-	{
-		str_preview = L"  # ";
-		if (chr < gd->GetStringData()->GetStringCount(StringData::Type::SPECIAL_NAMES))
-		{
-			str_preview += gd->GetStringData()->GetString(StringData::Type::SPECIAL_NAMES, chr).c_str();
-		}
-		else
-		{
-			str_preview += gd->GetStringData()->GetString(StringData::Type::DEFAULT_NAME, 0).c_str();
-		}
-	}
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: % 3d%ls%ls%ls",
-		GetWName().c_str(), chr, str_preview.c_str(), clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << static_cast<unsigned int>(chr);
 }
 
 uint16_t ScriptSetGlobalSpeakerEntry::GetData() const
@@ -613,19 +443,9 @@ std::wstring ScriptInvalidEntry::ToString(std::shared_ptr<const GameData> /*gd*/
 	return StrWPrintf(L"Invalid Entry %04X%ls%ls", bits, clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptInvalidEntry::ToYaml(std::shared_ptr<const GameData> /*gd*/) const
+void ScriptInvalidEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: 0x%04X%ls%ls",
-		GetWName().c_str(), bits, clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << YAML::Hex << bits;
 }
 
 uint16_t ScriptInvalidEntry::GetData() const
@@ -648,19 +468,9 @@ std::wstring ScriptInitiateCutsceneEntry::ToString(std::shared_ptr<const GameDat
 	return StrWPrintf(L"Initiate cutscene %03d%ls%ls", cutscene, clear_box ? L" [Clear]" : L"", end ? L" [End]" : L"");
 }
 
-std::wstring ScriptInitiateCutsceneEntry::ToYaml(std::shared_ptr<const GameData> /*gd*/) const
+void ScriptInitiateCutsceneEntry::ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> /*gd*/) const
 {
-	std::wstring yaml(StrWPrintf(
-		L"- %ls: % 3d%ls%ls",
-		GetWName().c_str(), cutscene, clear_box ? L"\n  Clear: true" : L"", end ? L"\n  End: true" : L""
-	));
-
-	if (end)
-	{
-		yaml += L"\n\n##############################\n";
-	}
-
-	return yaml;
+	out << YAML::Key << GetName() << YAML::Value << cutscene;
 }
 
 uint16_t ScriptInitiateCutsceneEntry::GetData() const

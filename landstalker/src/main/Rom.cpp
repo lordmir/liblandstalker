@@ -171,17 +171,17 @@ bool Rom::address_exists(const std::string& name)
 	return RomOffsets::AddressExists(name);
 }
 
-uint16_t Rom::calc_checksum()
+uint16_t Rom::calc_checksum() const
 {
 	uint16_t calculated_checksum = 0x0000;
-	for (size_t i = RomOffsets::CHECKSUM_BEGIN; i < RomOffsets::EXPECTED_SIZE; i += 2)
+	for (uint32_t i = RomOffsets::CHECKSUM_BEGIN; i < RomOffsets::EXPECTED_SIZE; i += 2)
 	{
 		calculated_checksum += read<uint16_t>(i);
 	}
 	return calculated_checksum;
 }
 
-uint16_t Rom::read_checksum()
+uint16_t Rom::read_checksum() const
 {
 	return read<uint16_t>(RomOffsets::CHECKSUM_ADDRESS);
 }
@@ -217,7 +217,7 @@ void Rom::ValidateRomChecksum()
 void Rom::FixRomChecksum()
 {
 	uint16_t calculated_checksum = 0x0000;
-	for (size_t i = RomOffsets::CHECKSUM_BEGIN; i < RomOffsets::EXPECTED_SIZE; i += 2)
+	for (uint32_t i = RomOffsets::CHECKSUM_BEGIN; i < RomOffsets::EXPECTED_SIZE; i += 2)
 	{
 		calculated_checksum += read<uint16_t>(i);
 	}

@@ -64,13 +64,6 @@ std::vector<uint8_t> AnimatedTileset::GetTile(const Tile& tile, uint8_t frame) c
 	return Tileset::GetTile(static_cast<uint16_t>(t + f_offset));
 }
 
-std::vector<uint8_t>& AnimatedTileset::GetTilePixels(int tile_index, uint8_t frame)
-{
-	auto t = tile_index - GetStartTile().GetIndex();
-	auto f_offset = frame * GetFrameSizeTiles();
-	return Tileset::GetTilePixels(t + f_offset);
-}
-
 uint16_t AnimatedTileset::GetBaseBytes() const
 {
 	return m_base;

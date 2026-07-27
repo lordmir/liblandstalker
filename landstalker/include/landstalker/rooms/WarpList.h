@@ -5,7 +5,9 @@
 #include <cstdint>
 #include <list>
 #include <map>
+#include <utility>
 #include <landstalker/main/Rom.h>
+#include <landstalker/rooms/RoomIndexMap.h>
 #include <filesystem>
 
 namespace Landstalker {
@@ -71,6 +73,12 @@ public:
 	bool operator!=(const WarpList& rhs) const;
 
 	std::vector<Warp> GetWarpsForRoom(uint16_t room) const;
+	static bool HasDuplicateWarps(const std::vector<Warp>& warps);
+	// Returns the (i, j) index pairs of warps whose footprint within `room`
+	// overlaps another's - e.g. two warps with different destinations that
+	// both sit on the same tile, so only one is ever actually reachable.
+	static std::vector<std::pair<std::size_t, std::size_t>> FindWarpsWithDuplicatePosition(
+		uint16_t room, const std::vector<Warp>& warps);
 	void UpdateWarpsForRoom(uint16_t room, const std::vector<Warp>& warps);
 	bool HasFallDestination(uint16_t room) const;
 	uint16_t GetFallDestination(uint16_t room) const;
@@ -78,12 +86,15 @@ public:
 	uint16_t GetClimbDestination(uint16_t room) const;
 	std::vector<Transition> GetAllTransitionsForRoom(uint16_t room) const;
 	std::vector<Transition> GetSrcTransitionsForRoom(uint16_t room) const;
+	void UpdateTransitionsForRoom(uint16_t room, const std::vector<Transition>& data);
 	void SetSrcTransitionsForRoom(uint16_t room, const std::vector<Transition>& data);
 
 	void SetHasFallDestination(uint16_t room, bool enabled);
 	void SetFallDestination(uint16_t room, uint16_t dest);
 	void SetHasClimbDestination(uint16_t room, bool enabled);
 	void SetClimbDestination(uint16_t room, uint16_t dest);
+
+	void RemapRooms(const RoomIndexMap& mapping);
 
 	std::vector<uint8_t> GetWarpBytes() const;
 	std::vector<uint8_t> GetFallBytes() const;

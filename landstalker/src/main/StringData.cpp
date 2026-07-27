@@ -1,6 +1,9 @@
 #include <landstalker/main/StringData.h>
 
+#include <algorithm>
 #include <codecvt>
+#include <cstdio>
+#include <fstream>
 
 #include <landstalker/main/AsmUtils.h>
 #include <landstalker/main/RomLabels.h>
@@ -27,6 +30,7 @@ StringData::StringData(const std::filesystem::path& asm_file)
 		throw std::runtime_error(std::string("Unable to load Huffman data from \'") + asm_file.string() + '\'');
 	}
 	m_region = Charset::DeduceRegion(GetCharsetSize());
+	LoadCharsets(asm_file);
 	if (m_has_region_check)
 	{
 		if (!AsmLoadSystemFont())
@@ -68,6 +72,7 @@ StringData::StringData(const Rom& rom)
 	  m_has_region_check(m_region != RomOffsets::Region::JP && m_region != RomOffsets::Region::US_BETA)
 {
 	SetDefaultFilenames();
+	LoadCharsets(rom.get_filename());
 	if (m_has_region_check)
 	{
 		if (!RomLoadSystemFont(rom))
@@ -162,6 +167,14 @@ bool StringData::Save(const std::filesystem::path& dir)
 	{
 		throw std::runtime_error(std::string("Unable to save script data to \'") + directory.string() + '\'');
 	}
+	if (!AsmSaveCharsets(directory))
+	{
+		throw std::runtime_error(std::string("Unable to save charset data to \'") + directory.string() + '\'');
+	}
+	if (!AsmSaveCharsetConstants(directory))
+	{
+		throw std::runtime_error(std::string("Unable to save charset constants to \'") + directory.string() + '\'');
+	}
 	CommitAllChanges();
 	return true;
 }
@@ -227,6 +240,10 @@ bool StringData::HasBeenModified() const
 		return true;
 	}
 	if (m_menu_strings_orig != m_menu_strings)
+	{
+		return true;
+	}
+	if (m_charsets_orig != m_charsets)
 	{
 		return true;
 	}
@@ -559,10 +576,12 @@ void StringData::InsertString(Type type, std::size_t index, const LSString::Stri
 	case Type::INTRO:
 		assert(index <= m_intro_strings.size());
 		m_intro_strings.insert(m_intro_strings.begin() + index, IntroString(0, 0, 0, 0, 0, value, L""));
+		m_intro_strings[index].SetCharset(m_charsets.intro);
 		break;
 	case Type::END_CREDITS:
 		assert(index <= m_ending_strings.size());
 		m_ending_strings.insert(m_ending_strings.begin() + index, EndCreditString(0, 0, value));
+		m_ending_strings[index].SetCharset(m_charsets.credits);
 		break;
 	case Type::SYSTEM:
 	case Type::DEFAULT_NAME:
@@ -959,6 +978,7 @@ void StringData::SetIntroString(std::size_t index, const IntroString& value)
 {
 	assert(index < m_intro_strings.size());
 	m_intro_strings[index] = value;
+	m_intro_strings[index].SetCharset(m_charsets.intro);
 }
 
 bool StringData::HasIntroStringChanged(std::size_t index) const
@@ -996,6 +1016,7 @@ void StringData::SetEndCreditString(std::size_t index, const EndCreditString& va
 {
 	assert(index < m_ending_strings.size());
 	m_ending_strings[index] = value;
+	m_ending_strings[index].SetCharset(m_charsets.credits);
 }
 
 bool StringData::HasEndCreditStringChanged(std::size_t index) const
@@ -1008,20 +1029,82 @@ bool StringData::HasEndCreditStringChanged(std::size_t index) const
 	return m_ending_strings_orig[index] != m_ending_strings[index];
 }
 
+std::size_t StringData::GetRoomVisitFlagCount() const
+{
+	return m_room_visit_flags.size();
+}
+
 uint16_t StringData::GetRoomVisitFlag(uint16_t room) const
 {
 	if (room < m_room_visit_flags.size())
 	{
 		return m_room_visit_flags.at(room);
 	}
-	return 0xFFFF;
+	return INVALID_ROOM_VISIT_FLAG;
+}
+
+uint16_t StringData::GetUnusedRoomVisitFlag() const
+{
+	if (m_room_visit_flags.empty())
+	{
+		return 0;
+	}
+	// Take the next flag above everything in use rather than filling a gap: the visited
+	// bitfield is also read directly by the map screen, so a gap may not be spare.
+	uint16_t highest = 0;
+	for (const auto& flag : m_room_visit_flags)
+	{
+		if (flag <= MAX_ROOM_VISIT_FLAG)
+		{
+			highest = std::max(highest, flag);
+		}
+	}
+	return highest < MAX_ROOM_VISIT_FLAG ? static_cast<uint16_t>(highest + 1) : INVALID_ROOM_VISIT_FLAG;
+}
+
+void StringData::RemapRooms(const RoomIndexMap& mapping)
+{
+	if (!IsValidRoomRenumbering(mapping))
+	{
+		return;
+	}
+	// Indexed by room number rather than keyed, so the entries themselves get shuffled.
+	// The table can be shorter than the room list if a previous save trimmed an unset
+	// tail, so pad it out first - otherwise a room moving into that range loses its
+	// entry. Pad with freshly allocated flags rather than INVALID_ROOM_VISIT_FLAG:
+	// SetRoomVisited does no validity check, so a 0xFFFF entry makes it bset bit 65535,
+	// scribbling on RAM 8KB past the end of the visited bitfield. Every room needs a
+	// real flag.
+	if (!m_room_visit_flags.empty())
+	{
+		while (m_room_visit_flags.size() < mapping.size())
+		{
+			const auto flag = GetUnusedRoomVisitFlag();
+			// If the bitfield is genuinely full, share room 0's flag. Rooms sharing a
+			// visited bit is normal (vanilla has 11 rooms on one flag) and merely makes
+			// them count as visited together - unlike 0xFFFF, it cannot corrupt memory.
+			m_room_visit_flags.push_back(flag == INVALID_ROOM_VISIT_FLAG ? m_room_visit_flags.front() : flag);
+		}
+		std::vector<uint16_t> reordered(mapping.size() - CountDeletedRooms(mapping), INVALID_ROOM_VISIT_FLAG);
+		for (std::size_t old_index = 0; old_index < m_room_visit_flags.size(); ++old_index)
+		{
+			if (!IsRoomDeleted(mapping, static_cast<uint16_t>(old_index)))
+			{
+				reordered[mapping[old_index]] = m_room_visit_flags[old_index];
+			}
+		}
+		m_room_visit_flags.swap(reordered);
+	}
+	m_room_dialogue_table.RemapRooms(mapping);
+	RemapRoomKeys(mapping, m_island_map_locations);
+	RemapRoomKeys(mapping, m_save_game_locations);
 }
 
 void StringData::SetRoomVisitFlag(uint16_t room, uint16_t flag)
 {
-	if (room < m_room_visit_flags.size())
+	if (room >= m_room_visit_flags.size())
 	{
-		m_room_visit_flags.resize(room + 1);
+		m_room_visit_flags.resize(room + 1, 0xFFFF);
 	}
 	m_room_visit_flags[room] = flag;
 }
@@ -1031,9 +1114,9 @@ std::vector<uint16_t> StringData::GetRoomCharacters(uint16_t room) const
 	return m_room_dialogue_table.GetRoomCharacters(room);
 }
 
-void StringData::SetRoomCharacters(uint16_t room, const std::vector<uint16_t>& characters)
+bool StringData::SetRoomCharacters(uint16_t room, const std::vector<uint16_t>& characters)
 {
-	m_room_dialogue_table.SetRoomCharacters(room, characters);
+	return m_room_dialogue_table.SetRoomCharacters(room, characters);
 }
 
 uint8_t StringData::GetSaveLocation(uint16_t room)
@@ -1048,17 +1131,15 @@ uint8_t StringData::GetSaveLocation(uint16_t room)
 
 void StringData::SetSaveLocation(uint16_t room, uint8_t name)
 {
+	if (name == 0xFF)
+	{
+		m_save_game_locations.erase(room);
+		return;
+	}
 	auto loc = m_save_game_locations.find(room);
 	if (loc != m_save_game_locations.cend())
 	{
-		if (name == 0xFF)
-		{
-			m_save_game_locations.erase(room);
-		}
-		else
-		{
-			m_save_game_locations[room].second = name;
-		}
+		m_save_game_locations[room].second = name;
 	}
 	else
 	{
@@ -1088,6 +1169,11 @@ uint8_t StringData::GetMapPosition(uint16_t room)
 
 void StringData::SetMapLocation(uint16_t room, uint8_t name, uint8_t position)
 {
+	if (name == 0xFF)
+	{
+		m_island_map_locations.erase(room);
+		return;
+	}
 	if (position == 0xFF)
 	{
 		return;
@@ -1095,15 +1181,8 @@ void StringData::SetMapLocation(uint16_t room, uint8_t name, uint8_t position)
 	auto loc = m_island_map_locations.find(room);
 	if (loc != m_island_map_locations.cend())
 	{
-		if (name == 0xFF)
-		{
-			m_island_map_locations.erase(room);
-		}
-		else
-		{
-			m_island_map_locations[room].first = name;
-			m_island_map_locations[room].second = position;
-		}
+		m_island_map_locations[room].first = name;
+		m_island_map_locations[room].second = position;
 	}
 	else
 	{
@@ -1183,6 +1262,7 @@ void StringData::CommitAllChanges()
 	m_char_talk_sfx_orig = m_char_talk_sfx;
 	m_sprite_talk_sfx_orig = m_sprite_talk_sfx;
 	m_room_dialogue_table_orig = m_room_dialogue_table;
+	m_charsets_orig = m_charsets;
 	m_pending_writes.clear();
 }
 
@@ -1350,13 +1430,112 @@ void StringData::InitCache()
 	m_room_dialogue_table_orig = m_room_dialogue_table;
 }
 
+void StringData::LoadCharsets(const std::filesystem::path& opened_file)
+{
+	m_charsets = Charset::GetDefaultCharsets(m_region);
+	m_charset_from_override = false;
+	m_charset_override_filename.clear();
+	if (!opened_file.empty())
+	{
+		auto override_filename = std::filesystem::path(opened_file.stem().string() + "_charset.yaml");
+		auto override_path = opened_file.parent_path() / override_filename;
+		bool loaded = false;
+		if (std::filesystem::exists(override_path))
+		{
+			if (Charset::LoadCharsetsFromYaml(override_path, m_charsets))
+			{
+				m_charset_from_override = true;
+				m_charset_override_filename = override_filename;
+				loaded = true;
+			}
+			else
+			{
+				m_charsets = Charset::GetDefaultCharsets(m_region);
+			}
+		}
+		if (!loaded)
+		{
+			auto metadata_path = opened_file.parent_path() / StrPrintf(RomLabels::Strings::CHARSET_DATA_FILE, Charset::GetCharsetYamlName(m_region).c_str());
+			if (std::filesystem::exists(metadata_path) && !Charset::LoadCharsetsFromYaml(metadata_path, m_charsets))
+			{
+				m_charsets = Charset::GetDefaultCharsets(m_region);
+			}
+		}
+	}
+	m_charsets_orig = m_charsets;
+}
+
+bool StringData::AsmSaveCharsets(const std::filesystem::path& dir)
+{
+	std::filesystem::path target;
+	if (m_charset_from_override && !m_charset_override_filename.empty())
+	{
+		target = dir / m_charset_override_filename;
+	}
+	else
+	{
+		target = dir / StrPrintf(RomLabels::Strings::CHARSET_DATA_FILE, Charset::GetCharsetYamlName(m_region).c_str());
+	}
+	return SaveCharsets(target);
+}
+
+bool StringData::SaveCharsets(const std::filesystem::path& yaml_file) const
+{
+	std::error_code ec;
+	std::filesystem::create_directories(yaml_file.parent_path(), ec);
+	return Charset::SaveCharsetsToYaml(yaml_file, m_charsets);
+}
+
+bool StringData::AsmSaveCharsetConstants(const std::filesystem::path& dir)
+{
+	auto target = dir / StrPrintf(RomLabels::Strings::CHARSET_CONSTANTS_FILE, Charset::GetCharsetYamlName(m_region).c_str());
+	return SaveCharsetConstants(target);
+}
+
+bool StringData::SaveCharsetConstants(const std::filesystem::path& inc_file) const
+{
+	std::error_code ec;
+	std::filesystem::create_directories(inc_file.parent_path(), ec);
+	AsmFile inc(AsmFile::FileType::ASSEMBLER);
+	inc.WriteFileHeader(inc_file, "Character Set Code Points");
+	// Emit the CHR_* code-point constants in code-point order, matching the
+	// layout of the hand-written include files.
+	std::vector<Charset::CharsetConstant> sorted(m_charsets.constants.begin(), m_charsets.constants.end());
+	std::stable_sort(sorted.begin(), sorted.end(),
+		[](const Charset::CharsetConstant& a, const Charset::CharsetConstant& b) { return a.value < b.value; });
+	for (const auto& c : sorted)
+	{
+		if (c.value < 0 || c.value > 0xFF)
+		{
+			continue;
+		}
+		inc << AsmFile::Define(c.name, c.value, AsmFile::Width::B);
+	}
+	return inc.WriteFile(inc_file);
+}
+
+const Charset::Charsets& StringData::GetCharsets() const
+{
+	return m_charsets;
+}
+
+void StringData::SetCharsets(const Charset::Charsets& charsets)
+{
+	m_charsets = charsets;
+	for (auto& s : m_intro_strings)
+	{
+		s.SetCharset(m_charsets.intro);
+	}
+	for (auto& s : m_ending_strings)
+	{
+		s.SetCharset(m_charsets.credits);
+	}
+}
+
 bool StringData::DecompressStrings()
 {
 	auto huff_trees = std::make_shared<HuffmanTrees>(m_huffman_offsets.data(), m_huffman_offsets.size(), m_huffman_tables.data(), m_huffman_tables.size(), m_huffman_offsets.size() / 2);
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	auto eos_marker = Charset::GetEOSChar(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto decoder = HuffmanString(huff_trees, charset, eos_marker, diacritic_map);
+	auto decoder = HuffmanString(huff_trees, m_charsets.main, m_charsets.eos_marker, m_charsets.diacritics);
 	m_decompressed_strings.clear();
 	for (const auto& s : m_compressed_strings)
 	{
@@ -1371,14 +1550,11 @@ bool StringData::CompressStrings()
 	if (m_decompressed_strings_orig != m_decompressed_strings)
 	{
 		auto huff_trees = std::make_shared<HuffmanTrees>();
-		const auto& charset = Charset::GetDefaultCharset(m_region);
-		auto eos_marker = Charset::GetEOSChar(m_region);
-		const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
 		m_compressed_strings.clear();
 		std::vector<std::shared_ptr<LSString>> strs;
 		for (const auto& s : m_decompressed_strings)
 		{
-			strs.push_back(std::make_shared<HuffmanString>(s, huff_trees, charset, eos_marker, diacritic_map));
+			strs.push_back(std::make_shared<HuffmanString>(s, huff_trees, m_charsets.main, m_charsets.eos_marker, m_charsets.diacritics));
 		}
 		huff_trees->RecalculateTrees(strs);
 		huff_trees->EncodeTrees(m_huffman_offsets, m_huffman_tables);
@@ -1392,11 +1568,9 @@ bool StringData::CompressStrings()
 	return true;
 }
 
-bool StringData::DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LSString::StringType>& strings)
+bool StringData::DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LSString::StringType>& strings, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto decoder = LSString(charset, diacritic_map);
+	auto decoder = LSString(charset, m_charsets.diacritics);
 	uint8_t const* p = bytes.data();
 	uint8_t next = *p;
 	while ((p + next) < (bytes.data() + bytes.size()) && next != 0xFF)
@@ -1409,21 +1583,17 @@ bool StringData::DecodeStrings(const std::vector<uint8_t>& bytes, std::vector<LS
 	return true;
 }
 
-bool StringData::DecodeString(const std::vector<uint8_t>& bytes, LSString::StringType& string)
+bool StringData::DecodeString(const std::vector<uint8_t>& bytes, LSString::StringType& string, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto decoder = LSString(charset, diacritic_map);
+	auto decoder = LSString(charset, m_charsets.diacritics);
 	decoder.Decode(bytes.data(), bytes.size());
 	string = decoder.Str();
 	return true;
 }
 
-bool StringData::EncodeStrings(const std::vector<LSString::StringType>& strings, std::vector<uint8_t>& bytes)
+bool StringData::EncodeStrings(const std::vector<LSString::StringType>& strings, std::vector<uint8_t>& bytes, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto encoder = LSString(charset, diacritic_map);
+	auto encoder = LSString(charset, m_charsets.diacritics);
 	bytes.resize(65536);
 	std::size_t offset = 0;
 	for (const auto& s : strings)
@@ -1435,11 +1605,9 @@ bool StringData::EncodeStrings(const std::vector<LSString::StringType>& strings,
 	return true;
 }
 
-bool StringData::EncodeString(const LSString::StringType& string, std::vector<uint8_t>& bytes)
+bool StringData::EncodeString(const LSString::StringType& string, std::vector<uint8_t>& bytes, const LSString::CharacterSet& charset)
 {
-	const auto& charset = Charset::GetDefaultCharset(m_region);
-	const auto& diacritic_map = Charset::GetDiacriticMap(m_region);
-	auto encoder = LSString(charset, diacritic_map);
+	auto encoder = LSString(charset, m_charsets.diacritics);
 	bytes.resize(256);
 	encoder.Deserialise(string);
 	bytes.resize(encoder.Encode(bytes.data(), bytes.size()));
@@ -1512,14 +1680,16 @@ std::vector<uint8_t> StringData::SerialiseLocationMap(const std::map<uint16_t, s
 
 void StringData::DeserialiseVisitFlags(const std::vector<uint8_t>& bytes)
 {
-	for (std::size_t i = 0; i < bytes.size(); i += 2)
+	for (std::size_t i = 0; i + 1 < bytes.size(); i += 2)
 	{
-		uint16_t room = bytes[i] << 8 | bytes[i + 1];
-		if (room > 0x7FFF)
-		{
-			break;
-		}
-		m_room_visit_flags.push_back(room);
+		m_room_visit_flags.push_back(bytes[i] << 8 | bytes[i + 1]);
+	}
+	// The ROM pads the tail of this table with 0xFF. Only strip trailing entries: a room
+	// in the middle of the table with no visit flag is legitimate, and dropping the rest
+	// of the table on the first one would leave later rooms without an entry at all.
+	while (!m_room_visit_flags.empty() && m_room_visit_flags.back() > 0x7FFF)
+	{
+		m_room_visit_flags.pop_back();
 	}
 }
 
@@ -1539,7 +1709,7 @@ uint32_t StringData::GetCharsetSize() const
 {
 	const auto& font = m_fonts_internal.at(RomLabels::Graphics::MAIN_FONT);
 	const auto& orig_font = m_fonts_by_name.at(font->GetName());
-	return orig_font->GetData()->GetTileCount();
+	return static_cast<uint32_t>(orig_font->GetData()->GetTileCount());
 }
 
 bool StringData::AsmLoadSystemFont()
@@ -1611,7 +1781,8 @@ bool StringData::AsmLoadCompressedStringData()
 			m_string_filename_path = inc.path.parent_path();
 			auto bytes = ReadBytes(GetBasePath() / inc.path);
 			auto it = bytes.cbegin();
-			while (it != bytes.cend() && *it != 0x00)
+			while (it != bytes.cend() && *it != 0x00 && *it != 0xFF
+			       && *it <= std::distance(it, bytes.cend()))
 			{
 				m_compressed_strings.push_back(ByteVector(it, it + *it));
 				it += *it;
@@ -1659,11 +1830,11 @@ bool StringData::AsmLoadStringTables()
 {
 	m_save_game_locations = DeserialiseLocationMap(ReadBytes(GetBasePath() / m_save_loc_path));
 	m_island_map_locations = DeserialiseLocationMap(ReadBytes(GetBasePath() / m_map_loc_path));
-	bool retval = DecodeStrings(ReadBytes(GetBasePath() / m_char_table_path), m_character_names);
-	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_schar_table_path), m_special_character_names);
-	retval = retval && DecodeString(ReadBytes(GetBasePath() / m_dchar_table_path), m_default_character_name);
-	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_item_table_path), m_item_names);
-	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_menu_table_path), m_menu_strings);
+	bool retval = DecodeStrings(ReadBytes(GetBasePath() / m_char_table_path), m_character_names, m_charsets.main);
+	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_schar_table_path), m_special_character_names, m_charsets.main);
+	retval = retval && DecodeString(ReadBytes(GetBasePath() / m_dchar_table_path), m_default_character_name, m_charsets.main);
+	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_item_table_path), m_item_names, m_charsets.main);
+	retval = retval && DecodeStrings(ReadBytes(GetBasePath() / m_menu_table_path), m_menu_strings, m_charsets.main);
 	return retval;
 }
 
@@ -1673,6 +1844,7 @@ bool StringData::AsmLoadIntroStrings()
 	{
 		auto bytes = ReadBytes(GetBasePath() / path);
 		IntroString s;
+		s.SetCharset(m_charsets.intro);
 		s.Decode(bytes.data(), bytes.size());
 		m_intro_strings.push_back(s);
 	}
@@ -1688,6 +1860,7 @@ bool StringData::AsmLoadEndCreditStrings()
 	while ((offset < (bytes.size() - 1)) && (bytes[offset] != 0xFF || bytes[offset + 1] != 0xFF))
 	{
 		m_ending_strings.emplace_back(EndCreditString());
+		m_ending_strings.back().SetCharset(m_charsets.credits);
 		offset += m_ending_strings.back().Decode(bytes.data() + offset, bytes.size() - offset);
 
 	}
@@ -1755,7 +1928,8 @@ bool StringData::RomLoadCompressedStringData(const Rom& rom)
 	auto font_bytes = rom.read_array<uint8_t>(font_ptr, banks_begin - font_ptr);
 	auto string_bytes = rom.read_array<uint8_t>(banks_begin, bank_ptr - banks_begin);
 	auto it = string_bytes.cbegin();
-	while (it != string_bytes.cend() && *it != 0x00 && *it != 0xFF)
+	while (it != string_bytes.cend() && *it != 0x00 && *it != 0xFF
+	       && *it <= std::distance(it, string_bytes.cend()))
 	{
 		m_compressed_strings.push_back(ByteVector(it, it + *it));
 		it += *it;
@@ -1827,11 +2001,11 @@ bool StringData::RomLoadStringTables(const Rom& rom)
 
 	m_save_game_locations = DeserialiseLocationMap(save_loc_bytes);
 	m_island_map_locations = DeserialiseLocationMap(map_loc_bytes);
-	bool retval = DecodeStrings(chars_bytes, m_character_names);
-	retval = retval && DecodeStrings(schars_bytes, m_special_character_names);
-	retval = retval && DecodeString(dchars_bytes, m_default_character_name);
-	retval = retval && DecodeStrings(items_bytes, m_item_names);
-	retval = retval && DecodeStrings(menu_bytes, m_menu_strings);
+	bool retval = DecodeStrings(chars_bytes, m_character_names, m_charsets.main);
+	retval = retval && DecodeStrings(schars_bytes, m_special_character_names, m_charsets.main);
+	retval = retval && DecodeString(dchars_bytes, m_default_character_name, m_charsets.main);
+	retval = retval && DecodeStrings(items_bytes, m_item_names, m_charsets.main);
+	retval = retval && DecodeStrings(menu_bytes, m_menu_strings, m_charsets.main);
 
 	return retval;
 }
@@ -1841,7 +2015,7 @@ bool StringData::RomLoadIntroStrings(const Rom& rom)
 	uint32_t ptrs_addr = Disasm::ReadOffset16(rom, RomLabels::Strings::INTRO_STRING_PTRS);
 	uint32_t room_flags_addr = rom.read<uint32_t>(RomLabels::Rooms::ROOM_VISIT_FLAGS);
 	uint32_t room_flags_end = rom.get_section(RomLabels::Strings::INTRO_STRING_DATA).end;
-	uint32_t end_addr = rom.size();
+	uint32_t end_addr = static_cast<uint32_t>(rom.size());
 	std::vector<uint32_t> ptrs;
 	std::vector<uint32_t> sizes;
 	while (ptrs_addr < end_addr)
@@ -1858,6 +2032,7 @@ bool StringData::RomLoadIntroStrings(const Rom& rom)
 	{
 		auto bytes = rom.read_array<uint8_t>(ptrs[i], sizes[i]);
 		IntroString s;
+		s.SetCharset(m_charsets.intro);
 		s.Decode(bytes.data(), bytes.size());
 		m_intro_strings.push_back(s);
 		m_intro_strings_path.push_back(StrPrintf(RomLabels::Strings::INTRO_STRING_FILE, i + 1));
@@ -1875,6 +2050,7 @@ bool StringData::RomLoadEndCreditStrings(const Rom& rom)
 	while ((offset < (bytes.size() - 1)) && (bytes[offset] != 0xFF || bytes[offset + 1] != 0xFF))
 	{
 		m_ending_strings.emplace_back(EndCreditString());
+		m_ending_strings.back().SetCharset(m_charsets.credits);
 		offset += m_ending_strings.back().Decode(bytes.data() + offset, bytes.size() - offset);
 	}
 	return true;
@@ -1939,7 +2115,7 @@ bool StringData::AsmSaveSystemText(const std::filesystem::path& dir)
 	try
 	{
 		AsmFile sfile, ifile;
-		ByteVector str[4];
+		std::string str[4];
 		ifile.WriteFileHeader(m_region_check_filename, "Region Check");
 		ifile << AsmFile::Label(RomLabels::Strings::REGION_CHECK_ROUTINE) << AsmFile::IncludeFile(m_region_check_routine_filename, AsmFile::FileType::ASSEMBLER);
 		ifile << AsmFile::Label(RomLabels::Strings::REGION_CHECK_STRINGS) << AsmFile::IncludeFile(m_region_check_strings_filename, AsmFile::FileType::ASSEMBLER);
@@ -1949,14 +2125,14 @@ bool StringData::AsmSaveSystemText(const std::filesystem::path& dir)
 		for (int i = 0; i < 4; ++i)
 		{
 			std::transform(m_system_strings[i].cbegin(), m_system_strings[i].cend(), std::back_inserter(str[i]), [](const auto& c) {
-				return static_cast<uint8_t>(c);
+				return static_cast<char>(static_cast<uint8_t>(c));
 				});
-			str[i].push_back(0);
+			str[i].push_back('\0');
 		}
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE1) << str[0];
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_NTSC) << str[1];
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_PAL) << str[2];
-		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE3) << str[3];
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE1) << AsmFile::String(str[0]);
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_NTSC) << AsmFile::String(str[1]);
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_PAL) << AsmFile::String(str[2]);
+		sfile << AsmFile::Label(RomLabels::Strings::REGION_ERROR_LINE3) << AsmFile::String(str[3]);
 		sfile.WriteFile(dir / m_region_check_strings_filename);
 		return true;
 	}
@@ -2027,11 +2203,11 @@ bool StringData::AsmSaveStringTables(const std::filesystem::path& dir)
 		file << AsmFile::Align(2);
 		file.WriteFile(dir / m_string_table_path);
 		ByteVector cbytes, sbytes, dbytes, ibytes, mbytes;
-		EncodeStrings(m_character_names, cbytes);
-		EncodeStrings(m_special_character_names, sbytes);
-		EncodeString(m_default_character_name, dbytes);
-		EncodeStrings(m_item_names, ibytes);
-		EncodeStrings(m_menu_strings, mbytes);
+		EncodeStrings(m_character_names, cbytes, m_charsets.main);
+		EncodeStrings(m_special_character_names, sbytes, m_charsets.main);
+		EncodeString(m_default_character_name, dbytes, m_charsets.main);
+		EncodeStrings(m_item_names, ibytes, m_charsets.main);
+		EncodeStrings(m_menu_strings, mbytes, m_charsets.main);
 		WriteBytes(cbytes, dir / m_char_table_path);
 		WriteBytes(sbytes, dir / m_schar_table_path);
 		WriteBytes(dbytes, dir / m_dchar_table_path);
@@ -2140,7 +2316,7 @@ bool StringData::RomPrepareInjectSystemText(const Rom& rom)
 	uint32_t begin = rom.get_section(RomLabels::Strings::REGION_CHECK_DATA_SECTION).begin;
 	for (int i = 0; i < 4; ++i)
 	{
-		addrs[i] = begin + bytes->size();
+		addrs[i] = begin + static_cast<uint32_t>(bytes->size());
 		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
 		write_string(bytes, converter.to_bytes(m_system_strings[i]));
 	}
@@ -2148,7 +2324,7 @@ bool StringData::RomPrepareInjectSystemText(const Rom& rom)
 	{
 		bytes->push_back(0xFF);
 	}
-	addrs[4] = begin + bytes->size();
+	addrs[4] = begin + static_cast<uint32_t>(bytes->size());
 	bytes->insert(bytes->end(), system_font_bytes->cbegin(), system_font_bytes->cend());
 	m_pending_writes.push_back({ RomLabels::Strings::REGION_CHECK_DATA_SECTION, bytes });
 	m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Strings::REGION_ERROR_LINE1, addrs[0]));
@@ -2168,7 +2344,7 @@ bool StringData::RomPrepareInjectCompressedStringData(const Rom& rom)
 	uint32_t begin = rom.get_section(RomLabels::Strings::STRING_SECTION).begin;
 	for (std::size_t i = 0; i < m_compressed_strings.size(); i += 256)
 	{
-		bank_ptrs.push_back(begin + bytes->size());
+		bank_ptrs.push_back(begin + static_cast<uint32_t>(bytes->size()));
 		for (std::size_t j = 0; j < 256 && (i + j) < m_compressed_strings.size(); ++j)
 		{
 			const auto& s = m_compressed_strings[i + j];
@@ -2179,7 +2355,7 @@ bool StringData::RomPrepareInjectCompressedStringData(const Rom& rom)
 	{
 		bytes->push_back(0);
 	}
-	bank_ptrs_ptr = bytes->size() + begin;
+	bank_ptrs_ptr = static_cast<uint32_t>(bytes->size()) + begin;
 	for (auto p : bank_ptrs)
 	{
 		auto b = Split<uint8_t, uint32_t>(p);
@@ -2200,14 +2376,14 @@ bool StringData::RomPrepareInjectHuffmanData(const Rom& rom)
 	auto textbox_3l_bytes = m_ui_tilemaps_internal[RomLabels::Graphics::TEXTBOX_3LINE_MAP]->GetBytes();
 	bytes->insert(bytes->end(), textbox_3l_bytes->cbegin(), textbox_3l_bytes->cend());
 
-	uint32_t textbox_2l_begin = begin + bytes->size();
+	uint32_t textbox_2l_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto textbox_2l_bytes = m_ui_tilemaps_internal[RomLabels::Graphics::TEXTBOX_2LINE_MAP]->GetBytes();
 	bytes->insert(bytes->end(), textbox_2l_bytes->cbegin(), textbox_2l_bytes->cend());
 
-	uint32_t huffman_offsets_begin = begin + bytes->size();
+	uint32_t huffman_offsets_begin = begin + static_cast<uint32_t>(bytes->size());
 	bytes->insert(bytes->end(), m_huffman_offsets.cbegin(), m_huffman_offsets.cend());
 
-	uint32_t huffman_tables_begin = begin + bytes->size();
+	uint32_t huffman_tables_begin = begin + static_cast<uint32_t>(bytes->size());
 	bytes->insert(bytes->end(), m_huffman_tables.cbegin(), m_huffman_tables.cend());
 
 	m_pending_writes.push_back({ RomLabels::Strings::HUFFMAN_SECTION, bytes });
@@ -2228,29 +2404,29 @@ bool StringData::RomPrepareInjectStringTables(const Rom& rom)
 	uint32_t map_begin = begin;
 	auto bytes = std::make_shared<ByteVector>(SerialiseLocationMap(m_island_map_locations));
 
-	uint32_t chars_begin = begin + bytes->size();
+	uint32_t chars_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector chars_bytes;
-	EncodeStrings(m_character_names, chars_bytes);
+	EncodeStrings(m_character_names, chars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), chars_bytes.cbegin(), chars_bytes.cend());
 
-	uint32_t schars_begin = begin + bytes->size();
+	uint32_t schars_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector schars_bytes;
-	EncodeStrings(m_special_character_names, schars_bytes);
+	EncodeStrings(m_special_character_names, schars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), schars_bytes.cbegin(), schars_bytes.cend());
 
-	uint32_t dchars_begin = begin + bytes->size();
+	uint32_t dchars_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector dchars_bytes;
-	EncodeString(m_default_character_name, dchars_bytes);
+	EncodeString(m_default_character_name, dchars_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), dchars_bytes.cbegin(), dchars_bytes.cend());
 
-	uint32_t items_begin = begin + bytes->size();
+	uint32_t items_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector items_bytes;
-	EncodeStrings(m_item_names, items_bytes);
+	EncodeStrings(m_item_names, items_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), items_bytes.cbegin(), items_bytes.cend());
 
-	uint32_t menu_begin = begin + bytes->size();
+	uint32_t menu_begin = begin + static_cast<uint32_t>(bytes->size());
 	ByteVector menu_bytes;
-	EncodeStrings(m_menu_strings, menu_bytes);
+	EncodeStrings(m_menu_strings, menu_bytes, m_charsets.main);
 	bytes->insert(bytes->end(), menu_bytes.cbegin(), menu_bytes.cend());
 	
 	m_pending_writes.push_back({ RomLabels::Strings::SAVE_GAME_LOCATIONS, save_bytes });
@@ -2273,7 +2449,7 @@ bool StringData::RomPrepareInjectIntroStrings(const Rom& rom)
 	int ptr_offset = 0;
 	for (const auto& s : m_intro_strings)
 	{
-		uint32_t addr = bytes->size() + begin;
+		uint32_t addr = static_cast<uint32_t>(bytes->size()) + begin;
 		bytes->at(ptr_offset++) = (addr >> 24) & 0xFF;
 		bytes->at(ptr_offset++) = (addr >> 16) & 0xFF;
 		bytes->at(ptr_offset++) = (addr >> 8) & 0xFF;
@@ -2286,7 +2462,7 @@ bool StringData::RomPrepareInjectIntroStrings(const Rom& rom)
 			bytes->push_back(0xFF);
 		}
 	}
-	uint32_t visit_begin = begin + bytes->size();
+	uint32_t visit_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto visit_bytes = SerialiseVisitFlags();
 	bytes->insert(bytes->end(), visit_bytes.cbegin(), visit_bytes.cend());
 

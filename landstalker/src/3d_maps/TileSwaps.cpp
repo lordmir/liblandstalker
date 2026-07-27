@@ -49,7 +49,7 @@ std::vector<uint8_t> TileSwaps::GetData() const
 		{
 			if (r.second[i].active)
 			{
-				auto bytes = r.second[i].GetBytes(r.first, i);
+				auto bytes = r.second[i].GetBytes(r.first);
 				out.insert(out.end(), bytes.cbegin(), bytes.cend());
 			}
 		}
@@ -87,6 +87,11 @@ void TileSwaps::SetRoomSwaps(uint16_t room, const std::vector<TileSwap>& swaps)
 	}
 }
 
+void TileSwaps::RemapRooms(const RoomIndexMap& mapping)
+{
+	RemapRoomKeys(mapping, m_swaps);
+}
+
 TileSwap::TileSwap(const std::vector<uint8_t>& in)
 	: active(true)
 {
@@ -107,7 +112,7 @@ TileSwap::TileSwap(const std::vector<uint8_t>& in)
 	mode = static_cast<Mode>(in[15]);
 }
 
-std::vector<uint8_t> TileSwap::GetBytes(uint16_t room, uint8_t idx) const
+std::vector<uint8_t> TileSwap::GetBytes(uint16_t room) const
 {
 	std::vector<uint8_t> data(16);
 	data[0] = map.src_x;
@@ -124,7 +129,7 @@ std::vector<uint8_t> TileSwap::GetBytes(uint16_t room, uint8_t idx) const
 	data[11] = heightmap.height - 1;
 	data[12] = room >> 8;
 	data[13] = room & 0xFF;
-	data[14] = idx << 3;
+	data[14] = trigger << 3;
 	data[15] = static_cast<uint8_t>(mode);
 	return data;
 }
@@ -369,3 +374,4 @@ bool TileSwap::operator!=(const TileSwap& rhs) const
 }
 
 } // namespace Landstalker
+

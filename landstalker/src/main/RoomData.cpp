@@ -3,6 +3,9 @@
 #include <set>
 #include <cassert>
 #include <algorithm>
+#include <cctype>
+#include <sstream>
+#include <tuple>
 
 #include <landstalker/misc/Utils.h>
 #include <landstalker/main/AsmUtils.h>
@@ -11,9 +14,10 @@
 #include <landstalker/misc/Literals.h>
 #include <landstalker/misc/Labels.h>
 
+
 namespace Landstalker {
 
-std::map<uint16_t, std::vector<TileSwapFlag>> DecodeGfxSwap(const ByteVector& data)
+static std::map<uint16_t, std::vector<TileSwapFlag>> DecodeGfxSwap(const ByteVector& data)
 {
     std::map<uint16_t, std::vector<TileSwapFlag>> flags;
     assert(data.size() % (sizeof(uint16_t) * 2) == 2);
@@ -32,7 +36,7 @@ std::map<uint16_t, std::vector<TileSwapFlag>> DecodeGfxSwap(const ByteVector& da
     return flags;
 }
 
-ByteVector EncodeGfxSwap(const std::map<uint16_t, std::vector<TileSwapFlag>>& data)
+static ByteVector EncodeGfxSwap(const std::map<uint16_t, std::vector<TileSwapFlag>>& data)
 {
     ByteVector ret;
     ret.reserve(data.size() * 4 + 2);
@@ -49,7 +53,7 @@ ByteVector EncodeGfxSwap(const std::map<uint16_t, std::vector<TileSwapFlag>>& da
     return ret;
 }
 
-std::vector<TreeWarpFlag> DecodeTreeWarp(const ByteVector& data)
+static std::vector<TreeWarpFlag> DecodeTreeWarp(const ByteVector& data)
 {
     std::vector<TreeWarpFlag> flags;
     assert(data.size() % TreeWarpFlag::SIZE == 2);
@@ -62,7 +66,7 @@ std::vector<TreeWarpFlag> DecodeTreeWarp(const ByteVector& data)
     return flags;
 }
 
-ByteVector EncodeTreeWarp(const std::vector<TreeWarpFlag>& data)
+static ByteVector EncodeTreeWarp(const std::vector<TreeWarpFlag>& data)
 {
     ByteVector ret;
     ret.reserve(data.size() * TreeWarpFlag::SIZE + 2);
@@ -76,7 +80,7 @@ ByteVector EncodeTreeWarp(const std::vector<TreeWarpFlag>& data)
     return ret;
 }
 
-std::map<uint16_t, uint16_t> DecodeToMap(const ByteVector& data)
+static std::map<uint16_t, uint16_t> DecodeToMap(const ByteVector& data)
 {
     std::map<uint16_t, uint16_t> map;
     assert(data.size() % (sizeof(uint16_t) * 2) == 2);
@@ -89,7 +93,7 @@ std::map<uint16_t, uint16_t> DecodeToMap(const ByteVector& data)
     return map;
 }
 
-ByteVector EncodeFromMap(const std::map<uint16_t, uint16_t>& data)
+static ByteVector EncodeFromMap(const std::map<uint16_t, uint16_t>& data)
 {
     ByteVector ret;
     ret.reserve(data.size() * 4 + 2);
@@ -105,7 +109,7 @@ ByteVector EncodeFromMap(const std::map<uint16_t, uint16_t>& data)
     return ret;
 }
 
-std::set<uint16_t> DecodeToSet(const ByteVector& data, bool terminate = true)
+static std::set<uint16_t> DecodeToSet(const ByteVector& data, bool terminate = true)
 {
     std::set<uint16_t> set;
     assert(data.size() % sizeof(uint16_t) == 0);
@@ -120,7 +124,7 @@ std::set<uint16_t> DecodeToSet(const ByteVector& data, bool terminate = true)
     return set;
 }
 
-ByteVector EncodeFromSet(const std::set<uint16_t>& data, bool terminate = true)
+static ByteVector EncodeFromSet(const std::set<uint16_t>& data, bool terminate = true)
 {
     ByteVector ret;
     ret.reserve(data.size() * 2 + 2);
@@ -147,6 +151,10 @@ RoomData::RoomData(const std::filesystem::path& asm_file)
     if (!AsmLoadRoomTable())
     {
         throw std::runtime_error(std::string("Unable to load room data from \'") + m_room_data_filename.string() + '\'');
+    }
+    if (!AsmLoadRoomConstants())
+    {
+        throw std::runtime_error(std::string("Unable to load room constants from \'") + m_room_constants_filename.string() + '\'');
     }
     if (!AsmLoadMaps())
     {
@@ -267,6 +275,10 @@ bool RoomData::Save(const std::filesystem::path& dir)
     {
         throw std::runtime_error(std::string("Unable to save room data to \'") + m_room_data_filename.string() + '\'');
     }
+    if (!AsmSaveRoomConstants(dir))
+    {
+        throw std::runtime_error(std::string("Unable to save room constants to \'") + m_room_constants_filename.string() + '\'');
+    }
     if (!AsmSaveWarpData(dir))
     {
         throw std::runtime_error(std::string("Unable to save warp data to \'") + m_warp_data_filename.string() + '\'');
@@ -363,6 +375,10 @@ bool RoomData::HasBeenModified() const
     {
         return true;
     }
+    if (m_map_order != m_map_order_orig)
+    {
+        return true;
+    }
     if (std::any_of(m_room_pals.begin(), m_room_pals.end(), entry_pred))
     {
         return true;
@@ -396,12 +412,21 @@ bool RoomData::HasBeenModified() const
     {
         return true;
     }
+    if (m_roomlist.size() != m_roomlist_orig.size())
+    {
+        return true;
+    }
     for (std::size_t i = 0; i < m_roomlist.size(); ++i)
     {
-        if (*m_roomlist[i] != *m_roomlist_orig[i])
+        if (m_roomlist[i]->name != m_roomlist_orig[i]->name ||
+            *m_roomlist[i] != *m_roomlist_orig[i])
         {
             return true;
         }
+    }
+    if (m_room_constants != m_room_constants_orig)
+    {
+        return true;
     }
     if (m_warps != m_warps_orig)
     {
@@ -513,7 +538,11 @@ std::wstring RoomData::GetRoomPaletteDisplayName(uint8_t index) const
 
 std::wstring RoomData::GetBlocksetDisplayName(uint8_t tileset, uint8_t pri, uint8_t sec) const
 {
-    return Labels::Get(Labels::C_ANIM_TILESETS, (tileset << 16) | (pri << 8) | sec).value_or(StrWPrintf(RomLabels::Blocksets::BLOCKSET_LABEL, tileset + (pri << 5), sec));
+    // C_BLOCKSETS, not C_ANIM_TILESETS: the two categories share the shape of their ids but
+    // not their meaning, so reading from the wrong one made blockset labels invisible and
+    // let an animation's label surface under a blockset that happened to collide with it.
+    return Labels::Get(Labels::C_BLOCKSETS, (tileset << 16) | (pri << 8) | sec).value_or(
+        StrWPrintf(RomLabels::Blocksets::BLOCKSET_LABEL, tileset + (pri << 5), sec));
 }
 
 std::wstring RoomData::GetRoomDisplayName(uint16_t room) const
@@ -523,7 +552,10 @@ std::wstring RoomData::GetRoomDisplayName(uint16_t room) const
 
 std::wstring RoomData::GetMapDisplayName(const std::string& map) const
 {
-    int index = std::distance(m_maps.cbegin(), m_maps.find(map));
+    const auto entry = std::find(m_map_order.cbegin(), m_map_order.cend(), map);
+    const int index = entry == m_map_order.cend()
+        ? -1
+        : static_cast<int>(std::distance(m_map_order.cbegin(), entry));
     return Labels::Get(Labels::C_MAPS, index).value_or(std::wstring(map.cbegin(), map.cend()));
 }
 
@@ -597,14 +629,17 @@ std::map<std::string, std::shared_ptr<TilesetEntry>> RoomData::GetAllTilesets() 
 
 std::shared_ptr<AnimatedTilesetEntry> RoomData::GetAnimatedTileset(uint8_t tileset, uint8_t idx) const
 {
-    assert(m_animated_ts.find({ tileset, idx }) != m_animated_ts.cend());
-    return m_animated_ts.find({ tileset, idx })->second;
+    // Returns nullptr rather than dereferencing an end iterator: the assert alone vanishes
+    // in a release build, and callers walking animation slots cannot know which are filled
+    // without asking. This doubles as the "does this slot exist?" check.
+    const auto anim = m_animated_ts.find({ tileset, idx });
+    return anim == m_animated_ts.cend() ? nullptr : anim->second;
 }
 
 std::shared_ptr<AnimatedTilesetEntry> RoomData::GetAnimatedTileset(const std::string& name) const
 {
-    assert(m_animated_ts_by_name.find(name) != m_animated_ts_by_name.cend());
-    return m_animated_ts_by_name.find(name)->second;
+    const auto anim = m_animated_ts_by_name.find(name);
+    return anim == m_animated_ts_by_name.cend() ? nullptr : anim->second;
 }
 
 std::map<std::string, std::shared_ptr<AnimatedTilesetEntry>> RoomData::GetAllAnimatedTilesets() const
@@ -775,8 +810,229 @@ std::shared_ptr<Room> RoomData::GetRoom(uint16_t index) const
 
 std::shared_ptr<Room> RoomData::GetRoom(const std::string& name) const
 {
-    assert(m_roomlist_by_name.find(name) != m_roomlist_by_name.cend());
-    return m_roomlist_by_name.find(name)->second;
+    // Returns nullptr rather than dereferencing an end iterator, so this doubles as the
+    // "is this name taken?" check when adding or renaming a room.
+    const auto room = m_roomlist_by_name.find(name);
+    return room == m_roomlist_by_name.cend() ? nullptr : room->second;
+}
+
+bool RoomData::IsValidRoomName(const std::string& name)
+{
+    if (name.empty() || std::isdigit(static_cast<unsigned char>(name.front())))
+    {
+        return false;
+    }
+    return std::all_of(name.cbegin(), name.cend(), [](const unsigned char c)
+    {
+        return std::isalnum(c) || c == '_';
+    });
+}
+
+bool RoomData::RenameRoom(uint16_t index, const std::string& name)
+{
+    if (index >= m_roomlist.size() || !IsValidRoomName(name))
+    {
+        return false;
+    }
+
+    const auto room = m_roomlist[index];
+    const auto existing = m_roomlist_by_name.find(name);
+    if (existing != m_roomlist_by_name.cend() && existing->second != room)
+    {
+        return false;
+    }
+    if (room->name == name)
+    {
+        return true;
+    }
+
+    const auto old = m_roomlist_by_name.find(room->name);
+    if (old != m_roomlist_by_name.cend() && old->second == room)
+    {
+        m_roomlist_by_name.erase(old);
+    }
+    room->name = name;
+    m_roomlist_by_name[name] = room;
+    return true;
+}
+
+std::shared_ptr<Room> RoomData::AddRoom(const std::string& map, const std::string& name,
+    const std::wstring& display_name, uint8_t tileset, uint8_t room_palette,
+    uint8_t pri_blockset, uint8_t sec_blockset, uint8_t room_z_begin,
+    uint8_t room_z_end, uint8_t bgm)
+{
+    if (m_roomlist.size() >= MAX_ROOMS ||
+        !IsValidRoomName(name) || m_roomlist_by_name.count(name) != 0 ||
+        m_maps.count(map) == 0 ||
+        m_tilesets.count(tileset) == 0 ||
+        room_palette >= m_room_pals.size() ||
+        pri_blockset > 1 || sec_blockset > 7 ||
+        room_z_begin > 15 || room_z_end > 15 || bgm > 31)
+    {
+        return nullptr;
+    }
+    // A room resolves its blocksets as (primary, 0) and (primary, secondary + 1) - see
+    // GetBlocksetsForRoom. Both have to exist, or drawing the room dereferences a null.
+    const auto blockset_id = static_cast<uint8_t>(pri_blockset << 5 | tileset);
+    if (GetBlockset(blockset_id, 0) == nullptr ||
+        GetBlockset(blockset_id, static_cast<uint8_t>(sec_blockset + 1)) == nullptr)
+    {
+        return nullptr;
+    }
+
+    const auto index = static_cast<uint16_t>(m_roomlist.size());
+    if (!display_name.empty() && !Labels::Update(Labels::C_ROOMS, index, display_name))
+    {
+        return nullptr;
+    }
+    auto room = std::make_shared<Room>(name, map, index, tileset, room_palette,
+        pri_blockset, sec_blockset, room_z_begin, room_z_end, bgm);
+    m_roomlist.push_back(room);
+    m_roomlist_by_name.insert({ name, room });
+    return room;
+}
+
+bool RoomData::IsRoomListSequential() const
+{
+    for (std::size_t i = 0; i < m_roomlist.size(); ++i)
+    {
+        if (m_roomlist[i] == nullptr || m_roomlist[i]->index != i)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void RoomData::RemapRooms(const RoomIndexMap& mapping)
+{
+    if (!IsValidRoomRenumbering(mapping) || mapping.size() != m_roomlist.size())
+    {
+        return;
+    }
+
+    // Reposition the surviving rooms, then repoint every table that names a room. The
+    // mapping is validated, so the survivors land on a contiguous 0..M-1 - no gaps, no
+    // collisions.
+    std::vector<std::shared_ptr<Room>> reordered(mapping.size() - CountDeletedRooms(mapping));
+    for (std::size_t old_index = 0; old_index < m_roomlist.size(); ++old_index)
+    {
+        if (IsRoomDeleted(mapping, static_cast<uint16_t>(old_index)))
+        {
+            m_roomlist_by_name.erase(m_roomlist[old_index]->name);
+            continue;
+        }
+        const auto new_index = mapping[old_index];
+        reordered[new_index] = m_roomlist[old_index];
+        reordered[new_index]->index = new_index;
+    }
+    m_roomlist.swap(reordered);
+    assert(IsRoomListSequential());
+
+    // A constant naming a deleted room is reset to 0 rather than removed. Game code
+    // refers to these by name, so dropping the symbol would break the build; pointing it
+    // at room 0 keeps the disassembly assembling and leaves an obvious wrong value for
+    // the user to fix up.
+    for (auto& constant : m_room_constants)
+    {
+        constant.second = IsRoomDeleted(mapping, constant.second) ? 0 : RemapRoom(mapping, constant.second);
+    }
+    m_warps.RemapRooms(mapping);
+    m_chests.RemapRooms(mapping);
+    m_doors.RemapRooms(mapping);
+    m_gfxswaps.RemapRooms(mapping);
+    // The tile swap and tree warp flag tables key on the room and repeat it inside each
+    // record, so both have to move.
+    for (auto* flags : { &m_gfxswap_flags, &m_gfxswap_locked_door_flags })
+    {
+        for (auto& room : *flags)
+        {
+            RemapRoomRecords(mapping, room.second, { &TileSwapFlag::room });
+        }
+        RemapRoomKeys(mapping, *flags);
+    }
+    RemapRoomRecords(mapping, m_gfxswap_big_tree_flags, { &TreeWarpFlag::room1, &TreeWarpFlag::room2 });
+    RemapRoomValues(mapping, m_shop_list);
+    RemapRoomValues(mapping, m_big_tree_list);
+    RemapRoomKeys(mapping, m_lifestock_sold_flags);
+    RemapRoomKeys(mapping, m_lantern_flag_list);
+}
+
+const std::map<std::string, uint16_t>& RoomData::GetRoomConstants() const
+{
+    return m_room_constants;
+}
+
+std::optional<uint16_t> RoomData::GetRoomConstant(const std::string& name) const
+{
+    const auto it = m_room_constants.find(name);
+    if (it == m_room_constants.cend())
+    {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+std::vector<std::string> RoomData::GetRoomConstantsForRoom(uint16_t room) const
+{
+    std::vector<std::string> names;
+    for (const auto& c : m_room_constants)
+    {
+        if (c.second == room)
+        {
+            names.push_back(c.first);
+        }
+    }
+    return names;
+}
+
+bool RoomData::IsValidRoomConstantName(const std::string& name)
+{
+    // Assembler symbol rules: no leading digit, alphanumerics and underscores only.
+    if (name.empty() || std::isdigit(static_cast<unsigned char>(name.front())))
+    {
+        return false;
+    }
+    return std::all_of(name.cbegin(), name.cend(), [](const unsigned char c)
+    {
+        return std::isalnum(c) || c == '_';
+    });
+}
+
+bool RoomData::SetRoomConstant(const std::string& name, uint16_t room)
+{
+    if (!IsValidRoomConstantName(name) || room >= m_roomlist.size())
+    {
+        return false;
+    }
+    m_room_constants[name] = room;
+    return true;
+}
+
+bool RoomData::RenameRoomConstant(const std::string& old_name, const std::string& new_name)
+{
+    const auto existing = m_room_constants.find(old_name);
+    if (existing == m_room_constants.cend() || !IsValidRoomConstantName(new_name))
+    {
+        return false;
+    }
+    if (old_name == new_name)
+    {
+        return true;
+    }
+    if (m_room_constants.count(new_name) != 0)
+    {
+        return false;
+    }
+    const auto room = existing->second;
+    m_room_constants.erase(existing);
+    m_room_constants[new_name] = room;
+    return true;
+}
+
+bool RoomData::DeleteRoomConstant(const std::string& name)
+{
+    return m_room_constants.erase(name) > 0;
 }
 
 const std::map<std::string, std::shared_ptr<Tilemap3DEntry>>& RoomData::GetMaps() const
@@ -784,10 +1040,1012 @@ const std::map<std::string, std::shared_ptr<Tilemap3DEntry>>& RoomData::GetMaps(
     return m_maps;
 }
 
+const std::vector<std::string>& RoomData::GetMapOrder() const
+{
+    return m_map_order;
+}
+
 std::shared_ptr<Tilemap3DEntry> RoomData::GetMap(const std::string& name) const
 {
     assert(m_maps.find(name) != m_maps.cend());
     return m_maps.find(name)->second;
+}
+
+bool RoomData::IsValidMapName(const std::string& name)
+{
+    if (name.empty() || name.size() > 30 ||
+        !((name.front() >= 'A' && name.front() <= 'Z') ||
+          (name.front() >= 'a' && name.front() <= 'z')))
+    {
+        return false;
+    }
+    return std::all_of(std::next(name.cbegin()), name.cend(), [](const char c)
+    {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '_';
+    });
+}
+
+bool RoomData::RenameMap(const std::string& old_name, const std::string& new_name)
+{
+    const auto old = m_maps.find(old_name);
+    if (old == m_maps.cend() || !IsValidMapName(new_name))
+    {
+        return false;
+    }
+    const auto existing = m_maps.find(new_name);
+    if (existing != m_maps.cend() && existing != old)
+    {
+        return false;
+    }
+    if (old_name == new_name)
+    {
+        return true;
+    }
+
+    const auto map = old->second;
+    m_maps.erase(old);
+    m_maps.emplace(new_name, map);
+    map->SetName(new_name);
+    const auto order = std::find(m_map_order.begin(), m_map_order.end(), old_name);
+    if (order != m_map_order.end())
+    {
+        *order = new_name;
+    }
+    for (const auto& room : m_roomlist)
+    {
+        if (room->map == old_name)
+        {
+            room->map = new_name;
+        }
+    }
+    return true;
+}
+
+std::shared_ptr<Tilemap3DEntry> RoomData::CreateMap(const std::string& name,
+    uint8_t width, uint8_t height, uint8_t heightmap_width, uint8_t heightmap_height,
+    uint8_t heightmap_left, uint8_t heightmap_top)
+{
+    if (!IsValidMapName(name) || m_maps.count(name) != 0 ||
+        width == 0 || width > 64 || height == 0 || height > 64 ||
+        heightmap_width == 0 || heightmap_width > 64 ||
+        heightmap_height == 0 || heightmap_height > 64 ||
+        heightmap_left > 63 || heightmap_top > 63)
+    {
+        return nullptr;
+    }
+
+    Tilemap3D map;
+    map.Resize(width, height);
+    map.ResizeHeightmap(heightmap_width, heightmap_height);
+    map.SetLeft(heightmap_left);
+    map.SetTop(heightmap_top);
+    ByteVector bytes(65536);
+    const auto length = map.Encode(bytes.data(), bytes.size());
+    if (length == 0)
+    {
+        return nullptr;
+    }
+    bytes.resize(length);
+
+    std::filesystem::path filename;
+    if (!m_map_order.empty())
+    {
+        const auto existing = m_maps.at(m_map_order.front())->GetFilename();
+        filename = existing.parent_path() / (name + existing.extension().string());
+    }
+    else
+    {
+        filename = StrPrintf(RomLabels::Rooms::MAP_FILENAME_FORMAT_STRING, name.c_str());
+    }
+    const auto filename_in_use = [&](const std::filesystem::path& candidate)
+    {
+        auto normalized = candidate.generic_string();
+        std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](const unsigned char c)
+        {
+            return static_cast<char>(std::tolower(c));
+        });
+        return std::any_of(m_maps.cbegin(), m_maps.cend(), [&](const auto& existing)
+        {
+            auto other = existing.second->GetFilename().generic_string();
+            std::transform(other.begin(), other.end(), other.begin(), [](const unsigned char c)
+            {
+                return static_cast<char>(std::tolower(c));
+            });
+            return other == normalized;
+        });
+    };
+    if (filename_in_use(filename))
+    {
+        const auto parent = filename.parent_path();
+        const auto stem = filename.stem().string();
+        const auto extension = filename.extension().string();
+        for (unsigned int suffix = 1; filename_in_use(filename); ++suffix)
+        {
+            filename = parent / (stem + "_" + std::to_string(suffix) + extension);
+        }
+    }
+    const auto entry = Tilemap3DEntry::Create(this, bytes, name, filename);
+    m_maps.emplace(name, entry);
+    m_map_order.push_back(name);
+    return entry;
+}
+
+bool RoomData::IsMapReferenced(const std::string& name) const
+{
+    return std::any_of(m_roomlist.cbegin(), m_roomlist.cend(), [&](const auto& room)
+    {
+        return room->map == name;
+    });
+}
+
+bool RoomData::DeleteMap(const std::string& name)
+{
+    const auto map = m_maps.find(name);
+    const auto order = std::find(m_map_order.begin(), m_map_order.end(), name);
+    if (map == m_maps.end() || order == m_map_order.end() || IsMapReferenced(name))
+    {
+        return false;
+    }
+    const auto index = static_cast<std::size_t>(std::distance(m_map_order.begin(), order));
+    if (!Labels::Erase(Labels::C_MAPS, index, m_map_order.size()))
+    {
+        return false;
+    }
+    m_map_order.erase(order);
+    m_maps.erase(map);
+    return true;
+}
+
+bool RoomData::ReorderMap(const std::string& name, std::size_t new_index)
+{
+    const auto current = std::find(m_map_order.begin(), m_map_order.end(), name);
+    if (current == m_map_order.end() || new_index >= m_map_order.size())
+    {
+        return false;
+    }
+    const auto current_index = static_cast<std::size_t>(std::distance(m_map_order.begin(), current));
+    if (current_index == new_index)
+    {
+        return true;
+    }
+    if (!Labels::Reorder(Labels::C_MAPS, current_index, new_index, m_map_order.size()))
+    {
+        return false;
+    }
+    const auto value = *current;
+    m_map_order.erase(current);
+    m_map_order.insert(m_map_order.begin() + static_cast<std::ptrdiff_t>(new_index), value);
+    return true;
+}
+
+std::filesystem::path RoomData::AllocateAssetFilename(const std::string& stem,
+    const std::filesystem::path& sibling, const std::string& fallback_format) const
+{
+    // The stock format strings name their files after the slot number rather than the
+    // asset ("tileset%02d.lz77"), so they are no use for a named asset. Following an
+    // existing sibling instead keeps new files beside the ones they belong with, whatever
+    // layout the project uses; fallback_format is a plain "%s" path for the empty case.
+    std::filesystem::path filename = sibling.empty()
+        ? std::filesystem::path(StrPrintf(fallback_format, stem.c_str()))
+        : sibling.parent_path() / (stem + sibling.extension().string());
+
+    const auto lowered = [](const std::filesystem::path& path)
+    {
+        auto text = path.generic_string();
+        std::transform(text.begin(), text.end(), text.begin(), [](const unsigned char c)
+        {
+            return static_cast<char>(std::tolower(c));
+        });
+        return text;
+    };
+    // Every asset this manager writes shares one output tree, so a clash with any of them
+    // would have one Save overwrite another.
+    std::set<std::string> taken;
+    const auto collect = [&](const auto& entries)
+    {
+        for (const auto& entry : entries)
+        {
+            taken.insert(lowered(entry.second->GetFilename()));
+        }
+    };
+    collect(m_tilesets_by_name);
+    collect(m_animated_ts_by_name);
+    collect(m_blocksets_by_name);
+    collect(m_maps);
+
+    if (taken.count(lowered(filename)) != 0)
+    {
+        const auto parent = filename.parent_path();
+        const auto base = filename.stem().string();
+        const auto extension = filename.extension().string();
+        for (unsigned int suffix = 1; taken.count(lowered(filename)) != 0; ++suffix)
+        {
+            filename = parent / (base + "_" + std::to_string(suffix) + extension);
+        }
+    }
+    // operator/ joins with a backslash on Windows, which would leave the emitted incbin
+    // path mixing separators with the forward slashes every other entry uses.
+    return std::filesystem::path(filename.generic_string());
+}
+
+namespace
+{
+// Where a new asset goes when the project has no existing one of its kind to sit beside.
+// Named after the asset rather than its slot, unlike the stock RomLabels formats.
+const std::string TILESET_NAMED_FILE("assets_packed/graphics/tilesets/%s.lz77");
+const std::string ANIM_TILESET_NAMED_FILE("assets_packed/graphics/tilesets/animated/%s.bin");
+const std::string BLOCKSET_NAMED_FILE("assets_packed/graphics/blocksets/%s.cbs");
+const std::string ROOM_PALETTE_NAMED_FILE("assets_packed/palettes/%s.bin");
+}
+
+bool RoomData::IsRoomPaletteUsed(uint8_t index) const
+{
+    return std::any_of(m_roomlist.cbegin(), m_roomlist.cend(),
+        [index](const auto& room) { return room->room_palette == index; });
+}
+
+std::vector<uint16_t> RoomData::GetRoomsUsingRoomPalette(uint8_t index) const
+{
+    std::vector<uint16_t> result;
+    for (const auto& room : m_roomlist)
+    {
+        if (room->room_palette == index)
+        {
+            result.push_back(room->index);
+        }
+    }
+    return result;
+}
+
+std::optional<uint8_t> RoomData::AddRoomPalette()
+{
+    if (m_room_pals.size() >= MAX_ROOM_PALETTES)
+    {
+        return std::nullopt;
+    }
+    // A fresh, unique asm name in the stock style; the display label is edited separately.
+    std::string name = StrPrintf(RomLabels::Rooms::ROOM_PAL_NAME, m_room_pals.size() + 1);
+    for (unsigned int suffix = 1; m_room_pals_by_name.count(name) != 0; ++suffix)
+    {
+        name = StrPrintf(RomLabels::Rooms::ROOM_PAL_NAME, m_room_pals.size() + 1) + "_" + std::to_string(suffix);
+    }
+    const auto sibling = m_room_pals.empty() ? std::filesystem::path() : m_room_pals.front()->GetFilename();
+    const auto bytes = Palette(name, Palette::Type::ROOM).GetBytes();
+    const auto entry = PaletteEntry::Create(this, bytes, name,
+        AllocateAssetFilename(name, sibling, ROOM_PALETTE_NAMED_FILE), Palette::Type::ROOM);
+    const auto index = static_cast<uint8_t>(m_room_pals.size());
+    entry->SetIndex(index);
+    m_room_pals.push_back(entry);
+    m_room_pals_by_name.insert({ name, entry });
+    return index;
+}
+
+bool RoomData::DeleteRoomPalette(uint8_t index)
+{
+    if (index >= m_room_pals.size() || m_room_pals.size() <= 1 || IsRoomPaletteUsed(index))
+    {
+        return false;
+    }
+    m_room_pals_by_name.erase(m_room_pals[index]->GetName());
+    m_room_pals.erase(m_room_pals.begin() + index);
+
+    // Pull the higher slots down so the numbering stays dense, and move every room that pointed
+    // above the hole down with them so it still draws the same palette.
+    std::map<int, int> label_map;
+    label_map.emplace(index, -1);
+    for (std::size_t slot = index; slot < m_room_pals.size(); ++slot)
+    {
+        m_room_pals[slot]->SetIndex(static_cast<int>(slot));
+        label_map.emplace(static_cast<int>(slot) + 1, static_cast<int>(slot));
+    }
+    for (const auto& room : m_roomlist)
+    {
+        if (room->room_palette > index)
+        {
+            room->room_palette = static_cast<uint8_t>(room->room_palette - 1);
+        }
+    }
+    Labels::Remap(Labels::C_ROOM_PALETTES, label_map);
+    return true;
+}
+
+bool RoomData::SwapRoomPalettes(uint8_t a, uint8_t b)
+{
+    if (a >= m_room_pals.size() || b >= m_room_pals.size())
+    {
+        return false;
+    }
+    if (a == b)
+    {
+        return true;
+    }
+    // Swap the colours in place so both entries keep their slot - every room's room_palette byte
+    // still resolves to the same index - then swap the display labels so the palette the user
+    // moved carries its name to its new row.
+    std::swap(*m_room_pals[a]->GetData(), *m_room_pals[b]->GetData());
+    Labels::Remap(Labels::C_ROOM_PALETTES, { { a, b }, { b, a } });
+    return true;
+}
+
+bool RoomData::IsValidTilesetName(const std::string& name)
+{
+    // Asm labels, so the same character rules the map names follow.
+    return IsValidMapName(name);
+}
+
+bool RoomData::IsAssetNameInUse(const std::string& name) const
+{
+    return m_tilesets_by_name.count(name) != 0 ||
+        m_animated_ts_by_name.count(name) != 0 ||
+        m_blocksets_by_name.count(name) != 0 ||
+        (m_intro_font && m_intro_font->GetName() == name);
+}
+
+std::shared_ptr<TilesetEntry> RoomData::AddTileset(const std::string& name, std::size_t tile_count)
+{
+    if (!IsValidTilesetName(name) || IsAssetNameInUse(name) ||
+        tile_count == 0 || tile_count > MAX_TILESET_TILES ||
+        m_tilesets.size() >= MAX_TILESETS)
+    {
+        return nullptr;
+    }
+    // Slots are dense, so the next one is one past the highest in use. Appending rather
+    // than filling a gap keeps every existing tileset at the index its rooms already name.
+    const auto index = m_tilesets.empty()
+        ? 0u : static_cast<unsigned int>(m_tilesets.rbegin()->first) + 1u;
+    if (index >= MAX_TILESETS)
+    {
+        return nullptr;
+    }
+
+    // Built from a zeroed byte buffer rather than with Resize(), which only grows the tile
+    // vector and leaves each new tile's pixels empty - SetBits is what sizes them.
+    Tileset tiles(ByteVector(tile_count * Tileset().GetTileSizeBytes(), 0), false);
+    const auto bytes = tiles.GetBits(true);
+    if (bytes.empty())
+    {
+        return nullptr;
+    }
+    const auto sibling = m_tilesets.empty()
+        ? std::filesystem::path() : m_tilesets.begin()->second->GetFilename();
+    const auto entry = TilesetEntry::Create(this, bytes, name,
+        AllocateAssetFilename(name, sibling, TILESET_NAMED_FILE), true);
+    entry->SetIndex(static_cast<int>(index));
+
+    // A room resolves its blocksets as (primary, 0) and (primary, secondary + 1), so the
+    // tileset is unusable until both exist - see GetBlocksetsForRoom and AddRoom.
+    const auto blockset_key = static_cast<uint8_t>(index);
+    const auto blockset_bytes = MakeBlankBlockset(1);
+    if (blockset_bytes.empty())
+    {
+        return nullptr;
+    }
+    const auto blockset_sibling = m_blocksets_by_name.empty()
+        ? std::filesystem::path() : m_blocksets_by_name.begin()->second->GetFilename();
+    for (uint8_t sec = 0; sec < 2; ++sec)
+    {
+        // Named after the tileset rather than built from its slot number: the stock labels
+        // ("BT18_00") count tilesets from one, so a slot-derived name for a newly appended
+        // tileset lands on the label the previous tileset already owns. These are only asm
+        // labels, so following the name avoids the whole numbering question.
+        auto blockset_name = StrPrintf("%s_%02d", name.c_str(), sec);
+        for (unsigned int suffix = 1; IsAssetNameInUse(blockset_name); ++suffix)
+        {
+            blockset_name = StrPrintf("%s_%02d_%u", name.c_str(), sec, suffix);
+        }
+        const auto blockset = BlocksetEntry::Create(this, blockset_bytes, blockset_name,
+            AllocateAssetFilename(blockset_name, blockset_sibling, BLOCKSET_NAMED_FILE));
+        blockset->SetIndex({ blockset_key, sec });
+        m_blocksets_by_name.insert({ blockset_name, blockset });
+        m_blocksets.insert({ { blockset_key, sec }, blockset });
+    }
+
+    m_tilesets_by_name.insert({ name, entry });
+    m_tilesets.insert({ static_cast<uint8_t>(index), entry });
+    UpdateTilesetRecommendedPalettes();
+    ResetTilesetDefaultPalettes();
+    return entry;
+}
+
+bool RoomData::RenameTileset(const std::string& old_name, const std::string& new_name)
+{
+    const auto old = m_tilesets_by_name.find(old_name);
+    if (old == m_tilesets_by_name.cend() || !IsValidTilesetName(new_name))
+    {
+        return false;
+    }
+    if (old_name == new_name)
+    {
+        return true;
+    }
+    if (IsAssetNameInUse(new_name))
+    {
+        return false;
+    }
+    const auto entry = old->second;
+    m_tilesets_by_name.erase(old);
+    m_tilesets_by_name.emplace(new_name, entry);
+    entry->SetName(new_name);
+    return true;
+}
+
+bool RoomData::RenameAnimatedTileset(const std::string& old_name, const std::string& new_name)
+{
+    const auto old = m_animated_ts_by_name.find(old_name);
+    if (old == m_animated_ts_by_name.cend() || !IsValidTilesetName(new_name))
+    {
+        return false;
+    }
+    if (old_name == new_name)
+    {
+        return true;
+    }
+    if (IsAssetNameInUse(new_name))
+    {
+        return false;
+    }
+    const auto entry = old->second;
+    m_animated_ts_by_name.erase(old);
+    m_animated_ts_by_name.emplace(new_name, entry);
+    entry->SetName(new_name);
+    return true;
+}
+
+std::size_t RoomData::TilesetReferences::Total() const
+{
+    return rooms + blocksets + animated_tilesets;
+}
+
+RoomData::TilesetReferences RoomData::CountTilesetReferences(uint8_t index) const
+{
+    TilesetReferences refs;
+    refs.rooms = static_cast<std::size_t>(std::count_if(m_roomlist.cbegin(), m_roomlist.cend(),
+        [&](const auto& room) { return room->tileset == index; }));
+    refs.blocksets = static_cast<std::size_t>(std::count_if(m_blocksets.cbegin(), m_blocksets.cend(),
+        [&](const auto& blockset) { return (blockset.first.first & 0x1F) == index; }));
+    refs.animated_tilesets = static_cast<std::size_t>(std::count_if(m_animated_ts.cbegin(), m_animated_ts.cend(),
+        [&](const auto& anim) { return anim.first.first == index; }));
+    return refs;
+}
+
+bool RoomData::IsTilesetUsedByRooms(uint8_t index) const
+{
+    return std::any_of(m_roomlist.cbegin(), m_roomlist.cend(),
+        [&](const auto& room) { return room->tileset == index; });
+}
+
+void RoomData::RemapTilesets(const std::map<uint8_t, int>& mapping, bool remap_room_tilesets)
+{
+    const auto remapped = [&](uint8_t tileset)
+    {
+        const auto entry = mapping.find(tileset);
+        return entry == mapping.cend() ? static_cast<int>(tileset) : entry->second;
+    };
+
+    if (remap_room_tilesets)
+    {
+        for (const auto& room : m_roomlist)
+        {
+            const auto updated = remapped(room->tileset);
+            if (updated >= 0)
+            {
+                room->tileset = static_cast<uint8_t>(updated);
+            }
+        }
+    }
+
+    // Rebuilt wholesale rather than edited in place: the mapping is a permutation, so an
+    // in-place pass would collide with keys it has not visited yet.
+    std::map<uint8_t, std::shared_ptr<TilesetEntry>> tilesets;
+    for (const auto& tileset : m_tilesets)
+    {
+        const auto updated = remapped(tileset.first);
+        if (updated >= 0)
+        {
+            tileset.second->SetIndex(updated);
+            tilesets.emplace(static_cast<uint8_t>(updated), tileset.second);
+        }
+    }
+    m_tilesets = tilesets;
+
+    std::map<std::pair<uint8_t, uint8_t>, std::shared_ptr<BlocksetEntry>> blocksets;
+    for (const auto& blockset : m_blocksets)
+    {
+        const auto updated = remapped(static_cast<uint8_t>(blockset.first.first & 0x1F));
+        if (updated >= 0)
+        {
+            const auto key = std::make_pair(
+                static_cast<uint8_t>((blockset.first.first & 0xE0) | updated), blockset.first.second);
+            blockset.second->SetIndex(key);
+            blocksets.emplace(key, blockset.second);
+        }
+    }
+    m_blocksets = blocksets;
+
+    std::map<std::pair<uint8_t, uint8_t>, std::shared_ptr<AnimatedTilesetEntry>> anims;
+    for (const auto& anim : m_animated_ts)
+    {
+        const auto updated = remapped(anim.first.first);
+        if (updated >= 0)
+        {
+            anim.second->GetData()->SetBaseTileset(static_cast<uint8_t>(updated));
+            anim.second->SetIndex(static_cast<uint8_t>(updated), anim.first.second);
+            anims.emplace(std::make_pair(static_cast<uint8_t>(updated), anim.first.second), anim.second);
+        }
+    }
+    m_animated_ts = anims;
+
+    // The display-name categories key off the same numbers, animated tilesets and
+    // blocksets through composite ids that embed the tileset in their high bits.
+    std::map<int, int> tileset_labels;
+    std::map<int, int> anim_labels;
+    std::map<int, int> blockset_labels;
+    for (const auto& entry : mapping)
+    {
+        tileset_labels.emplace(entry.first, entry.second);
+        for (unsigned int anim = 0; anim < MAX_ANIMS_PER_TILESET; ++anim)
+        {
+            anim_labels.emplace((entry.first << 8) | anim,
+                entry.second < 0 ? -1 : ((entry.second << 8) | static_cast<int>(anim)));
+        }
+        for (unsigned int pri = 0; pri < 2; ++pri)
+        {
+            for (unsigned int sec = 0; sec < 32; ++sec)
+            {
+                blockset_labels.emplace((entry.first << 16) | (pri << 8) | sec,
+                    entry.second < 0 ? -1
+                        : ((entry.second << 16) | static_cast<int>(pri << 8) | static_cast<int>(sec)));
+            }
+        }
+    }
+    Labels::Remap(Labels::C_TILESETS, tileset_labels);
+    Labels::Remap(Labels::C_ANIM_TILESETS, anim_labels);
+    Labels::Remap(Labels::C_BLOCKSETS, blockset_labels);
+
+    UpdateTilesetRecommendedPalettes();
+    ResetTilesetDefaultPalettes();
+}
+
+bool RoomData::SwapTilesets(uint8_t a, uint8_t b)
+{
+    if (m_tilesets.count(a) == 0 || m_tilesets.count(b) == 0)
+    {
+        return false;
+    }
+    if (a == b)
+    {
+        return true;
+    }
+    // A two-way mapping re-keys everything held under a and b (tileset, its animated tilesets,
+    // its blocksets and their labels) but, with room references left alone, the swapped content
+    // stays put under the same room fields - so the two tilesets change places in every room.
+    std::map<uint8_t, int> mapping;
+    mapping.emplace(a, static_cast<int>(b));
+    mapping.emplace(b, static_cast<int>(a));
+    RemapTilesets(mapping, false);
+    return true;
+}
+
+bool RoomData::DeleteTileset(uint8_t index)
+{
+    if (m_tilesets.count(index) == 0 || m_tilesets.size() <= 1 || IsTilesetUsedByRooms(index))
+    {
+        return false;
+    }
+    const auto entry = m_tilesets.at(index);
+
+    for (auto it = m_animated_ts.begin(); it != m_animated_ts.end();)
+    {
+        if (it->first.first == index)
+        {
+            m_animated_ts_by_name.erase(it->second->GetName());
+            m_animated_ts_by_ptr.erase(it->second->GetPointerName());
+            it = m_animated_ts.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    for (auto it = m_blocksets.begin(); it != m_blocksets.end();)
+    {
+        if ((it->first.first & 0x1F) == index)
+        {
+            m_blocksets_by_name.erase(it->second->GetName());
+            it = m_blocksets.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    m_tilesets_by_name.erase(entry->GetName());
+    m_tilesets.erase(index);
+
+    // Pull the higher slots down so the numbering stays dense: the game reads the pointer
+    // table by index, so a hole would be loaded as a real tileset.
+    std::map<uint8_t, int> mapping;
+    mapping.emplace(index, -1);
+    for (uint8_t slot = static_cast<uint8_t>(index + 1); slot < MAX_TILESETS; ++slot)
+    {
+        mapping.emplace(slot, static_cast<int>(slot) - 1);
+    }
+    RemapTilesets(mapping);
+    return true;
+}
+
+std::shared_ptr<AnimatedTilesetEntry> RoomData::AddAnimatedTileset(uint8_t tileset, const std::string& name,
+    uint16_t base, uint16_t frame_size_bytes, uint8_t speed, uint8_t frames)
+{
+    if (m_tilesets.count(tileset) == 0 || !IsValidTilesetName(name) || IsAssetNameInUse(name) ||
+        frames == 0 || frame_size_bytes == 0)
+    {
+        return nullptr;
+    }
+    const auto used = static_cast<std::size_t>(std::count_if(m_animated_ts.cbegin(), m_animated_ts.cend(),
+        [&](const auto& anim) { return anim.first.first == tileset; }));
+    if (used >= MAX_ANIMS_PER_TILESET)
+    {
+        return nullptr;
+    }
+    // Every frame is held back to back in one tileset, so the blank graphics have to cover
+    // all of them - GetFrameSizeTiles slices the animation out of this at draw time. Frame
+    // sizes need not be a whole number of tiles: the stock animations include $B0 and $D0
+    // byte frames, so round the buffer up rather than rejecting them.
+    const auto tile_size = Tileset().GetTileSizeBytes();
+    if (tile_size == 0)
+    {
+        return nullptr;
+    }
+    const auto total_bytes = static_cast<std::size_t>(frame_size_bytes) * frames;
+    const auto tile_count = (total_bytes + tile_size - 1) / tile_size;
+    if (tile_count == 0 || tile_count > MAX_TILESET_TILES)
+    {
+        return nullptr;
+    }
+    // Animated tilesets are stored uncompressed, so the blank graphics are just zeroed
+    // pixel data - AnimatedTilesetEntry::Deserialise reads the bytes back as they are.
+    const ByteVector bytes(tile_count * tile_size, 0);
+
+    const auto slot = static_cast<uint8_t>(used);
+    auto pointer_name = name + "Ptr";
+    for (unsigned int suffix = 1; m_animated_ts_by_ptr.count(pointer_name) != 0; ++suffix)
+    {
+        pointer_name = name + "Ptr" + std::to_string(suffix);
+    }
+    const auto sibling = m_animated_ts_by_name.empty()
+        ? std::filesystem::path() : m_animated_ts_by_name.begin()->second->GetFilename();
+    const auto entry = AnimatedTilesetEntry::Create(this, bytes, name,
+        AllocateAssetFilename(name, sibling, ANIM_TILESET_NAMED_FILE),
+        base, frame_size_bytes, speed, frames, tileset);
+    entry->SetPointerName(pointer_name);
+    entry->SetIndex(tileset, slot);
+    m_animated_ts_by_name.insert({ name, entry });
+    m_animated_ts_by_ptr.insert({ pointer_name, entry });
+    m_animated_ts.insert({ { tileset, slot }, entry });
+    UpdateTilesetRecommendedPalettes();
+    return entry;
+}
+
+bool RoomData::DeleteAnimatedTileset(uint8_t tileset, uint8_t index)
+{
+    const auto entry = m_animated_ts.find({ tileset, index });
+    if (entry == m_animated_ts.cend())
+    {
+        return false;
+    }
+    m_animated_ts_by_name.erase(entry->second->GetName());
+    m_animated_ts_by_ptr.erase(entry->second->GetPointerName());
+    m_animated_ts.erase(entry);
+    // Animation slots are read in order, so close the gap rather than leaving slot 1
+    // occupied while slot 0 is empty.
+    std::map<std::pair<uint8_t, uint8_t>, std::shared_ptr<AnimatedTilesetEntry>> anims;
+    std::map<int, int> labels;
+    uint8_t slot = 0;
+    for (const auto& anim : m_animated_ts)
+    {
+        auto key = anim.first;
+        if (key.first == tileset)
+        {
+            labels.emplace((tileset << 8) | key.second, (tileset << 8) | slot);
+            key.second = slot++;
+            anim.second->SetIndex(tileset, key.second);
+        }
+        anims.emplace(key, anim.second);
+    }
+    labels.emplace((tileset << 8) | index, -1);
+    m_animated_ts = anims;
+    Labels::Remap(Labels::C_ANIM_TILESETS, labels);
+    return true;
+}
+
+ByteVector RoomData::MakeBlankBlockset(std::size_t block_count) const
+{
+    const Blockset blank(block_count);
+    ByteVector bytes(65536);
+    const auto length = BlocksetCmp::Encode(blank, bytes.data(), bytes.size());
+    if (length == 0)
+    {
+        return ByteVector();
+    }
+    bytes.resize(length);
+    return bytes;
+}
+
+bool RoomData::HasBlocksetGroup(uint8_t tileset, uint8_t primary) const
+{
+    if (primary >= MAX_PRIMARY_SETS)
+    {
+        return false;
+    }
+    const auto key = static_cast<uint8_t>(primary << 5 | (tileset & 0x1F));
+    return m_blocksets.count({ key, 0 }) != 0;
+}
+
+std::vector<std::shared_ptr<BlocksetEntry>> RoomData::GetBlocksetGroup(uint8_t tileset, uint8_t primary) const
+{
+    std::vector<std::shared_ptr<BlocksetEntry>> group;
+    if (primary >= MAX_PRIMARY_SETS)
+    {
+        return group;
+    }
+    const auto key = static_cast<uint8_t>(primary << 5 | (tileset & 0x1F));
+    // m_blocksets is ordered by (primary key, slot), so the group comes out base first.
+    for (const auto& blockset : m_blocksets)
+    {
+        if (blockset.first.first == key)
+        {
+            group.push_back(blockset.second);
+        }
+    }
+    return group;
+}
+
+std::vector<uint16_t> RoomData::GetRoomsUsingBlockset(uint8_t tileset, uint8_t primary, uint8_t sec) const
+{
+    std::vector<uint16_t> rooms;
+    for (std::size_t i = 0; i < m_roomlist.size(); ++i)
+    {
+        const auto& room = m_roomlist[i];
+        if (room->tileset != (tileset & 0x1F) || room->pri_blockset != primary)
+        {
+            continue;
+        }
+        // Every room in the group draws the base; only some select any given alternate.
+        if (sec == 0 || room->sec_blockset + 1 == sec)
+        {
+            rooms.push_back(static_cast<uint16_t>(i));
+        }
+    }
+    return rooms;
+}
+
+std::shared_ptr<BlocksetEntry> RoomData::AddBlocksetGroup(uint8_t tileset, uint8_t primary,
+    const std::string& name, std::size_t block_count)
+{
+    if (primary >= MAX_PRIMARY_SETS || m_tilesets.count(tileset) == 0 ||
+        HasBlocksetGroup(tileset, primary) ||
+        !IsValidTilesetName(name) || IsAssetNameInUse(name) ||
+        block_count == 0 || block_count > MAX_COMBINED_BLOCKS)
+    {
+        return nullptr;
+    }
+    const auto bytes = MakeBlankBlockset(block_count);
+    if (bytes.empty())
+    {
+        return nullptr;
+    }
+    const auto key = std::make_pair(static_cast<uint8_t>(primary << 5 | (tileset & 0x1F)),
+        static_cast<uint8_t>(0));
+    const auto sibling = m_blocksets_by_name.empty()
+        ? std::filesystem::path() : m_blocksets_by_name.begin()->second->GetFilename();
+    const auto entry = BlocksetEntry::Create(this, bytes, name,
+        AllocateAssetFilename(name, sibling, BLOCKSET_NAMED_FILE));
+    entry->SetIndex(key);
+    m_blocksets_by_name.insert({ name, entry });
+    m_blocksets.insert({ key, entry });
+    return entry;
+}
+
+std::shared_ptr<BlocksetEntry> RoomData::AddBlockset(uint8_t tileset, uint8_t primary,
+    const std::string& name, std::size_t block_count)
+{
+    if (!HasBlocksetGroup(tileset, primary) ||
+        !IsValidTilesetName(name) || IsAssetNameInUse(name) ||
+        block_count == 0 || block_count > MAX_COMBINED_BLOCKS)
+    {
+        return nullptr;
+    }
+    const auto group = GetBlocksetGroup(tileset, primary);
+    if (group.size() >= MAX_BLOCKSETS_PER_GROUP)
+    {
+        return nullptr;
+    }
+    const auto bytes = MakeBlankBlockset(block_count);
+    if (bytes.empty())
+    {
+        return nullptr;
+    }
+    // Slots are dense within a group - the game indexes straight into the pointer list -
+    // so the new alternate goes on the end.
+    const auto key = std::make_pair(static_cast<uint8_t>(primary << 5 | (tileset & 0x1F)),
+        static_cast<uint8_t>(group.size()));
+    // Guarded rather than assumed: HasBlocksetGroup means one exists today, but a caller
+    // reaching here with an empty map would dereference the end iterator.
+    const auto sibling = m_blocksets_by_name.empty()
+        ? std::filesystem::path() : m_blocksets_by_name.begin()->second->GetFilename();
+    const auto entry = BlocksetEntry::Create(this, bytes, name,
+        AllocateAssetFilename(name, sibling, BLOCKSET_NAMED_FILE));
+    entry->SetIndex(key);
+    m_blocksets_by_name.insert({ name, entry });
+    m_blocksets.insert({ key, entry });
+    return entry;
+}
+
+bool RoomData::RenameBlockset(const std::string& old_name, const std::string& new_name)
+{
+    const auto old = m_blocksets_by_name.find(old_name);
+    if (old == m_blocksets_by_name.cend() || !IsValidTilesetName(new_name))
+    {
+        return false;
+    }
+    if (old_name == new_name)
+    {
+        return true;
+    }
+    if (IsAssetNameInUse(new_name))
+    {
+        return false;
+    }
+    const auto entry = old->second;
+    m_blocksets_by_name.erase(old);
+    m_blocksets_by_name.emplace(new_name, entry);
+    entry->SetName(new_name);
+    return true;
+}
+
+void RoomData::RemapBlocksets(uint8_t tileset, uint8_t primary, const std::map<uint8_t, int>& mapping,
+    bool remap_room_blocksets)
+{
+    const auto key = static_cast<uint8_t>(primary << 5 | (tileset & 0x1F));
+    const auto remapped = [&](uint8_t sec)
+    {
+        const auto entry = mapping.find(sec);
+        return entry == mapping.cend() ? static_cast<int>(sec) : entry->second;
+    };
+
+    // Rebuilt wholesale rather than edited in place: the mapping is a permutation, so an
+    // in-place pass would collide with keys it has not visited yet.
+    std::map<std::pair<uint8_t, uint8_t>, std::shared_ptr<BlocksetEntry>> blocksets;
+    for (const auto& blockset : m_blocksets)
+    {
+        if (blockset.first.first != key)
+        {
+            blocksets.emplace(blockset.first, blockset.second);
+            continue;
+        }
+        const auto updated = remapped(blockset.first.second);
+        if (updated >= 0)
+        {
+            const auto moved = std::make_pair(key, static_cast<uint8_t>(updated));
+            blockset.second->SetIndex(moved);
+            blocksets.emplace(moved, blockset.second);
+        }
+    }
+    m_blocksets = blocksets;
+
+    // A room stores the alternate it selects one lower than the slot it lives in.
+    if (remap_room_blocksets)
+    {
+        for (const auto& room : m_roomlist)
+        {
+            if (room->tileset != (tileset & 0x1F) || room->pri_blockset != primary)
+            {
+                continue;
+            }
+            const auto updated = remapped(static_cast<uint8_t>(room->sec_blockset + 1));
+            if (updated > 0)
+            {
+                room->sec_blockset = static_cast<uint8_t>(updated - 1);
+            }
+        }
+    }
+
+    std::map<int, int> labels;
+    for (const auto& entry : mapping)
+    {
+        labels.emplace((tileset << 16) | (primary << 8) | entry.first,
+            entry.second < 0 ? -1 : ((tileset << 16) | (primary << 8) | entry.second));
+    }
+    Labels::Remap(Labels::C_BLOCKSETS, labels);
+}
+
+bool RoomData::SwapBlockset(uint8_t tileset, uint8_t primary, uint8_t sec_a, uint8_t sec_b)
+{
+    const auto group = GetBlocksetGroup(tileset, primary);
+    // Slot zero is the base every room in the group draws, not one of the alternates, so
+    // it has no meaningful position to swap to or from.
+    if (sec_a == 0 || sec_b == 0 ||
+        sec_a >= group.size() || sec_b >= group.size())
+    {
+        return false;
+    }
+    if (sec_a == sec_b)
+    {
+        return true;
+    }
+    // A two-way mapping swaps the two alternates' content; with room references left alone the
+    // rooms keep their sec_blockset, so the two alternates change places in the rooms selecting
+    // them.
+    std::map<uint8_t, int> mapping;
+    mapping.emplace(sec_a, static_cast<int>(sec_b));
+    mapping.emplace(sec_b, static_cast<int>(sec_a));
+    RemapBlocksets(tileset, primary, mapping, false);
+    return true;
+}
+
+bool RoomData::DeleteBlockset(uint8_t tileset, uint8_t primary, uint8_t sec)
+{
+    const auto group = GetBlocksetGroup(tileset, primary);
+    if (sec == 0 || sec >= group.size())
+    {
+        return false;
+    }
+    if (!GetRoomsUsingBlockset(tileset, primary, sec).empty())
+    {
+        return false;
+    }
+    const auto key = static_cast<uint8_t>(primary << 5 | (tileset & 0x1F));
+    const auto entry = m_blocksets.find({ key, sec });
+    if (entry == m_blocksets.cend())
+    {
+        return false;
+    }
+    m_blocksets_by_name.erase(entry->second->GetName());
+    m_blocksets.erase(entry);
+
+    // Pull the higher slots down so the numbering stays dense: the game indexes the
+    // pointer list directly, so a hole would be read as a real blockset.
+    std::map<uint8_t, int> mapping;
+    mapping.emplace(sec, -1);
+    for (uint8_t slot = static_cast<uint8_t>(sec + 1); slot < group.size(); ++slot)
+    {
+        mapping.emplace(slot, static_cast<int>(slot) - 1);
+    }
+    RemapBlocksets(tileset, primary, mapping);
+    return true;
+}
+
+bool RoomData::DeleteBlocksetGroup(uint8_t tileset, uint8_t primary)
+{
+    if (!HasBlocksetGroup(tileset, primary))
+    {
+        return false;
+    }
+    // Every room in the group draws its base, so there is no way to remove it from under
+    // them - unlike an alternate, there is nothing else for them to fall back to.
+    if (!GetRoomsUsingBlockset(tileset, primary, 0).empty())
+    {
+        return false;
+    }
+    const auto key = static_cast<uint8_t>(primary << 5 | (tileset & 0x1F));
+    std::map<int, int> labels;
+    for (auto it = m_blocksets.begin(); it != m_blocksets.end();)
+    {
+        if (it->first.first == key)
+        {
+            labels.emplace((tileset << 16) | (primary << 8) | it->first.second, -1);
+            m_blocksets_by_name.erase(it->second->GetName());
+            it = m_blocksets.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    Labels::Remap(Labels::C_BLOCKSETS, labels);
+    return true;
 }
 
 std::shared_ptr<PaletteEntry> RoomData::GetPaletteForRoom(const std::string& name) const
@@ -864,6 +2122,16 @@ std::shared_ptr<Tilemap3DEntry> RoomData::GetMapForRoom(uint16_t roomnum) const
 std::vector<uint8_t> RoomData::GetChestsForRoom(uint16_t roomnum) const
 {
     return m_chests.GetChestsForRoom(roomnum);
+}
+
+int RoomData::GetChestFlagBaseForRoom(uint16_t roomnum) const
+{
+    return m_chests.GetChestFlagBaseForRoom(roomnum);
+}
+
+uint8_t RoomData::GetChestContentsFromFlag(int flag)
+{
+    return m_chests.GetChestItemFromFlagID(flag);
 }
 
 void RoomData::SetChestsForRoom(uint16_t roomnum, const std::vector<uint8_t>& chests)
@@ -953,6 +2221,11 @@ std::vector<WarpList::Transition> RoomData::GetSrcTransitions(uint16_t room) con
     return m_warps.GetSrcTransitionsForRoom(room);
 }
 
+void RoomData::SetTransitions(uint16_t room, const std::vector<WarpList::Transition>& data)
+{
+    m_warps.UpdateTransitionsForRoom(room, data);
+}
+
 void RoomData::SetSrcTransitions(uint16_t room, const std::vector<WarpList::Transition>& data)
 {
     m_warps.SetSrcTransitionsForRoom(room, data);
@@ -1011,9 +2284,9 @@ uint16_t RoomData::GetLifestockSaleFlag(uint16_t room) const
 
 void RoomData::SetLifestockSaleFlag(uint16_t room, uint16_t flag)
 {
-    if (flag != 0xFFFF && !HasLifestockSaleFlag(room))
+    if (flag != 0xFFFF)
     {
-        m_lifestock_sold_flags.insert({ room, flag });
+        m_lifestock_sold_flags[room] = flag;
     }
     else if (flag == 0xFFFF && HasLifestockSaleFlag(room))
     {
@@ -1045,9 +2318,9 @@ uint16_t RoomData::GetLanternFlag(uint16_t room) const
 
 void RoomData::SetLanternFlag(uint16_t room, uint16_t flag)
 {
-    if (flag != 0xFFFF && !HasLanternFlag(room))
+    if (flag != 0xFFFF)
     {
-        m_lantern_flag_list.insert({ room, flag });
+        m_lantern_flag_list[room] = flag;
     }
     else if (flag == 0xFFFF && HasLanternFlag(room))
     {
@@ -1205,6 +2478,7 @@ void RoomData::CommitAllChanges()
     {
         m_roomlist_orig.push_back(std::make_shared<Room>(*m_roomlist[i]));
     }
+    m_room_constants_orig = m_room_constants;
     m_warps_orig = m_warps;
     m_animated_ts_orig = m_animated_ts;
     m_animated_ts_by_name_orig = m_animated_ts_by_name;
@@ -1212,6 +2486,7 @@ void RoomData::CommitAllChanges()
     m_blocksets_orig = m_blocksets;
     m_lava_palette_orig = m_lava_palette;
     m_maps_orig = m_maps;
+    m_map_order_orig = m_map_order;
     m_room_pals_orig = m_room_pals;
     m_tilesets_orig = m_tilesets;
     m_warp_palette_orig = m_warp_palette;
@@ -1262,6 +2537,11 @@ bool RoomData::LoadAsmFilenames()
         retval = retval && GetFilenameFromAsm(f, RomLabels::Rooms::LIFESTOCK_SOLD_FLAGS, m_lifestock_sold_flag_data_filename);
         retval = retval && GetFilenameFromAsm(f, RomLabels::Rooms::BIG_TREE_LOCATIONS, m_bigtree_data_filename);
         retval = retval && GetFilenameFromAsm(f, RomLabels::Rooms::LANTERN_ROOM_FLAGS, m_lantern_flag_data_filename);
+        // Not a labelled data include, so it has no entry in the main asm to look up.
+        // Resolve it by walking the Defines include tree, and do not fail the load if
+        // the project does not have one.
+        m_room_constants_filename = AsmFile::FindDefineInclude(GetAsmFilename(), GetBasePath(),
+            RomLabels::DEFINES_SECTION, RomLabels::Rooms::ROOM_CONSTANTS_FILE);
         return retval;
     }
     catch (...)
@@ -1300,6 +2580,7 @@ void RoomData::SetDefaultFilenames()
     if (m_lifestock_sold_flag_data_filename.empty())      m_lifestock_sold_flag_data_filename      = RomLabels::Rooms::LIFESTOCK_SOLD_FLAGS_FILE;
     if (m_bigtree_data_filename.empty())                  m_bigtree_data_filename                  = RomLabels::Rooms::BIG_TREE_LOCATIONS_FILE;
     if (m_lantern_flag_data_filename.empty())             m_lantern_flag_data_filename             = RomLabels::Rooms::LANTERN_ROOM_FILE;
+    if (m_room_constants_filename.empty())                m_room_constants_filename                = RomLabels::Rooms::ROOM_CONSTANTS_FILE;
 }
 
 bool RoomData::CreateDirectoryStructure(const std::filesystem::path& dir)
@@ -1334,6 +2615,7 @@ bool RoomData::CreateDirectoryStructure(const std::filesystem::path& dir)
     retval = retval && CreateDirectoryTree(dir / m_lifestock_sold_flag_data_filename);
     retval = retval && CreateDirectoryTree(dir / m_bigtree_data_filename);
     retval = retval && CreateDirectoryTree(dir / m_lantern_flag_data_filename);
+    retval = retval && CreateDirectoryTree(dir / m_room_constants_filename);
 
     for (const auto& m : m_maps)
     {
@@ -1374,6 +2656,41 @@ bool RoomData::AsmLoadRoomTable()
     return false;
 }
 
+bool RoomData::AsmLoadRoomConstants()
+{
+    m_room_constants.clear();
+    if (m_room_constants_filename.empty())
+    {
+        return true;
+    }
+    const auto path = GetBasePath() / m_room_constants_filename;
+    if (!std::filesystem::exists(path))
+    {
+        return true;
+    }
+    try
+    {
+        // The file holds nothing but room constants, so take every define it declares
+        // rather than filtering on the ROOM_ prefix - a project is free to rename them.
+        AsmFile file(path);
+        AsmFile::Define define;
+        while (file.IsGood())
+        {
+            file >> define;
+            if (define.value >= 0 && define.value < static_cast<int64_t>(MAX_ROOMS))
+            {
+                m_room_constants[define.name] = static_cast<uint16_t>(define.value);
+            }
+        }
+    }
+    catch (const std::exception&)
+    {
+        // A malformed or unexpected line ends the read; keep whatever parsed cleanly.
+    }
+    m_room_constants_orig = m_room_constants;
+    return true;
+}
+
 bool RoomData::AsmLoadMaps()
 {
     try
@@ -1388,8 +2705,10 @@ bool RoomData::AsmLoadMaps()
             auto raw_data = std::make_shared<std::vector<uint8_t>>(ReadBytes(mapfile));
             auto map_entry = Tilemap3DEntry::Create(this, ReadBytes(mapfile), lbl, inc.path);
             m_maps[lbl] = map_entry;
+            m_map_order.push_back(lbl);
         }
         m_maps_orig = m_maps;
+        m_map_order_orig = m_map_order;
         return true;
     }
     catch (const std::exception&)
@@ -1773,6 +3092,7 @@ bool RoomData::RomLoadRoomData(const Rom& rom)
             auto map_entry = Tilemap3DEntry::Create(this, rom.read_array<uint8_t>(begin, end - begin), name, fname);
             map_entry->SetStartAddress(begin);
             m_maps.insert(std::make_pair(name, map_entry));
+            m_map_order.push_back(name);
         }
         for (auto& room : m_roomlist)
         {
@@ -1780,6 +3100,7 @@ bool RoomData::RomLoadRoomData(const Rom& rom)
             m_roomlist_orig.push_back(std::make_shared<Room>(*room));
         }
         m_maps_orig = m_maps;
+        m_map_order_orig = m_map_order;
         return true;
     }
     catch (...)
@@ -2109,10 +3430,11 @@ bool RoomData::AsmSaveMaps(const std::filesystem::path& dir)
     {
         AsmFile file;
         file.WriteFileHeader(m_map_data_filename, "Map data include file");
-        for (auto& map : m_maps)
+        for (const auto& name : m_map_order)
         {
-            file << AsmFile::Label(map.first) << AsmFile::IncludeFile(map.second->GetFilename(), AsmFile::FileType::BINARY);
-            if (!map.second->Save(dir))
+            const auto map = m_maps.at(name);
+            file << AsmFile::Label(name) << AsmFile::IncludeFile(map->GetFilename(), AsmFile::FileType::BINARY);
+            if (!map->Save(dir))
             {
                 return false;
             }
@@ -2140,6 +3462,37 @@ bool RoomData::AsmSaveRoomData(const std::filesystem::path& dir)
         auto f = dir / m_room_data_filename;
         file.WriteFile(f);
         return true;
+    }
+    catch (const std::exception&)
+    {
+    }
+    return false;
+}
+
+bool RoomData::AsmSaveRoomConstants(const std::filesystem::path& dir)
+{
+    // Nothing to write for ROM-loaded projects, which never had an include file. Do not
+    // create an empty one - the disassembly's copy is the authority in that case.
+    if (m_room_constants.empty() || m_room_constants_filename.empty())
+    {
+        return true;
+    }
+    try
+    {
+        // Emitted in room order so the file reads as a map of the game, matching how the
+        // disassembly maintains it by hand.
+        std::vector<std::pair<std::string, uint16_t>> sorted(m_room_constants.cbegin(), m_room_constants.cend());
+        std::sort(sorted.begin(), sorted.end(), [](const auto& lhs, const auto& rhs)
+        {
+            return std::tie(lhs.second, lhs.first) < std::tie(rhs.second, rhs.first);
+        });
+        AsmFile file;
+        file.WriteFileHeader(m_room_constants_filename, "Room index constants");
+        for (const auto& c : sorted)
+        {
+            file << AsmFile::Define(c.first, c.second);
+        }
+        return file.WriteFile(dir / m_room_constants_filename);
     }
     catch (const std::exception&)
     {
@@ -2380,7 +3733,7 @@ bool RoomData::AsmSaveAnimatedTilesetData(const std::filesystem::path& dir)
 
 bool RoomData::AsmSaveChestData(const std::filesystem::path& dir)
 {
-    auto result = m_chests.GetData(GetRoomCount());
+    auto result = m_chests.GetData(static_cast<int>(GetRoomCount()));
     WriteBytes(result.first, dir / m_chest_offset_data_filename);
     WriteBytes(result.second, dir / m_chest_data_filename);
     return true;
@@ -2388,7 +3741,7 @@ bool RoomData::AsmSaveChestData(const std::filesystem::path& dir)
 
 bool RoomData::AsmSaveDoorData(const std::filesystem::path& dir)
 {
-    auto result = m_doors.GetData(GetRoomCount());
+    auto result = m_doors.GetData(static_cast<int>(GetRoomCount()));
     WriteBytes(result.first, dir / m_door_offset_data_filename);
     WriteBytes(result.second, dir / m_door_table_data_filename);
     return true;
@@ -2423,8 +3776,8 @@ bool RoomData::RomPrepareInjectMiscWarp(const Rom& rom)
     m_pending_writes.push_back({ RomLabels::Rooms::MISC_WARP_SECTION, pend_write });
 
     uint32_t fall_addr = rom.get_section(RomLabels::Rooms::MISC_WARP_SECTION).begin;
-    uint32_t climb_addr = fall_addr + fall_bytes.size();
-    uint32_t transition_addr = climb_addr + climb_bytes.size();
+    uint32_t climb_addr = fall_addr + static_cast<uint32_t>(fall_bytes.size());
+    uint32_t transition_addr = climb_addr + static_cast<uint32_t>(climb_bytes.size());
 
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::FALL_TABLE_LEA_LOC, fall_addr));
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::CLIMB_TABLE_LEA_LOC, climb_addr));
@@ -2440,13 +3793,14 @@ bool RoomData::RomPrepareInjectRoomData(const Rom& rom)
     std::vector<uint8_t> map_bytes;
     std::vector<uint8_t> pal_bytes;
     auto bytes = std::make_shared<std::vector<uint8_t>>();
-    uint32_t roomlist_size = m_roomlist.size() * 8;
+    uint32_t roomlist_size = static_cast<uint32_t>(m_roomlist.size()) * 8;
     uint32_t data_begin = rom.get_section(RomLabels::Rooms::ROOM_DATA_SECTION).begin;
     auto warp_bytes = m_warps.GetWarpBytes();
-    for (auto& map : m_maps)
+    for (const auto& name : m_map_order)
     {
-        map_addrs.insert({ map.first, static_cast<uint32_t>(map_bytes.size() + roomlist_size + data_begin) });
-        auto mbytes = map.second->GetBytes();
+        const auto map = m_maps.at(name);
+        map_addrs.insert({ name, static_cast<uint32_t>(map_bytes.size() + roomlist_size + data_begin) });
+        auto mbytes = map->GetBytes();
         map_bytes.insert(map_bytes.end(), mbytes->begin(), mbytes->end());
     }
     for (const auto& room : m_roomlist)
@@ -2462,13 +3816,13 @@ bool RoomData::RomPrepareInjectRoomData(const Rom& rom)
     {
         bytes->push_back(0xFF);
     }
-    uint32_t pal_begin = data_begin + bytes->size();
+    uint32_t pal_begin = data_begin + static_cast<uint32_t>(bytes->size());
     for (auto& pal : m_room_pals)
     {
         auto pbytes = pal->GetBytes();
         bytes->insert(bytes->end(), pbytes->begin(), pbytes->end());
     }
-    uint32_t warp_begin = data_begin + bytes->size();
+    uint32_t warp_begin = data_begin + static_cast<uint32_t>(bytes->size());
     bytes->insert(bytes->end(), warp_bytes.begin(), warp_bytes.end());
     m_pending_writes.push_back({ RomLabels::Rooms::ROOM_DATA_SECTION, bytes });
     m_pending_writes.push_back({ RomLabels::Rooms::ROOM_DATA_PTR, std::make_shared<std::vector<uint8_t>>(Split<uint8_t>(data_begin)) });
@@ -2505,7 +3859,7 @@ bool RoomData::RomPrepareInjectBlocksetData(const Rom& rom)
     std::map<std::string, uint32_t> blockset_addrs;
     uint32_t base = rom.get_section(RomLabels::Blocksets::SECTION).begin;
     uint32_t pri_size = (64 + 1) * 4;
-    uint32_t sec_size = m_blocksets.size() * 4;
+    uint32_t sec_size = static_cast<uint32_t>(m_blocksets.size()) * 4;
     uint32_t blockset_data_offset = base + pri_size + sec_size;
     ByteVectorPtr bytes = std::make_shared<ByteVector>();
     ByteVector blocks;
@@ -2549,17 +3903,17 @@ bool RoomData::RomPrepareInjectBlocksetData(const Rom& rom)
 
 bool RoomData::RomPrepareInjectTilesetData(const Rom& rom)
 {
-    const std::size_t tilesets_begin = rom.get_section(RomLabels::Tilesets::SECTION).begin;
+    const uint32_t tilesets_begin = rom.get_section(RomLabels::Tilesets::SECTION).begin;
     auto bytes = std::make_shared<ByteVector>();
     ByteVector tilesets;
-    const uint32_t misc_pointer_space = (2 + m_animated_ts.size()) * sizeof(uint32_t);
+    const uint32_t misc_pointer_space = static_cast<uint32_t>((2 + m_animated_ts.size()) * sizeof(uint32_t));
     const uint32_t tileset_pointer_space = 32 * sizeof(uint32_t);
     const uint32_t tileset_base = tilesets_begin + misc_pointer_space + tileset_pointer_space;
     std::map<std::string, uint32_t> addrs;
 
     for (const auto& ts : m_tilesets_by_name)
     {
-        addrs[ts.first] = tileset_base + tilesets.size();
+        addrs[ts.first] = tileset_base + static_cast<uint32_t>(tilesets.size());
         auto data = ts.second->GetBytes();
         tilesets.insert(tilesets.end(), data->cbegin(), data->cend());
     }
@@ -2569,11 +3923,11 @@ bool RoomData::RomPrepareInjectTilesetData(const Rom& rom)
     }
     for (const auto& ts : m_animated_ts_by_name)
     {
-        addrs[ts.first] = tileset_base + tilesets.size();
+        addrs[ts.first] = tileset_base + static_cast<uint32_t>(tilesets.size());
         auto data = ts.second->GetBytes();
         tilesets.insert(tilesets.end(), data->cbegin(), data->cend());
     }
-    addrs[m_intro_font->GetName()] = tileset_base + tilesets.size();
+    addrs[m_intro_font->GetName()] = tileset_base + static_cast<uint32_t>(tilesets.size());
     auto data = m_intro_font->GetBytes();
     tilesets.insert(tilesets.end(), data->cbegin(), data->cend());
 
@@ -2583,7 +3937,7 @@ bool RoomData::RomPrepareInjectTilesetData(const Rom& rom)
         dest->insert(dest->end(), ptrbytes.cbegin(), ptrbytes.cend());
     };
 
-    insert_pointer(bytes, tilesets_begin + misc_pointer_space);
+    insert_pointer(bytes, static_cast<uint32_t>(tilesets_begin + misc_pointer_space));
     for (const auto& ts : m_animated_ts_by_name)
     {
         insert_pointer(bytes, addrs.at(ts.first));
@@ -2635,7 +3989,7 @@ bool RoomData::RomPrepareInjectAnimatedTilesetData(const Rom& rom)
         bytes->push_back(ts.second->GetData()->GetFrameSizeBytes() & 0xFF);
         bytes->push_back(ts.second->GetData()->GetAnimationSpeed());
         bytes->push_back(ts.second->GetData()->GetAnimationFrames());
-        auto ptr = Split<uint8_t, uint32_t>(tilesets_begin + (i * sizeof(uint32_t)));
+        auto ptr = Split<uint8_t, uint32_t>(static_cast<uint32_t>(tilesets_begin + (i * sizeof(uint32_t))));
         bytes->insert(bytes->end(), ptr.cbegin(), ptr.cend());
         i++;
     }
@@ -2647,9 +4001,9 @@ bool RoomData::RomPrepareInjectAnimatedTilesetData(const Rom& rom)
 
 bool RoomData::RomPrepareInjectChestData(const Rom& rom)
 {
-    auto results = m_chests.GetData(GetRoomCount());
+    auto results = m_chests.GetData(static_cast<int>(GetRoomCount()));
     uint32_t offsets_begin = rom.get_section(RomLabels::Rooms::CHEST_SECTION).begin;
-    uint32_t chests_begin = offsets_begin + results.first.size();
+    uint32_t chests_begin = offsets_begin + static_cast<uint32_t>(results.first.size());
     auto data = std::make_shared<ByteVector>(results.first);
     data->insert(data->end(), results.second.begin(), results.second.end());
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::CHEST_OFFSETS, offsets_begin));
@@ -2660,9 +4014,9 @@ bool RoomData::RomPrepareInjectChestData(const Rom& rom)
 
 bool RoomData::RomPrepareInjectDoorData(const Rom& rom)
 {
-    auto result = m_doors.GetData(GetRoomCount());
+    auto result = m_doors.GetData(static_cast<int>(GetRoomCount()));
     uint32_t offsets_begin = rom.get_section(RomLabels::Rooms::DOOR_TABLE_SECTION).begin;
-    uint32_t doors_begin = offsets_begin + result.first.size();
+    uint32_t doors_begin = offsets_begin + static_cast<uint32_t>(result.first.size());
     auto data = std::make_shared<ByteVector>(result.first);
     data->insert(data->end(), result.second.begin(), result.second.end());
     m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Rooms::DOOR_OFFSET_TABLE, offsets_begin));
@@ -2678,9 +4032,9 @@ bool RoomData::RomPrepareInjectGfxSwapData(const Rom& rom)
     auto tree_bytes = EncodeTreeWarp(m_gfxswap_big_tree_flags);
     auto table_bytes = m_gfxswaps.GetData();
     uint32_t flags_begin = rom.get_section(RomLabels::Rooms::GFX_SWAP_SECTION).begin;
-    uint32_t doors_begin = flags_begin + flag_bytes.size();
-    uint32_t trees_begin = doors_begin + door_bytes.size();
-    uint32_t table_begin = trees_begin + tree_bytes.size();
+    uint32_t doors_begin = flags_begin + static_cast<uint32_t>(flag_bytes.size());
+    uint32_t trees_begin = doors_begin + static_cast<uint32_t>(door_bytes.size());
+    uint32_t table_begin = trees_begin + static_cast<uint32_t>(tree_bytes.size());
     auto data = std::make_shared<ByteVector>(flag_bytes);
     data->insert(data->end(), door_bytes.begin(), door_bytes.end());
     data->insert(data->end(), tree_bytes.begin(), tree_bytes.end());

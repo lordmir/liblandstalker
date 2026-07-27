@@ -1,5 +1,7 @@
 #include <landstalker/main/DataTypes.h>
 
+#include <algorithm>
+
 namespace Landstalker {
 
 std::shared_ptr<TilesetEntry> TilesetEntry::Create(DataManager* owner, const ByteVector& b, const std::string& name, const std::filesystem::path& filename, bool compressed, std::size_t width, std::size_t height, uint8_t bit_depth, Tileset::BlockType blocktype)
@@ -21,6 +23,76 @@ bool TilesetEntry::Deserialise(const ByteVectorPtr in, std::shared_ptr<Tileset>&
 	out->SetParams(m_width, m_height, m_bit_depth, m_blocktype);
 	in->resize(out->SetBits(*in, m_compressed));
 	return true;
+}
+
+std::shared_ptr<EndCreditFontEntry> EndCreditFontEntry::Create(DataManager* owner, const ByteVector& b, const std::string& name, const std::filesystem::path& filename)
+{
+	auto o = std::make_shared<EndCreditFontEntry>(owner, b, name, filename);
+	o->Initialise();
+	return o;
+}
+
+bool EndCreditFontEntry::Serialise(const std::shared_ptr<Tileset> in, ByteVectorPtr out)
+{
+	EndCreditFont font(*in);
+	font.SetGlyphWidths(m_widths);
+	*out = font.GetBits(true);
+	return true;
+}
+
+bool EndCreditFontEntry::Deserialise(const ByteVectorPtr in, std::shared_ptr<Tileset>& out)
+{
+	auto font = std::make_shared<EndCreditFont>();
+	in->resize(font->SetBits(*in, true));
+	m_widths = font->GetGlyphWidths();
+	m_orig_widths = m_widths;
+	m_saved_widths = m_widths;
+	out = font;
+	return true;
+}
+
+bool EndCreditFontEntry::HasDataChanged() const
+{
+	return m_widths != m_orig_widths || TilesetEntry::HasDataChanged();
+}
+
+bool EndCreditFontEntry::HasSavedDataChanged() const
+{
+	return m_widths != m_saved_widths || TilesetEntry::HasSavedDataChanged();
+}
+
+void EndCreditFontEntry::Commit()
+{
+	TilesetEntry::Commit();
+	m_saved_widths = m_widths;
+}
+
+void EndCreditFontEntry::AbandonChanges()
+{
+	m_widths = m_saved_widths;
+	TilesetEntry::AbandonChanges();
+}
+
+uint8_t EndCreditFontEntry::GetGlyphWidth(std::size_t glyph_index) const
+{
+	const uint8_t recorded = (glyph_index < m_widths.size()) ? m_widths[glyph_index] : 0;
+	// Widening a glyph to fit its pixels needs the pixels; before Initialise() has deserialised
+	// them there are none, and the recorded width stands on its own.
+	const auto tileset = GetData();
+	if (tileset == nullptr)
+	{
+		return std::max(recorded, EndCreditFont::MIN_GLYPH_WIDTH);
+	}
+	return EndCreditFont::ResolveGlyphWidth(*tileset, glyph_index, recorded);
+}
+
+void EndCreditFontEntry::SetGlyphWidth(std::size_t glyph_index, uint8_t width)
+{
+	// Round-tripped through an empty font so that the clamping lives in one place.
+	EndCreditFont font;
+	font.SetGlyphWidths(m_widths);
+	font.SetGlyphWidth(glyph_index, width);
+	m_widths = font.GetGlyphWidths();
 }
 
 std::shared_ptr<PaletteEntry> PaletteEntry::Create(DataManager* owner, const ByteVector& b, const std::string& name, const std::filesystem::path& filename, Palette::Type type)

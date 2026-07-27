@@ -10,6 +10,7 @@
 #include <landstalker/behaviours/Behaviours.h>
 #include <landstalker/misc/Point.h>
 #include <landstalker/main/StringData.h>
+#include <landstalker/main/ImageBuffer.h>
 
 namespace Landstalker {
 
@@ -102,6 +103,51 @@ public:
 		Hitbox(uint8_t b, uint8_t h) : base(b), height(h) {}
 	};
 
+	// A Friday overlay-animation table (fridayanimNN.bin): the sprite starts at (start_x, start_y)
+	// and is moved along a list of waypoints, one straight-line segment at a time. Encoding is a
+	// [Y][X] header word pair, then per waypoint a [steps][X][Y] triple (the engine interpolates to
+	// (x, y) over steps+1 = `frames` frames), terminated by a word with bit 15 set. All values are
+	// big-endian words; note the header is Y-then-X while a waypoint is X-then-Y.
+	struct FridayAnimation
+	{
+		struct Waypoint
+		{
+			uint16_t x = 0;       // target VDP sprite X
+			uint16_t y = 0;       // target VDP sprite Y
+			uint16_t frames = 1;  // frames spent moving to (x, y); stored on disk as frames-1
+		};
+		uint16_t start_x = 0;
+		uint16_t start_y = 0;
+		std::vector<Waypoint> waypoints;
+
+		FridayAnimation() = default;
+		// Decodes a raw table; a truncated/empty blob yields an empty path.
+		explicit FridayAnimation(const ByteVector& bytes);
+		// Re-encodes to the on-disk form, always terminated by 0xFFFF.
+		ByteVector Serialise() const;
+	};
+
+	// A room has 3 shared sprite-palette VDP slots: palette 1's low (colours 2-7) and high
+	// (colours 8-14) halves, and palette 3's low half (its high half belongs to the HUD).
+	// An entity's Entity::GetPalette() (0=Room, 1=Sprite Lo/Hi, 2=Player, 3=Sprite Lo+HUD)
+	// selects which of these it draws into (gamelogic\spritefuncs3.asm GetSpritePalette).
+	enum class SpritePaletteSlot
+	{
+		Palette1Low,
+		Palette1High,
+		Palette3Low
+	};
+
+	// Two entities in one room whose GetPalette() targets the same physical slot but with
+	// different palette data: whichever loads second overwrites the other's colours in-game
+	// (spritefuncs3.asm _conflict beeps a debug alarm, then overwrites anyway).
+	struct PaletteSlotClash
+	{
+		SpritePaletteSlot slot;
+		std::size_t first;   // index into the entities vector passed to FindPaletteClashes
+		std::size_t second;
+	};
+
 	struct SpriteMetadata
 	{
 		unsigned int frame_width;
@@ -110,7 +156,7 @@ public:
 		Point origin;
 		AnimationFlags animation_flags;
 		Hitbox hitbox;
-		unsigned int volume;
+		unsigned int max_tile_count;
 		std::vector<int> compressed_frames;
 		std::map<std::string, std::vector<int>> animations;
 	};
@@ -139,13 +185,176 @@ public:
 	static std::wstring GetSpriteDisplayName(uint8_t id);
 	std::wstring GetSpriteAnimationDisplayName(uint8_t id, const std::string& name) const;
 	std::wstring GetSpriteFrameDisplayName(uint8_t id, const std::string& name) const;
+	// As GetSpriteFrameDisplayName, but annotated with the frame's role within a specific
+	// animation, e.g. "<name> [Walk NE 2]". Frames past the animation's expected length, or
+	// in an animation slot with no recognised role, are tagged "[Unused N]".
+	std::wstring GetSpriteAnimationFrameDisplayName(uint8_t id, uint8_t anim_id, int frame_pos, const std::string& name) const;
 	static std::wstring GetSpriteLowPaletteDisplayName(uint8_t id);
 	static std::wstring GetSpriteHighPaletteDisplayName(uint8_t id);
 	static std::wstring GetBehaviourDisplayName(int behav_id);
 	SpriteMetadata GetSpriteMetadata(uint8_t id) const;
 	std::string GetSpriteMetadataYaml(uint8_t id) const;
+
+	// A single image holding every unique frame the sprite's animations reference, laid out in a
+	// uniform grid. Every cell is the same size (the union bounding box of all frames) and each
+	// frame is aligned so its origin lands on the shared origin, so cells line up when flipped
+	// through animations. Cells follow the same frame order GetSpriteMetadataYaml() indexes, so the
+	// YAML's per-animation frame indices map to sheet cells row-major.
+	struct SpriteSheet
+	{
+		ImageBuffer image;    // palette index 0; supply the sprite palette when writing to PNG
+		int columns = 0;
+		int rows = 0;
+		int cell_width = 0;
+		int cell_height = 0;
+		Point origin;         // position of the shared origin within every cell
+		unsigned int frame_count = 0;
+	};
+	// columns <= 0 chooses a square-ish grid.
+	SpriteSheet MakeSpriteSheet(uint8_t id, int columns = 0) const;
+
+	// The palette the editor shows this sprite with: the first entity that uses it supplies the
+	// palette, otherwise the default sprite palette. Matches the sprite/entity preview panes.
+	std::shared_ptr<Palette> GetSpriteDisplayPalette(uint8_t id) const;
+
+	enum class SpriteSheetResult { Written, NoFrames, ImageWriteFailed, MetadataWriteFailed };
+	// Writes sprite `id`'s uniform-cell sheet (MakeSpriteSheet, `columns` per row) to png_path using
+	// `palettes`, and a sibling .yaml holding `prefix_yaml` (e.g. entity metadata; may be empty), the
+	// sprite metadata, and the sheet's grid layout so a frame index maps to a cell row-major.
+	SpriteSheetResult WriteSpriteSheet(uint8_t id, const std::filesystem::path& png_path,
+		const std::vector<std::shared_ptr<Palette>>& palettes, int columns = 8,
+		const std::string& prefix_yaml = std::string()) const;
+
 	EntityMetadata GetEntityMetadata(uint8_t id, std::shared_ptr<StringData> sd) const;
 	std::string GetEntityMetadataYaml(uint8_t id, std::shared_ptr<StringData> sd) const;
+	// Applies the metadata (palettes, talk sound, item properties, enemy stats) from a
+	// GetEntityMetadataYaml() block to an existing entity. The YAML may hold several top-level
+	// blocks (as the sprite-sheet export writes) - the one carrying "entity_id" is used. Only the
+	// fields present are changed. Returns false if the entity does not exist or no block parsed.
+	bool ApplyEntityMetadataYaml(uint8_t id, const std::string& yaml_data, std::shared_ptr<StringData> sd);
+
+	// The sprite graphics id is a byte, and the animation offset table the game indexes is
+	// dense from 0, so sprites can be appended, moved or removed but never left with a gap.
+	static constexpr std::size_t MAX_SPRITES = 256;
+
+	// Sprite, animation and frame names all become assembly labels, so a name is only usable
+	// if nothing of any of those kinds already carries it.
+	static bool IsValidSpriteName(const std::string& name);
+	bool IsSpriteNameInUse(const std::string& name) const;
+	// Appends a sprite in the next free id, complete with the one animation, one frame and
+	// one 1x1 subsprite a sprite needs to be drawable. Returns the new id, or nullopt if the
+	// name is unusable or the id space is full.
+	std::optional<uint8_t> AddSprite(const std::string& name);
+	bool RenameSprite(uint8_t id, const std::string& new_name);
+	// Exchanges the content of two sprite ids - each sprite's animations, frames, max tile count,
+	// dimensions, flags and labels - while leaving the entity-to-sprite lookup untouched, so
+	// the two sprites swap places in every entity that draws them. This "move by content" is
+	// deliberately unlike a reference-renumbering reorder. Note that the disassembly's SpriteB_
+	// constants name graphics ids by value; like any reorder, this changes which sprite an id
+	// (and therefore such a constant) resolves to, and neither approach rewrites sprites.inc.
+	bool SwapSprites(uint8_t a, uint8_t b);
+	// A DeleteSprite refuses while any entity points at the sprite; GetEntitiesFromSprite
+	// names them so a caller can warn first.
+	bool IsSpriteUsedByEntities(uint8_t id) const;
+	// Removes a sprite together with its animations and frames, pulling every higher id down
+	// by one and renumbering their references. Refuses while an entity still points at it,
+	// and refuses to remove the last remaining sprite. Not undoable.
+	bool DeleteSprite(uint8_t id);
+	// Recreates a sprite from the YAML produced by GetSpriteMetadataYaml plus the frame
+	// binaries it names, appending it under new_name. frame_dir is where the .frm files sit.
+	// Returns the new id, or nullopt on any failure (bad name, unreadable frames, full).
+	std::optional<uint8_t> ImportSprite(const std::string& new_name, const std::string& yaml_data,
+		const std::filesystem::path& frame_dir);
+
+	enum class SpriteSheetImportResult
+	{
+		Success,
+		BadName,        // new_name is invalid or already taken
+		YamlMissing,    // the metadata YAML does not exist
+		YamlInvalid,    // the YAML could not be parsed, or lacks a "spritesheet" block
+		PngMissing,     // the image the YAML names does not exist
+		PngUnreadable,  // libpng could not decode the file
+		PngNotIndexed,  // the PNG is not a colour-indexed (palette) image
+		PngWrongSize,   // the PNG is not columns*cell_width x rows*cell_height
+		PngBadColour,   // a pixel index exceeds 15 (sprites are 4bpp)
+		FrameTooComplex,// a cell needs more than the 8 hardware subsprites to represent
+		NoFrames,       // frame_count resolved to zero
+		IdSpaceFull     // no free sprite id
+	};
+	// Appends a new sprite built from an already-decoded indexed image plus explicit grid geometry
+	// (rather than a YAML): `pixels` is row-major one index per pixel, `img_width` x `img_height`;
+	// the first `frame_count` cells of a cell_width x cell_height grid (row-major) each become a
+	// frame, with pixels placed relative to `origin`. The sprite gets one animation walking every
+	// frame. Used by the interactive import dialog. Returns the new id or nullopt with `result` set.
+	// Everything an import dialog and the pixel import need from a sprite-sheet YAML: grid geometry
+	// to seed the controls plus the animations and metadata to restore. yaml-free so the editor
+	// need not link it.
+	struct SpriteSheetInfo
+	{
+		bool found = false;                        // a "spritesheet" block was present
+		int cell_width = 0;
+		int cell_height = 0;
+		int frame_count = 0;                       // -1 (or 0) when the YAML did not pin it
+		int origin_x = 0;
+		int origin_y = 0;
+		std::vector<std::string> animation_names;  // for display; parallel to `animations`
+		std::vector<std::vector<int>> animations;  // frame index lists, empty => one all-frames anim
+		uint16_t max_tile_count = 0;               // 0 => derive from the frames
+		bool has_hitbox = false;
+		uint8_t hitbox_base = 0;
+		uint8_t hitbox_height = 0;
+		bool has_flags = false;
+		AnimationFlags flags;
+	};
+	// Reads the geometry, animations and metadata from a sprite-sheet YAML. Returns false (leaving
+	// `out.found` false) when the file is missing or has no spritesheet block.
+	static bool ReadSpriteSheetInfo(const std::filesystem::path& yaml_path, SpriteSheetInfo& out);
+
+	std::optional<uint8_t> ImportSpriteSheetPixels(const std::string& new_name,
+		const std::vector<uint8_t>& pixels, int img_width, int img_height,
+		int cell_width, int cell_height, int frame_count, const Point& origin,
+		const SpriteSheetInfo& info, SpriteSheetImportResult& result);
+	// As ImportSpriteSheetPixels, but replaces an existing sprite in place from a decoded image and
+	// explicit geometry: its frames, animations and metadata are rebuilt while its id, name, display
+	// label and entity links are kept. Returns false with `result` set on failure.
+	bool ImportSpriteSheetIntoExistingPixels(uint8_t id, const std::vector<uint8_t>& pixels,
+		int img_width, int img_height, int cell_width, int cell_height, int frame_count,
+		const Point& origin, const SpriteSheetInfo& info, SpriteSheetImportResult& result);
+
+	// Applies the metadata (max tile count, hitbox, animation flags) from a GetSpriteMetadataYaml() block to
+	// an existing sprite, leaving its frames and animations untouched. The YAML may hold several
+	// top-level blocks (as the sprite-sheet export writes) - the one carrying "sprite_id" is used.
+	// Returns false if the sprite does not exist or no sprite block could be parsed.
+	bool ApplySpriteMetadataYaml(uint8_t id, const std::string& yaml_data);
+
+	// --- Entity management ---
+	// An entity is a {type -> sprite graphics} entry the game resolves by a linear search, so
+	// entity ids need be neither dense nor contiguous. Items occupy the fixed range 0xC0..0xFE
+	// (GetSpriteFromEntity maps them all to the item-box sprite) and cannot be added, moved or
+	// deleted here - the 0xC0 boundary is the only thing that makes an entity an item.
+	static constexpr uint8_t FIRST_ITEM_ENTITY = 0xC0;
+	std::size_t GetEntityCount() const;
+	// The entity ids in use, in ascending order.
+	std::vector<uint8_t> GetEntityIds() const;
+	// Lowest free non-item id, or nullopt when 0x00..0xBF are all taken.
+	std::optional<uint8_t> GetFreeEntityId() const;
+	// Appends a non-item entity at the lowest free id, pointing at sprite_id with the given
+	// palette indices (-1 for none). Returns the new id, or nullopt if sprite_id is not a
+	// sprite or no free id remains.
+	std::optional<uint8_t> AddEntity(uint8_t sprite_id, int lo_palette, int hi_palette);
+	// True while some room places an entity of this type; GetRoomsUsingEntity names them so a
+	// delete can refuse and explain.
+	bool IsEntityUsedInRooms(uint8_t id) const;
+	std::vector<uint16_t> GetRoomsUsingEntity(uint8_t id) const;
+	// Removes a non-item entity together with everything keyed to its id: the sprite lookup,
+	// palette lookups, enemy stats, talk sfx (which lives in StringData) and display label.
+	// Refuses for items and for any entity a room still uses.
+	bool DeleteEntity(uint8_t id, const std::shared_ptr<StringData>& strings);
+	// Exchanges everything keyed to two non-item entity ids while leaving room references
+	// untouched: the rooms keep their type bytes, but the two entities swap sprite, palettes,
+	// enemy stats, talk sfx and label. Refuses if either id is an item. This "move by content"
+	// is deliberately unlike the sprite/tileset reorder, which renumbers references instead.
+	bool SwapEntities(uint8_t a, uint8_t b, const std::shared_ptr<StringData>& strings);
 
 	bool IsEntity(uint8_t id) const;
 	bool IsSprite(uint8_t id) const;
@@ -164,6 +373,31 @@ public:
 	Hitbox GetSpriteHitbox(uint8_t id) const;
 	Hitbox GetEntityHitbox(uint8_t id) const;
 	void SetSpriteHitbox(uint8_t id, const Hitbox& hitbox);
+
+	// Room-editor validation helpers mirroring engine limits that only manifest as debug-build
+	// alarms (or, for the piece budget, not even that - see GetRoomSpritePieceUsage) in
+	// gamelogic\spriterender.asm. The player is always sprite 0 and isn't part of a room's
+	// entity list, but still shares both budgets below with every placed entity: the piece
+	// budget looks up sprite 0's own default frame directly, while the VRAM budget instead
+	// adds a flat reservation for it (the engine always reserves that regardless of room; the
+	// same "look up sprite 0's real frame" approach would work there too, but the flat figure
+	// is the one actually cited in the disassembly).
+	std::vector<PaletteSlotClash> FindPaletteClashes(const std::vector<Entity>& entities) const;
+	// Sprite tiles stream into a fixed VRAM window from $03A8; the player always reserves a
+	// flat 44 ($2C) tiles there, entities with Entity::IsTileCopySet() reuse another sprite's
+	// already-loaded tiles instead of consuming new VRAM, everyone else adds their default
+	// frame's tile count (spriterender.asm _roomLoadSprite/_newVram/_bumpVram). Overflowing
+	// $04F4 (332 tiles from the base) beeps 11 times in a debug build (_chkOverflow).
+	static constexpr int SPRITE_VRAM_BUDGET_TILES = 0x04F4 - 0x03A8;
+	static constexpr int PLAYER_FIXED_VRAM_TILES = 0x2C;
+	int GetRoomSpriteVramTileUsage(const std::vector<Entity>& entities) const;
+	// Each entity's current frame emits up to 8 VDP hardware-sprite "pieces" (SpriteFrame::
+	// MAX_SUBSPRITES) into a fixed 64-slot table shared by every active entity (VDP sprites
+	// 16-79; spriterender.asm ResetVdpSprites/BuildVdpSpriteEntry). Unlike the VRAM budget,
+	// there is no debug alarm for this at all - it's an unbounded write that silently
+	// corrupts adjacent VDP sprites/DMA queue data past the limit.
+	static constexpr int SPRITE_PIECE_BUDGET = 64;
+	int GetRoomSpritePieceUsage(const std::vector<Entity>& entities) const;
 
 	bool SpriteFrameExists(const std::string& name) const;
 	void DeleteSpriteFrame(const std::string& name);
@@ -194,6 +428,11 @@ public:
 	std::shared_ptr<SpriteFrameEntry> GetSpriteFrame(uint8_t id, uint8_t frame) const;
 	std::shared_ptr<SpriteFrameEntry> GetSpriteFrame(uint8_t id, uint8_t anim, uint8_t frame) const;
 	std::shared_ptr<SpriteFrameEntry> GetSpriteFrame(const std::string& anim_name, uint8_t frame) const;
+	// Computes the minimum-waste subsprite layout for the named frame (the same cover the sheet
+	// import uses, capped at 6 subsprites) from its current pixels. Returns nullopt if the frame does
+	// not exist, is empty, or cannot be covered within the cap. The frame itself is left untouched -
+	// the caller applies the layout (e.g. through the editor, so the change is undoable).
+	std::optional<std::vector<SpriteFrame::SubSprite>> ComputeOptimalSubsprites(const std::string& frame_name);
 	uint32_t GetSpriteAnimationFrameCount(uint8_t id, uint8_t anim_id) const;
 	uint32_t GetSpriteAnimationFrameCount(const std::string& name) const;
 	std::vector<std::string> GetSpriteAnimationFrames(uint8_t id, uint8_t anim_id) const;
@@ -201,11 +440,20 @@ public:
 	std::vector<std::string> GetSpriteAnimationFrames(const std::string& name, uint8_t anim_id) const;
 	AnimationFlags GetSpriteAnimationFlags(uint8_t id) const;
 	void SetSpriteAnimationFlags(uint8_t id, const AnimationFlags& flags);
-	uint16_t GetSpriteVolume(uint8_t id) const;
-	void SetSpriteVolume(uint8_t id, uint16_t val);
+	// The number of VRAM tiles reserved for the sprite: it must be at least the tile count of the
+	// sprite's largest frame. Stored raw (not a fractional unit).
+	uint16_t GetSpriteMaxTileCount(uint8_t id) const;
+	void SetSpriteMaxTileCount(uint8_t id, uint16_t val);
 
 	std::vector<Entity> GetRoomEntities(uint16_t room) const;
 	void SetRoomEntities(uint16_t room, const std::vector<Entity>& entities);
+	// The game indexes the room entity offset table by room number with no bounds check,
+	// so the table has to cover every room even when the trailing ones have no entities.
+	std::size_t GetRoomEntityTableSize() const;
+	void SetRoomEntityTableSize(std::size_t rooms);
+	// Renumbers the room-keyed entity and flag tables this manager owns. Go through
+	// GameData::MoveRoom rather than calling this directly.
+	void RemapRooms(const RoomIndexMap& mapping);
 	std::vector<EntityFlag> GetEntityVisibilityFlagsForRoom(uint16_t room);
 	void SetEntityVisibilityFlagsForRoom(uint16_t room, const std::vector<EntityFlag>& data);
 	std::vector<OneTimeEventFlag> GetOneTimeEventFlagsForRoom(uint16_t room);
@@ -229,6 +477,23 @@ public:
 	std::shared_ptr<PaletteEntry> GetLoPalette(uint8_t idx) const;
 	uint8_t GetHiPaletteCount() const;
 	std::shared_ptr<PaletteEntry> GetHiPalette(uint8_t idx) const;
+
+	// Sprite low/high palettes are flat lists the entity palette LUT indexes. The LUT keeps the
+	// low/high distinction in bit 7, so each list holds at most 128. Add/remove/swap edit these
+	// lists the way the string editor edits strings; a swap exchanges colours in place, leaving
+	// the entity references pointing where they point.
+	static constexpr std::size_t MAX_SPRITE_PALETTES = 128;
+	bool IsLoPaletteUsed(uint8_t index) const;
+	bool IsHiPaletteUsed(uint8_t index) const;
+	std::vector<uint8_t> GetEntitiesUsingLoPalette(uint8_t index) const;
+	std::vector<uint8_t> GetEntitiesUsingHiPalette(uint8_t index) const;
+	std::optional<uint8_t> AddLoPalette();
+	std::optional<uint8_t> AddHiPalette();
+	bool DeleteLoPalette(uint8_t index);
+	bool DeleteHiPalette(uint8_t index);
+	bool SwapLoPalettes(uint8_t a, uint8_t b);
+	bool SwapHiPalettes(uint8_t a, uint8_t b);
+
 	uint8_t GetProjectile1PaletteCount() const;
 	std::shared_ptr<PaletteEntry> GetProjectile1Palette(uint8_t idx) const;
 	uint8_t GetProjectile2PaletteCount() const;
@@ -239,6 +504,39 @@ public:
 	EnemyStats GetEnemyStats(uint8_t entity_index) const;
 	void SetEnemyStats(uint8_t entity_index, const EnemyStats& stats);
 	void ClearEnemyStats(uint8_t entity_index);
+
+	// The raw item-menu inventory layout (InventoryItems) and equip-menu layout
+	// (EquipInventoryLayout) tables. Both are still stored and edited as opaque byte
+	// blobs; no structured accessors exist yet.
+	const ByteVector& GetInventoryItems() const;
+	void SetInventoryItems(const ByteVector& data);
+	const ByteVector& GetEquipInventoryLayout() const;
+	void SetEquipInventoryLayout(const ByteVector& data);
+
+	// The intro/demo input-playback table (InputPlayback). Stored and edited as an opaque byte
+	// blob of input+duration word pairs (0x80 marks end-of-sequence, 0xFE duration means hold);
+	// no structured accessors exist yet.
+	const ByteVector& GetInputPlayback() const;
+	void SetInputPlayback(const ByteVector& data);
+
+	// The 15 Friday overlay-animation waypoint tables (FridayAnimation1..15). Each is stored as
+	// an opaque byte blob; no structured accessors exist yet. The count is fixed by the engine.
+	static constexpr std::size_t NUM_FRIDAY_ANIMATIONS = 15;
+	std::size_t GetFridayAnimationCount() const;
+	const ByteVector& GetFridayAnimation(std::size_t index) const;
+	void SetFridayAnimation(std::size_t index, const ByteVector& data);
+	// The same tables decoded to / from their waypoint-path structure.
+	FridayAnimation GetFridayAnimationPath(std::size_t index) const;
+	void SetFridayAnimationPath(std::size_t index, const FridayAnimation& path);
+
+	// The sword/armour damage-modifier constants (damage.inc / ChargedSwordBoost + ArmourDefence).
+	// Each is a 16-bit fixed-point value; divide by 256.0 for the fractional multiplier. Keyed by
+	// the disassembly's equ names (e.g. MAGIC_SWORD_BOOST). In ASM mode these come from damage.inc;
+	// in ROM mode from the two data tables (four sword boosts, then five armour defences).
+	const std::map<std::string, uint16_t>& GetDamageConstants() const;
+	void SetDamageConstants(const std::map<std::string, uint16_t>& constants);
+	uint16_t GetDamageConstant(const std::string& name) const;
+	void SetDamageConstant(const std::string& name, uint16_t value);
 
 	std::map<int, std::string> GetScriptNames() const;
 	std::pair<std::string, std::vector<Behaviours::Command>> GetScript(int id) const;
@@ -252,6 +550,60 @@ private:
 	void SetDefaultFilenames();
 	bool CreateDirectoryStructure(const std::filesystem::path& dir);
 	void InitCache();
+
+	// The parsed, engine-ready contents of a sprite-sheet PNG+YAML pair. Free of yaml/png types so
+	// the read step and the (re)build step can be separate functions sharing it.
+	struct SpriteSheetContent
+	{
+		std::vector<std::vector<uint8_t>> frame_bytes; // one .frm byte stream per frame, grid order
+		std::vector<std::vector<int>> animations;      // frame indices per animation (may be empty)
+		uint16_t max_tile_count = 0;                   // 0 => derive from the frames
+		bool has_hitbox = false;
+		uint8_t hitbox_base = 0;
+		uint8_t hitbox_height = 0;
+		bool has_flags = false;
+		AnimationFlags flags;
+	};
+	// Builds frames (<prefix>Frame%02u), animations (<prefix>Anim%02u) and metadata onto sprite
+	// `id`, whose frame and animation lists must already be empty.
+	void PopulateSpriteFromSheet(uint8_t id, const std::string& prefix, const SpriteSheetContent& content);
+	// Slices `frame_count` cells from a decoded indexed image into frame byte streams and folds in
+	// the info's animations/metadata, filling `out`. Sets `result` and returns false on any problem.
+	bool BuildSheetContentFromPixels(const std::vector<uint8_t>& pixels, int img_width, int img_height,
+		int cell_width, int cell_height, int frame_count, const Point& origin,
+		const SpriteSheetInfo& info, SpriteSheetContent& out, SpriteSheetImportResult& result) const;
+
+	// Semantic role of one animation slot (ordinal) of a sprite, derived from its AnimationFlags.
+	// The game reaches each slot as AnimationIndex/4 in UpdateSpriteFrame (spritefuncs1.asm); a
+	// logical action occupies two consecutive ordinals - the NE bank (even) and SW bank (odd) -
+	// with NW/SE produced at runtime by h-flip. Some flag combinations overload one slot with
+	// several actions (e.g. a shared idle/walk bank), so label can list more than one role.
+	struct AnimationRole
+	{
+		std::string label;    // bracket text, e.g. "Idle/Walk NE" or "Unused 1"
+		bool unused;          // true when no game action maps to this slot
+		int expected_frames;  // frame count this action plays; extra frames are flagged unused; 0 = variable
+		int min_ok_frames;    // at/below this count the slot is a valid shorter role (idle), so no missing warning
+	};
+	// One entry per animation ordinal of the sprite, in list order.
+	std::vector<AnimationRole> ComputeSpriteAnimationRoles(uint8_t id) const;
+	// Rewrites every sprite id in the project to follow the given old -> new mapping, which
+	// must cover each affected id exactly once. An id mapped to -1 is being deleted and its
+	// animations and frames must already have been removed. Shared by SwapSprites and
+	// DeleteSprite, which differ only in the mapping they build.
+	// remap_entity_references false leaves the entity -> sprite lookup alone, so the content
+	// moves between ids but the references do not follow it - SwapSprites relies on this.
+	void RemapSprites(const std::map<uint8_t, int>& mapping, bool remap_entity_references = true);
+	// Shared low/high sprite-palette list edits (the lo and hi variants differ only in the list,
+	// palette type, name format and display-label category they pass). The entity palette LUT
+	// resolves references through each entry's stored index, so a delete re-indexes the entries
+	// above the hole and the pointer-based lookups follow automatically.
+	std::optional<uint8_t> AddSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+		Palette::Type type, const std::string& name_format);
+	bool DeleteSpritePalette(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+		const std::wstring& label_category, uint8_t index, bool used);
+	bool SwapSpritePalettes(std::vector<std::shared_ptr<PaletteEntry>>& pals,
+		const std::wstring& label_category, uint8_t a, uint8_t b);
 
 	ByteVector SerialisePaletteLUT() const;
 	void DeserialisePaletteLUT(const ByteVector& bytes);
@@ -269,6 +621,15 @@ private:
 	bool RomLoadSpriteFrames(const Rom& rom);
 	bool RomLoadSpritePalettes(const Rom& rom);
 	bool RomLoadSpriteData(const Rom& rom);
+
+	// Writes fridayanimationdata.asm (15 labelled incbins + Align) and its .bin files.
+	bool AsmSaveFridayAnimations(const std::filesystem::path& dir);
+
+	// Reads / writes the damage-modifier constants from / to their include file (damage.inc).
+	bool AsmLoadDamageConstants();
+	bool AsmSaveDamageConstants(const std::filesystem::path& dir);
+	// Seeds m_damage_constants with the engine defaults for every constant not already present.
+	void SetDefaultDamageConstants();
 
 	bool AsmSaveSpriteFrames(const std::filesystem::path& dir);
 	bool AsmSaveSpritePointers(const std::filesystem::path& dir);
@@ -302,13 +663,19 @@ private:
 	std::filesystem::path m_room_sprite_table_offsets_file;
 	std::filesystem::path m_enemy_stats_file;
 	std::filesystem::path m_room_sprite_table_file;
+	std::filesystem::path m_inventory_items_file;
+	std::filesystem::path m_equip_inventory_layout_file;
+	std::filesystem::path m_input_playback_file;
+	std::filesystem::path m_friday_animation_data_file;              // fridayanimationdata.asm
+	std::vector<std::filesystem::path> m_friday_animation_files;     // one .bin per animation
+	std::filesystem::path m_damage_constants_file;                  // damage.inc (empty for ROM projects)
 
 	std::map<uint8_t, std::string> m_names;
 	std::map<std::string, uint8_t> m_ids;
 	std::map<uint8_t, std::set<std::string>> m_sprite_frames;
 
-	std::map<uint8_t, uint16_t> m_sprite_volume;
-	std::map<uint8_t, uint16_t> m_sprite_volume_orig;
+	std::map<uint8_t, uint16_t> m_sprite_max_tile_count;
+	std::map<uint8_t, uint16_t> m_sprite_max_tile_count_orig;
 	std::map<uint8_t, std::vector<std::string>> m_animations;
 	std::map<uint8_t, std::vector<std::string>> m_animations_orig;
 	std::map<std::string, std::vector<std::string>> m_animation_frames;
@@ -352,11 +719,23 @@ private:
 	std::map<uint8_t, std::array<uint8_t, 5>> m_enemy_stats_orig;
 	std::vector<std::array<uint8_t, 4>> m_item_properties;
 	std::vector<std::array<uint8_t, 4>> m_item_properties_orig;
+	ByteVector m_inventory_items;
+	ByteVector m_inventory_items_orig;
+	ByteVector m_equip_inventory_layout;
+	ByteVector m_equip_inventory_layout_orig;
+	ByteVector m_input_playback;
+	ByteVector m_input_playback_orig;
+	std::vector<ByteVector> m_friday_animations;
+	std::vector<ByteVector> m_friday_animations_orig;
+	std::map<std::string, uint16_t> m_damage_constants;
+	std::map<std::string, uint16_t> m_damage_constants_orig;
 	std::map<uint8_t, AnimationFlags> m_sprite_animation_flags;
 	std::map<uint8_t, AnimationFlags> m_sprite_animation_flags_orig;
 
 	std::map<uint16_t, std::vector<Entity>> m_room_entities;
 	std::map<uint16_t, std::vector<Entity>> m_room_entities_orig;
+	std::size_t m_room_entity_table_size = 0;
+	std::size_t m_room_entity_table_size_orig = 0;
 
 	std::map<int, std::pair<std::string, std::vector<Behaviours::Command>>> m_sprite_behaviours;
 	std::map<int, std::pair<std::string, std::vector<Behaviours::Command>>> m_sprite_behaviours_orig;

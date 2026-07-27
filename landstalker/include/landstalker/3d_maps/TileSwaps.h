@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <landstalker/3d_maps/Tilemap3D.h>
+#include <landstalker/rooms/RoomIndexMap.h>
 
 namespace Landstalker {
 
@@ -38,7 +39,7 @@ struct TileSwap
 	TileSwap(const std::vector<uint8_t>& in);
 	TileSwap() : trigger(0), map({ 0,0,0,0,1,1 }), heightmap({ 0,0,0,0,1,1 }), mode(Mode::FLOOR), active(false) {}
 	TileSwap(uint8_t p_trigger, CopyOp p_map, CopyOp p_heightmap, Mode p_mode) : trigger(p_trigger), map(p_map), heightmap(p_heightmap), mode(p_mode), active(false) {}
-	std::vector<uint8_t> GetBytes(uint16_t room, uint8_t idx) const;
+	std::vector<uint8_t> GetBytes(uint16_t room) const;
 
 	std::vector<std::pair<int, int>> GetMapRegionPoly(Region region = Region::UNDEFINED, int tile_width = 8, int tile_height = 8) const;
 	static std::vector<std::pair<int, int>> OffsetRegionPoly(const std::vector<std::pair<int, int>>& points, const std::pair<int, int>& offset, int tile_width = 1, int tile_height = 1);
@@ -71,6 +72,7 @@ public:
 	std::vector<TileSwap> GetSwapsForRoom(uint16_t room) const;
 	bool RoomHasSwaps(uint16_t room) const;
 	void SetRoomSwaps(uint16_t room, const std::vector<TileSwap>& swaps);
+	void RemapRooms(const RoomIndexMap& mapping);
 private:
 	std::map<uint16_t, std::vector<TileSwap>> m_swaps;
 };

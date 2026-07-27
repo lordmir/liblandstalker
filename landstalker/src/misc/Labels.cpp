@@ -1,10 +1,13 @@
 #include <landstalker/misc/Labels.h>
 #include <landstalker/misc/DefaultLabels.h>
 #include <landstalker/misc/Utils.h>
+#include <climits>
+#include <cstdint>
 #include <cwctype>
 #include <codecvt>
 #include <fstream>
 #include <functional>
+#include <vector>
 
 namespace Landstalker {
 
@@ -39,6 +42,10 @@ const std::wstring Labels::C_FLAGS(L"flags");
 const std::wstring Labels::C_BEHAVIOURS(L"behaviours");
 const std::wstring Labels::C_SCRIPT(L"script");
 const std::wstring Labels::C_CUTSCENE(L"cutscene");
+const std::wstring Labels::C_CUTSCENE_SCRIPT(L"cutscene_script");
+const std::wstring Labels::C_INPUT_SCRIPT(L"input_script");
+const std::wstring Labels::C_TRIGGER(L"trigger_action");
+const std::wstring Labels::C_ROOM_ACTION(L"room_action");
 const std::wstring Labels::C_CHARACTER(L"character");
 const std::wstring Labels::C_GLOBAL_CHARACTER(L"global_character");
 
@@ -75,38 +82,62 @@ void Labels::LoadData(const std::string& filename)
 
 void Labels::SaveData(const std::string& filename)
 {
-    std::wofstream ofs(filename, std::ios::binary | std::ios::out);
-    ofs.imbue(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
-    std::wstring category = L"";
-    bool begin = true;
+    // Emitting through yaml-cpp rather than writing the quotes by hand means labels
+    // containing quotes or backslashes are escaped properly and survive a round trip.
+    // m_data is keyed on (category, id), so iterating it walks each category in turn.
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    std::wstring category;
+    bool in_category = false;
     for (const auto& label : m_data)
     {
-        if (category != label.first.first)
+        if (!in_category || category != label.first.first)
         {
+            if (in_category)
+            {
+                out << YAML::EndMap;
+            }
             category = label.first.first;
-            if (begin)
-            {
-                begin = false;
-            }
-            else
-            {
-                ofs << std::endl;
-            }
-            ofs << category << L":" << std::endl;
+            in_category = true;
+            out << YAML::Key << wstr_to_utf8(category) << YAML::Value << YAML::BeginMap;
         }
-        const std::wstring fmt = GetFormatStrings().count(label.first.first) > 0 ? GetFormatStrings().at(label.first.first) : L"%d";
-        ofs << L"    " << StrWPrintf(fmt, label.first.second) << L": \"" << label.second << "\"" << std::endl;
+        const std::wstring fmt = GetFormatStrings().count(label.first.first) > 0
+            ? GetFormatStrings().at(label.first.first)
+            : L"%d";
+        out << YAML::Key << wstr_to_utf8(StrWPrintf(fmt, label.first.second))
+            << YAML::Value << wstr_to_utf8(label.second);
     }
+    if (in_category)
+    {
+        out << YAML::EndMap;
+    }
+    out << YAML::EndMap;
+
+    std::ofstream ofs(filename, std::ios::binary | std::ios::out);
+    ofs << out.c_str() << std::endl;
 }
 
 bool Labels::Exists(const std::wstring& what, int id)
 {
-    return m_data.find({what, id}) != m_data.cend() && IsExistingValid(m_data.at({what, id}));
+    return m_data.find({what, id}) != m_data.cend() && IsValidPath(m_data.at({what, id}));
+}
+
+std::map<int, std::wstring> Labels::GetCategory(const std::wstring& what)
+{
+    std::map<int, std::wstring> out;
+    for (const auto& entry : m_data)
+    {
+        if (entry.first.first == what && IsValidPath(entry.second))
+        {
+            out[entry.first.second] = entry.second;
+        }
+    }
+    return out;
 }
 
 std::optional<std::wstring> Labels::Get(const std::wstring& what, int id) {
     auto it = m_data.find({what, id});
-    if (it != m_data.end() && IsExistingValid(it->second))
+    if (it != m_data.end() && IsValidPath(it->second))
     {
         return it->second;
     }
@@ -115,12 +146,27 @@ std::optional<std::wstring> Labels::Get(const std::wstring& what, int id) {
 
 bool Labels::IsValid(const std::wstring& what)
 {
-    if (!IsExistingValid(what))
+    return IsValid(what, std::nullopt);
+}
+
+bool Labels::IsValid(const std::wstring& what, const std::wstring& category, int id)
+{
+    return IsValid(what, std::make_optional(std::make_pair(category, id)));
+}
+
+bool Labels::IsValid(const std::wstring& what,
+    const std::optional<std::pair<std::wstring, int>>& excluded)
+{
+    if (!IsValidPath(what))
     {
         return false;
     }
     for(const auto& lbl : m_data)
     {
+        if (excluded && lbl.first == *excluded)
+        {
+            continue;
+        }
         if (lbl.second == what)
         {
             Debug("Duplicate label found");
@@ -134,18 +180,28 @@ bool Labels::IsValid(const std::wstring& what)
                 return false;
             }
         }
+        if (what.length() > lbl.second.length() && what.rfind(lbl.second, 0) == 0 &&
+            what.at(lbl.second.length()) == L'/')
+        {
+            Debug("Label would place a subdirectory beneath an existing item");
+            return false;
+        }
     }
     return true;
 }
 
 bool Labels::Update(const std::wstring& what, int id, const std::wstring& updated)
 {
+    if (!IsValidPath(updated))
+    {
+        return false;
+    }
     if (m_data.count({ what, id }) > 0 && m_data.at({ what, id }) == updated)
     {
         // No update needed
         return true;
     }
-    if (!IsValid(updated))
+    if (!IsValid(updated, what, id))
     {
         return false;
     }
@@ -153,39 +209,168 @@ bool Labels::Update(const std::wstring& what, int id, const std::wstring& update
     return true;
 }
 
-bool Labels::IsExistingValid(const std::wstring& what)
+std::optional<std::wstring> Labels::NormalizePath(const std::wstring& what)
 {
     if (what.empty())
     {
         Debug("Empty string");
-        return false;
+        return std::nullopt;
     }
-    if (what.front() == L'/' || what.back() == L'/')
+    if (what.front() == L'/' || what.back() == L'/' || what.find(L"//") != std::wstring::npos)
     {
         Debug("Invalid Path");
-        return false;
+        return std::nullopt;
     }
-    if (!std::all_of(what.cbegin(), what.cend(), std::iswprint))
+    for (std::size_t i = 0; i < what.size(); ++i)
     {
-        Debug("Invalid characters");
-        return false;
+        std::uint32_t codepoint = static_cast<std::uint32_t>(what[i]);
+#if WCHAR_MAX <= 0xFFFF
+        if (codepoint >= 0xD800 && codepoint <= 0xDBFF)
+        {
+            if (++i >= what.size())
+            {
+                Debug("Invalid Unicode");
+                return std::nullopt;
+            }
+            const auto low = static_cast<std::uint32_t>(what[i]);
+            if (low < 0xDC00 || low > 0xDFFF)
+            {
+                Debug("Invalid Unicode");
+                return std::nullopt;
+            }
+            codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
+        }
+        else if (codepoint >= 0xDC00 && codepoint <= 0xDFFF)
+        {
+            Debug("Invalid Unicode");
+            return std::nullopt;
+        }
+#endif
+        const bool control = codepoint <= 0x1F || (codepoint >= 0x7F && codepoint <= 0x9F);
+        const bool non_space_whitespace = codepoint == 0x85 || codepoint == 0xA0 ||
+            codepoint == 0x1680 || (codepoint >= 0x2000 && codepoint <= 0x200A) ||
+            codepoint == 0x2028 || codepoint == 0x2029 || codepoint == 0x202F ||
+            codepoint == 0x205F || codepoint == 0x3000;
+        const bool noncharacter = (codepoint >= 0xFDD0 && codepoint <= 0xFDEF) ||
+            (codepoint & 0xFFFF) == 0xFFFE || (codepoint & 0xFFFF) == 0xFFFF;
+        // Quotes and backslashes used to be rejected because SaveData wrapped values in
+        // quotes by hand; the emitter escapes them now, so only genuinely unprintable or
+        // invalid codepoints are refused.
+        if (control || non_space_whitespace || noncharacter || codepoint > 0x10FFFF)
+        {
+            Debug("Invalid characters");
+            return std::nullopt;
+        }
     }
     std::wstring tmp;
     std::wstringstream ss(what);
     std::vector<std::wstring> elems;
     while (std::getline(ss, tmp, L'/'))
     {
-        elems.push_back(tmp);
-    }
-    for (const std::wstring& elem : elems)
-    {
-        if (elem.empty() || std::iswblank(elem.front()) || std::iswblank(elem.back()))
+        const auto first = tmp.find_first_not_of(L' ');
+        const auto last = tmp.find_last_not_of(L' ');
+        if (first == std::wstring::npos)
         {
-            Debug("Invalid whitespace");
-            return false;
+            Debug("Empty path segment");
+            return std::nullopt;
+        }
+        elems.push_back(tmp.substr(first, last - first + 1));
+    }
+    std::wstring normalized;
+    for (const auto& elem : elems)
+    {
+        if (!normalized.empty())
+        {
+            normalized += L'/';
+        }
+        normalized += elem;
+    }
+    return normalized;
+}
+
+bool Labels::Reorder(const std::wstring& category, std::size_t old_index,
+    std::size_t new_index, std::size_t count)
+{
+    if (old_index >= count || new_index >= count)
+    {
+        return false;
+    }
+    if (old_index == new_index)
+    {
+        return true;
+    }
+
+    std::vector<std::optional<std::wstring>> labels;
+    labels.reserve(count);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        labels.push_back(Get(category, static_cast<int>(i)));
+    }
+    const auto moved = labels[old_index];
+    labels.erase(labels.begin() + static_cast<std::ptrdiff_t>(old_index));
+    labels.insert(labels.begin() + static_cast<std::ptrdiff_t>(new_index), moved);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        m_data.erase({ category, static_cast<int>(i) });
+        if (labels[i])
+        {
+            m_data[{ category, static_cast<int>(i) }] = *labels[i];
         }
     }
     return true;
+}
+
+bool Labels::Erase(const std::wstring& category, std::size_t index, std::size_t count)
+{
+    if (index >= count)
+    {
+        return false;
+    }
+    for (std::size_t i = index; i + 1 < count; ++i)
+    {
+        const auto next = Get(category, static_cast<int>(i + 1));
+        m_data.erase({ category, static_cast<int>(i) });
+        if (next)
+        {
+            m_data[{ category, static_cast<int>(i) }] = *next;
+        }
+    }
+    m_data.erase({ category, static_cast<int>(count - 1) });
+    return true;
+}
+
+bool Labels::Remap(const std::wstring& category, const std::map<int, int>& mapping)
+{
+    // Read every source label out first: the mapping is a permutation, so writing as we
+    // go would let an earlier move overwrite a source that a later one still needs.
+    std::map<int, std::wstring> moved;
+    for (const auto& entry : mapping)
+    {
+        const auto label = Get(category, entry.first);
+        if (label)
+        {
+            moved.emplace(entry.first, *label);
+        }
+    }
+    for (const auto& entry : mapping)
+    {
+        m_data.erase({ category, entry.first });
+    }
+    for (const auto& entry : mapping)
+    {
+        const auto label = moved.find(entry.first);
+        if (entry.second >= 0 && label != moved.cend())
+        {
+            m_data[{ category, entry.second }] = label->second;
+        }
+    }
+    return true;
+}
+
+bool Labels::IsValidPath(const std::wstring& what)
+{
+    const auto normalized = NormalizePath(what);
+    return normalized && *normalized == what;
 }
 
 } // namespace Landstalker

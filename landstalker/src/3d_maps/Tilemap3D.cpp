@@ -34,138 +34,152 @@ uint16_t Tilemap3D::Encode(uint8_t* dst, size_t size)
     return Tilemap3DCompressor::Encode(*this, dst, size);
 }
 
+namespace
+{
+
+// Splits one line of a CSV into hexadecimal values. Returns false on anything unparseable.
+bool ReadCsvRow(const std::string& row, std::vector<uint16_t>& cells)
+{
+	std::istringstream rss(row);
+	std::string cell;
+	while (std::getline(rss, cell, ','))
+	{
+		try
+		{
+			cells.push_back(static_cast<uint16_t>(std::stoul(cell, nullptr, 16)));
+		}
+		catch (const std::exception&)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool ReadCsv(const std::string& csv, std::vector<std::vector<uint16_t>>& rows)
+{
+	std::istringstream iss(csv);
+	std::string row;
+	while (std::getline(iss, row))
+	{
+		// Ignore blank lines so a trailing newline does not read as an empty row.
+		if (row.find_first_not_of(" \t\r\n") == std::string::npos)
+		{
+			continue;
+		}
+		rows.push_back({});
+		if (!ReadCsvRow(row, rows.back()))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+}
+
 bool Tilemap3D::FromCsv(const std::string& foreground_csv, const std::string& background_csv, const std::string& heightmap_csv)
 {
-	std::ifstream bg(background_csv, std::ios::in);
-	std::ifstream fg(foreground_csv, std::ios::in);
-	std::ifstream hm(heightmap_csv, std::ios::in);
-
-	std::size_t w, h, t, l, hw, hh;
-	std::vector<std::vector<uint16_t>> foreground, background, heightmap;
-
-	auto read_csv = [](auto& iss, auto& data)
-	{
-		std::string row;
-		std::string cell;
-		while (std::getline(iss, row))
-		{
-			data.push_back(std::vector<uint16_t>());
-			std::istringstream rss(row);
-			while (std::getline(rss, cell, ','))
-			{
-				data.back().push_back(std::stoi(cell, nullptr, 16));
-			}
-		}
-	};
-	
-	read_csv(fg, foreground);
-	read_csv(bg, background);
-	read_csv(hm, heightmap);
-
-	if (heightmap.size() < 2 || heightmap.front().size() != 2)
-	{
-		return false;
-	}
-	if (foreground.size() == 0 || foreground.front().size() == 0)
-	{
-		return false;
-	}
-	if (background.size() == 0 || background.front().size() == 0)
-	{
-		return false;
-	}
-	w = foreground.front().size();
-	h = foreground.size();
-	hw = heightmap[1].size();
-	hh = heightmap.size() - 1;
-	l = heightmap[0][0];
-	t = heightmap[0][1];
-
-	if (background.size() != h)
+	std::vector<std::vector<uint16_t>> fgvec, bgvec, hmvec;
+	if (!ReadCsv(foreground_csv, fgvec) ||
+	    !ReadCsv(background_csv, bgvec) ||
+	    !ReadCsv(heightmap_csv, hmvec))
 	{
 		return false;
 	}
 
+	// The heightmap CSV leads with a "left,top" row, then one row per heightmap row.
+	if (hmvec.size() < 2 || hmvec.front().size() != 2 ||
+	    fgvec.empty() || fgvec.front().empty() ||
+	    bgvec.empty() || bgvec.front().empty())
+	{
+		return false;
+	}
+
+	const std::size_t w = fgvec.front().size();
+	const std::size_t h = fgvec.size();
+	const std::size_t hw = hmvec[1].size();
+	const std::size_t hh = hmvec.size() - 1;
+	const std::size_t l = hmvec[0][0];
+	const std::size_t t = hmvec[0][1];
+
+	if (w == 0 || w > 64 || h == 0 || h > 64 ||
+	    hw == 0 || hw > 64 || hh == 0 || hh > 64 ||
+	    l > 63 || t > 63 || bgvec.size() != h)
+	{
+		return false;
+	}
 	for (std::size_t i = 0; i < h; ++i)
 	{
-		if (background[i].size() != w || foreground[i].size() != w)
+		if (bgvec[i].size() != w || fgvec[i].size() != w)
 		{
 			return false;
 		}
 	}
 	for (std::size_t i = 1; i <= hh; ++i)
 	{
-		if (heightmap[i].size() != hw)
+		if (hmvec[i].size() != hw)
 		{
 			return false;
 		}
 	}
 
-	Resize(w, h);
-	ResizeHeightmap(hw, hh);
-	SetLeft(l);
-	SetTop(t);
-	
-	int i = 0;
+	Resize(static_cast<uint8_t>(w), static_cast<uint8_t>(h));
+	ResizeHeightmap(static_cast<uint8_t>(hw), static_cast<uint8_t>(hh));
+	SetLeft(static_cast<uint8_t>(l));
+	SetTop(static_cast<uint8_t>(t));
+
+	uint16_t i = 0;
 	for (std::size_t y = 0; y < h; ++y)
 	{
 		for (std::size_t x = 0; x < w; ++x)
 		{
-			SetBlock(background[y][x], i, Tilemap3D::Layer::BG);
-			SetBlock(foreground[y][x], i++, Tilemap3D::Layer::FG);
+			SetBlock(bgvec[y][x], i, Tilemap3D::Layer::BG);
+			SetBlock(fgvec[y][x], i++, Tilemap3D::Layer::FG);
 		}
 	}
 	for (int y = 0; y < static_cast<int>(hh); ++y)
 	{
 		for (int x = 0; x < static_cast<int>(hw); ++x)
 		{
-			SetCellProps({ x, y }, (heightmap[y + 1][x] >> 12) & 0xF);
-			SetHeight({ x, y }, (heightmap[y + 1][x] >> 8) & 0xF);
-			SetCellType({ x, y }, heightmap[y + 1][x] & 0xFF);
+			SetCellProps({ x, y }, (hmvec[y + 1][x] >> 12) & 0xF);
+			SetHeight({ x, y }, (hmvec[y + 1][x] >> 8) & 0xF);
+			SetCellType({ x, y }, hmvec[y + 1][x] & 0xFF);
 		}
 	}
 	return true;
 }
-bool Tilemap3D::ToCsv(std::string &foreground_csv, std::string &background_csv, std::string &heightmap_csv) const
-{
-	std::stringstream bg(background_csv, std::ios::out | std::ios::trunc);
-	std::stringstream fg(foreground_csv, std::ios::out | std::ios::trunc);
-	std::stringstream hm(heightmap_csv, std::ios::out | std::ios::trunc);
 
-	for (int i = 0; i < GetWidth() * GetHeight(); ++i)
+bool Tilemap3D::ToCsv(std::string& foreground_csv, std::string& background_csv, std::string& heightmap_csv) const
+{
+	if (GetWidth() == 0 || GetHeight() == 0 || GetHeightmapWidth() == 0 || GetHeightmapHeight() == 0)
+	{
+		return false;
+	}
+
+	std::ostringstream fg, bg, hm;
+	for (uint16_t i = 0; i < GetWidth() * GetHeight(); ++i)
 	{
 		fg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::FG).value);
 		bg << StrPrintf("%04X", GetBlock(i, Tilemap3D::Layer::BG).value);
-		if ((i + 1) % GetWidth() == 0)
+		const bool end_of_row = (i + 1) % GetWidth() == 0;
+		fg << (end_of_row ? "\n" : ",");
+		bg << (end_of_row ? "\n" : ",");
+	}
+
+	hm << StrPrintf("%02X", GetLeft()) << "," << StrPrintf("%02X", GetTop()) << "\n";
+	for (int y = 0; y < GetHeightmapHeight(); ++y)
+	{
+		for (int x = 0; x < GetHeightmapWidth(); ++x)
 		{
-			fg << std::endl;
-			bg << std::endl;
-		}
-		else
-		{
-			fg << ",";
-			bg << ",";
+			hm << StrPrintf("%X%X%02X", GetCellProps({ x, y }), GetHeight({ x, y }), GetCellType({ x, y }));
+			hm << ((x + 1) == GetHeightmapWidth() ? "\n" : ",");
 		}
 	}
-	hm << StrPrintf("%02X", GetLeft()) << "," << StrPrintf("%02X",GetTop()) << std::endl;
-	for (int i = 0; i < GetHeightmapHeight(); ++i)
-    {
-		for (int j = 0; j < GetHeightmapWidth(); ++j)
-		{
-			hm << StrPrintf("%X%X%02X", GetCellProps({ j, i }), GetHeight({ j, i }), GetCellType({j, i}));
-			if ((j + 1) % GetHeightmapWidth() == 0)
-			{
-				hm << std::endl;
-			}
-			else
-			{
-				hm << ",";
-			}
-		}
-    }
-    foreground_csv = fg.str();
-    background_csv = bg.str();
-    heightmap_csv = hm.str();
+
+	foreground_csv = fg.str();
+	background_csv = bg.str();
+	heightmap_csv = hm.str();
 	return true;
 }
 
@@ -196,35 +210,24 @@ uint16_t Tilemap3D::GetSize() const
 
 void Tilemap3D::Resize(uint8_t w, uint8_t h)
 {
+    // Copy the overlapping region with the correct source stride (the old
+    // width) and zero-fill the rest. Written as an indexed copy to avoid the
+    // past-the-end source iterator the previous version produced when height
+    // grew while width shrank.
     const std::vector<uint16_t> old_bg = background;
     const std::vector<uint16_t> old_fg = foreground;
 
-    background.resize(w * h);
-    foreground.resize(w * h);
-    
-    auto obit = old_bg.cbegin();
-    auto ofit = old_fg.cbegin();
-    auto nbit = background.begin();
-    auto nfit = foreground.begin();
-    for (int i = 0; i < h; ++i)
+    background.assign(static_cast<std::size_t>(w) * h, 0);
+    foreground.assign(static_cast<std::size_t>(w) * h, 0);
+
+    const int copy_w = std::min<int>(w, width);
+    const int copy_h = std::min<int>(h, height);
+    for (int y = 0; y < copy_h; ++y)
     {
-        for (int j = 0; j < w; j++)
+        for (int x = 0; x < copy_w; ++x)
         {
-            if ((i < height) && (j < width))
-            {
-                *nbit++ = *obit++;
-                *nfit++ = *ofit++;
-            }
-            else
-            {
-                *nbit++ = 0;
-                *nfit++ = 0;
-            }
-        }
-        if (w < width)
-        {
-            obit += width - w;
-            ofit += width - w;
+            background[y * w + x] = old_bg[y * width + x];
+            foreground[y * w + x] = old_fg[y * width + x];
         }
     }
 
@@ -234,28 +237,21 @@ void Tilemap3D::Resize(uint8_t w, uint8_t h)
 
 void Tilemap3D::ResizeHeightmap(uint8_t w, uint8_t h)
 {
+    // Copy the overlapping region with the correct source stride (the old
+    // heightmap width) and fill the rest with the cleared-cell value. The
+    // previous iterator-walking version advanced the source by the tilemap
+    // width instead of hmwidth, corrupting the map on a width shrink, and could
+    // step past the source end when height grew while width shrank.
     const std::vector<uint16_t> old_hm = heightmap;
+    heightmap.assign(static_cast<std::size_t>(w) * h, 0x4000);
 
-    heightmap.resize(w * h);
-
-    auto ohit = old_hm.cbegin();
-    auto nhit = heightmap.begin();
-    for (int i = 0; i < h; ++i)
+    const int copy_w = std::min<int>(w, hmwidth);
+    const int copy_h = std::min<int>(h, hmheight);
+    for (int y = 0; y < copy_h; ++y)
     {
-        for (int j = 0; j < w; j++)
+        for (int x = 0; x < copy_w; ++x)
         {
-            if ((i < hmheight) && (j < hmwidth))
-            {
-                *nhit++ = *ohit++;
-            }
-            else
-            {
-                *nhit++ = 0x4000;
-            }
-        }
-        if (w < hmwidth)
-        {
-            ohit += width - w;
+            heightmap[y * w + x] = old_hm[y * hmwidth + x];
         }
     }
 
@@ -314,6 +310,54 @@ void Tilemap3D::InsertHeightmapRow(uint8_t before)
                     dst[y * hmwidth + x] = src[y * (hmwidth - 1) + x - 1];
                 }
             }
+        }
+    }
+}
+
+void Tilemap3D::InsertHeightmapRowAt(uint8_t at)
+{
+    if (hmwidth >= 64)
+    {
+        return;
+    }
+    if (at > hmwidth)
+    {
+        at = hmwidth;
+    }
+    const std::vector<uint16_t> orig = heightmap;
+    const int old_w = hmwidth;
+    hmwidth += 1;
+    heightmap.assign(static_cast<std::size_t>(hmwidth) * hmheight, 0x4000);
+    for (int y = 0; y < hmheight; ++y)
+    {
+        for (int x = 0; x < old_w; ++x)
+        {
+            const int dst_x = x < at ? x : x + 1;
+            heightmap[y * hmwidth + dst_x] = orig[y * old_w + x];
+        }
+    }
+}
+
+void Tilemap3D::InsertHeightmapColumnAt(uint8_t at)
+{
+    if (hmheight >= 64)
+    {
+        return;
+    }
+    if (at > hmheight)
+    {
+        at = hmheight;
+    }
+    const std::vector<uint16_t> orig = heightmap;
+    const int old_h = hmheight;
+    hmheight += 1;
+    heightmap.assign(static_cast<std::size_t>(hmwidth) * hmheight, 0x4000);
+    for (int y = 0; y < old_h; ++y)
+    {
+        const int dst_y = y < at ? y : y + 1;
+        for (int x = 0; x < hmwidth; ++x)
+        {
+            heightmap[dst_y * hmwidth + x] = orig[y * hmwidth + x];
         }
     }
 }
@@ -417,6 +461,54 @@ void Tilemap3D::InsertTilemapColumn(int col)
     }
 }
 
+void Tilemap3D::InsertTilemapRowAt(int at)
+{
+    if (width >= 64)
+    {
+        return;
+    }
+    at = std::clamp(at, 0, static_cast<int>(width));
+    const std::vector<uint16_t> orig_fg = foreground;
+    const std::vector<uint16_t> orig_bg = background;
+    const int old_w = width;
+    width += 1;
+    foreground.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    background.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < old_w; ++x)
+        {
+            const int dst_x = x < at ? x : x + 1;
+            foreground[y * width + dst_x] = orig_fg[y * old_w + x];
+            background[y * width + dst_x] = orig_bg[y * old_w + x];
+        }
+    }
+}
+
+void Tilemap3D::InsertTilemapColumnAt(int at)
+{
+    if (height >= 64)
+    {
+        return;
+    }
+    at = std::clamp(at, 0, static_cast<int>(height));
+    const std::vector<uint16_t> orig_fg = foreground;
+    const std::vector<uint16_t> orig_bg = background;
+    const int old_h = height;
+    height += 1;
+    foreground.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    background.assign(static_cast<std::size_t>(width) * height, 0_u16);
+    for (int y = 0; y < old_h; ++y)
+    {
+        const int dst_y = y < at ? y : y + 1;
+        for (int x = 0; x < width; ++x)
+        {
+            foreground[dst_y * width + x] = orig_fg[y * width + x];
+            background[dst_y * width + x] = orig_bg[y * width + x];
+        }
+    }
+}
+
 void Tilemap3D::DeleteTilemapRow(int row)
 {
     if (row < width && width > 1)
@@ -425,6 +517,7 @@ void Tilemap3D::DeleteTilemapRow(int row)
         std::vector<uint16_t> orig_bg = background;
         width -= 1;
         foreground.resize(width * height);
+        background.resize(width * height);
         const uint16_t* fg_src = orig_fg.data();
         uint16_t* fg_dst = foreground.data();
         const uint16_t* bg_src = orig_bg.data();
@@ -603,7 +696,7 @@ Point2D Tilemap3D::PixelToCartesian(const PixelPoint2D& pix, Layer layer) const
     return Point2D{ -1, -1 };
 }
 
-IsoPoint2D Tilemap3D::ToIsometric(const Point2D& p, Layer layer) const
+IsoPoint2D Tilemap3D::ToIsometric(const Point2D& p, Layer /*layer*/) const
 {
     int xgrid = (p.x - GetLeft()) / 2;
     int ygrid = (2 * (p.y - GetTop())) / 2;

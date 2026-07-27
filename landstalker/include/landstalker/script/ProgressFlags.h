@@ -2,6 +2,7 @@
 #define _PROGRESS_FLAGS_H_
 
 #include <landstalker/script/ScriptFunction.h>
+#include <landstalker/script/ScriptFunctionTable.h>
 
 namespace Landstalker {
 

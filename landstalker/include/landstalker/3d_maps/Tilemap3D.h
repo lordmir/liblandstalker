@@ -108,6 +108,9 @@ public:
 
     uint16_t Decode(const uint8_t* src);
     uint16_t Encode(uint8_t* dst, size_t size);
+    // CSV conversion works on the contents of the three layer files, not their paths;
+    // callers own the file I/O. FromCsv validates everything before it touches the map,
+    // so a rejected import leaves the map exactly as it was.
     bool FromCsv(const std::string& foreground_csv,
                  const std::string& background_csv,
                  const std::string& heightmap_csv);
@@ -124,11 +127,20 @@ public:
     void ResizeHeightmap(uint8_t w, uint8_t h);
     void InsertHeightmapRow(uint8_t before);
     void InsertHeightmapColumn(uint8_t before);
+    // Insert a blank line at an arbitrary index in [0, dimension]. Unlike the
+    // legacy InsertHeightmapRow/Column above (which duplicate the line at
+    // `before` and cannot target index 0), these insert an empty line at `at`,
+    // shifting existing lines at/after `at` one step, and accept `at == size`
+    // to append. "Row" indexes the x extent (width), "Column" the y extent.
+    void InsertHeightmapRowAt(uint8_t at);
+    void InsertHeightmapColumnAt(uint8_t at);
     void DeleteHeightmapRow(uint8_t row);
     void DeleteHeightmapColumn(uint8_t col);
     void ClearTilemap();
     void InsertTilemapRow(int row);
     void InsertTilemapColumn(int col);
+    void InsertTilemapRowAt(int at);
+    void InsertTilemapColumnAt(int at);
     void DeleteTilemapRow(int row);
     void DeleteTilemapColumn(int col);
     void SetLeft(uint8_t left);

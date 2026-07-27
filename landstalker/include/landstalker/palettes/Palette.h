@@ -241,6 +241,10 @@ public:
 	int GetSize() const;
 	int GetSizeBytes() const;
 	bool IsVarWidth() const;
+	// Changes the number of colours in a variable-width palette (e.g. a title fade), padding new
+	// entries with black and truncating from the end. No-op returning false for fixed-width
+	// palettes or a non-positive size. `n` is the colour count, not counting the format's size word.
+	bool SetSize(int n);
 
 	static const std::vector<bool>& GetLockedColours(const Type& type);
 

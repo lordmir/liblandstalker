@@ -26,6 +26,27 @@ namespace RomLabels
 		extern const std::string ITEM_FUNCS_SECTION;
 		extern const std::string FLAG_PROGRESS_SECTION;
 
+		extern const std::string ITEM_ARTICLES_SECTION;
+		extern const std::string ITEM_FOUND_ARTICLE_TABLE_SECTION;
+		extern const std::string ITEM_USE_ARTICLE_TABLE_SECTION;
+
+		extern const std::string CUTSCENE_ACTIONS_SECTION;
+		extern const std::string CUTSCENE_JUMPTABLE_SECTION;
+		extern const std::string CUTSCENE_ACTION_DISPATCH_LABEL;
+
+		extern const std::string TRIGGER_ACTIONS_SECTION;
+		extern const std::string TRIGGER_JUMPTABLE_SECTION;
+		extern const std::string TRIGGER_ACTION_DISPATCH_LABEL;
+
+		extern const std::string ROOM_ACTIONS1_SECTION;
+		extern const std::string ROOM_ACTIONS2_SECTION;
+		extern const std::string ROOM_ACTION_CHAIN_LABEL;
+
+		extern const std::string ITEM_PREUSE_TABLE_SECTION;
+		extern const std::string ITEM_POSTUSE_TABLE_SECTION;
+		extern const std::string ITEM_USE1_SECTION;
+		extern const std::string ITEM_USE2_SECTION;
+
 		extern const std::string SCRIPT_FILE;
 		extern const std::string CUTSCENE_TABLE_FILE;
 		extern const std::string CHAR_TABLE_FILE;
@@ -37,6 +58,25 @@ namespace RomLabels
 		extern const std::string SHOP_FUNCS_FILE;
 		extern const std::string ITEM_FUNCS_FILE;
 		extern const std::string FLAG_PROGRESS_FILE;
+
+		extern const std::string ITEM_ARTICLES_FILE;
+		extern const std::string ITEM_FOUND_ARTICLE_TABLE_FILE;
+		extern const std::string ITEM_USE_ARTICLE_TABLE_FILE;
+
+		extern const std::string CUTSCENE_ACTIONS_FILE;
+		extern const std::string CUTSCENE_JUMPTABLE_FILE;
+
+		extern const std::string TRIGGER_ACTIONS_FILE;
+		extern const std::string TRIGGER_JUMPTABLE_FILE;
+
+		extern const std::string ROOM_ACTIONS1_FILE;
+		extern const std::string ROOM_ACTIONS2_FILE;
+
+		extern const std::string ITEM_PREUSE_TABLE_FILE;
+		extern const std::string ITEM_POSTUSE_TABLE_FILE;
+		extern const std::string ITEM_USE1_FILE;
+		extern const std::string ITEM_USE2_FILE;
+		extern const std::string ITEM_POSTUSE_FILE;
 	}
 
 	namespace Sprites
@@ -91,6 +131,20 @@ namespace RomLabels
 		extern const std::string ENEMY_STATS;
 		extern const std::string ROOM_SPRITE_TABLE;
 
+		extern const std::string INVENTORY_ITEMS;
+		extern const std::string INVENTORY_ITEMS_SECTION;
+		extern const std::string EQUIP_INVENTORY_LAYOUT;
+		extern const std::string EQUIP_INVENTORY_LAYOUT_SECTION;
+		extern const std::string INPUT_PLAYBACK;
+		extern const std::string INPUT_PLAYBACK_SECTION;
+		extern const std::string FRIDAY_ANIMATION_DATA;   // include label in the top-level ASM
+		extern const std::string FRIDAY_ANIMATION;        // per-table label pattern, e.g. FridayAnimation%d
+		extern const std::string FRIDAY_ANIMATION_SECTION;
+		extern const std::string CHARGED_SWORD_BOOST;         // charged-hit sword damage multipliers (4 words)
+		extern const std::string CHARGED_SWORD_BOOST_SECTION;
+		extern const std::string ARMOUR_DEFENCE;              // armour defence modifiers (5 words)
+		extern const std::string ARMOUR_DEFENCE_SECTION;
+
 		extern const std::string SPRITE_ANIM_FLAGS_LOOKUP;
 		extern const std::string SPRITE_ANIM_FLAGS_LOOKUP_SECTION;
 
@@ -120,6 +174,12 @@ namespace RomLabels
 		extern const std::string ROOM_SPRITE_TABLE_OFFSETS_FILE;
 		extern const std::string ENEMY_STATS_FILE;
 		extern const std::string ROOM_SPRITE_TABLE_FILE;
+		extern const std::string INVENTORY_ITEMS_FILE;
+		extern const std::string EQUIP_INVENTORY_LAYOUT_FILE;
+		extern const std::string INPUT_PLAYBACK_FILE;
+		extern const std::string FRIDAY_ANIMATION_DATA_FILE; // the fridayanimationdata.asm include
+		extern const std::string FRIDAY_ANIMATION_FILE;      // per-table binary pattern, e.g. fridayanim%02d.bin
+		extern const std::string DAMAGE_CONSTANTS_FILE;      // damage.inc (sword/armour damage modifiers)
 	}
 
 	namespace Strings
@@ -193,6 +253,8 @@ namespace RomLabels
 		extern const std::string INTRO_STRING_PTRS_FILE;
 		extern const std::string INTRO_STRING_FILE;
 		extern const std::string END_CREDIT_STRINGS_FILE;
+		extern const std::string CHARSET_DATA_FILE;
+		extern const std::string CHARSET_CONSTANTS_FILE;
 		extern const std::string SPRITE_TALK_SFX_FILE;
 		extern const std::string CHARACTER_TALK_SFX_FILE;
 		extern const std::string CUTSCENE_SCRIPT_FILE;
@@ -320,6 +382,7 @@ namespace RomLabels
 		extern const std::string GAME_LOAD_ROUTINES_1;
 		extern const std::string GAME_LOAD_ROUTINES_2;
 		extern const std::string GAME_LOAD_ROUTINES_3;
+		extern const std::string GAME_LOAD_ROUTINES_4;
 		extern const std::string GAME_LOAD_PALETTE;
 		extern const std::string GAME_LOAD_PALETTE_LEA;
 		extern const std::string GAME_LOAD_PLAYER_PALETTE;
@@ -413,6 +476,7 @@ namespace RomLabels
 		extern const std::string GAME_LOAD_ROUTINES_1_FILE;
 		extern const std::string GAME_LOAD_ROUTINES_2_FILE;
 		extern const std::string GAME_LOAD_ROUTINES_3_FILE;
+		extern const std::string GAME_LOAD_ROUTINES_4_FILE;
 		extern const std::string GAME_LOAD_PALETTE_FILE;
 		extern const std::string GAME_LOAD_PLAYER_PALETTE_FILE;
 		extern const std::string GAME_LOAD_CHARS_FILE;
@@ -537,6 +601,10 @@ namespace RomLabels
 		extern const std::string ROOM_VISIT_FLAGS_FILE;
 		extern const std::string CHEST_CONTENTS_FILENAME;
 		extern const std::string CHEST_OFFSETS_FILENAME;
+		// Room index equ constants, included indirectly via landstalker.inc rather than
+		// listed under the Defines label, so the path is resolved by filename.
+		extern const std::string ROOM_CONSTANTS_FILE;
+		extern const std::string ROOM_CONSTANTS_PREFIX;
 	}
 }
 

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <png.h>
 #include <numeric>
+#include <algorithm>
 #include <landstalker/misc/Utils.h>
 
 #if defined(_MSC_VER)
@@ -92,7 +93,7 @@ void ImageBuffer::InsertTile(int x, int y, uint8_t palette_index, const Tile& ti
                 dest_it = row_it + m_width * (i / tileset.GetTileWidth());
                 pri_dest_it = pri_row_it + m_width * (i / tileset.GetTileWidth());
 				y++;
-				x -= tileset.GetTileWidth();
+				x -= static_cast<int>(tileset.GetTileWidth());
             }
             if (!use_alpha || (cmap[tile_bits[i]] != 0))
             {
@@ -131,7 +132,7 @@ void ImageBuffer::ClearTile(int x, int y, const Tileset& ts)
                 dest_it = row_it + m_width * (i / ts.GetTileWidth());
                 pri_dest_it = pri_row_it + m_width * (i / ts.GetTileWidth());
                 y++;
-                x -= ts.GetTileWidth();
+                x -= static_cast<int>(ts.GetTileWidth());
             }
             *dest_it++ = 0;
             *pri_dest_it++ = false;
@@ -141,7 +142,7 @@ void ImageBuffer::ClearTile(int x, int y, const Tileset& ts)
 
 void ImageBuffer::ClearBlock(int x, int y, const Blockset&, const Tileset& ts)
 {
-    if ((y + 7) * m_width + x + 7 < m_pixels.size())
+    if (static_cast<std::size_t>(y + 7) * m_width + x + 7 < m_pixels.size())
     {
         ClearTile(x, y, ts);
         ClearTile(x + 8, y, ts);
@@ -167,15 +168,17 @@ void ImageBuffer::InsertSprite(int x, int y, uint8_t palette_index, const Sprite
                 int xx, yy;
                 if (hflip)
                 {
-                    xx = -subs.x - xi * 8 + x - 8;
-                    yy = subs.y + yi * 8 + y;
-                    InsertTile(xx, yy, palette_index, !Tile(index++), *frame.GetTileset());
+                    xx = -subs.x - static_cast<int>(xi) * 8 + x - 8;
+                    yy = subs.y + static_cast<int>(yi) * 8 + y;
+                    InsertTile(xx, yy, palette_index, !Tile(static_cast<uint16_t>(index)), *frame.GetTileset());
+                    ++index;
                 }
                 else
                 {
-                    xx = subs.x + xi * 8 + x;
-                    yy = subs.y + yi * 8 + y;
-                    InsertTile(xx, yy, palette_index, Tile(index++), *frame.GetTileset());
+                    xx = subs.x + static_cast<int>(xi) * 8 + x;
+                    yy = subs.y + static_cast<int>(yi) * 8 + y;
+                    InsertTile(xx, yy, palette_index, Tile(static_cast<uint16_t>(index)), *frame.GetTileset());
+                    ++index;
                 }
             }
     }
@@ -187,8 +190,8 @@ void ImageBuffer::InsertMap(int x, int y, uint8_t palette_index, const Tilemap2D
     {
         for (std::size_t xx = 0; xx < map.GetWidth(); ++xx)
         {
-            const int xpos = x + xx * tileset.GetTileWidth();
-            const int ypos = y + yy * tileset.GetTileHeight();
+            const int xpos = x + static_cast<int>(xx * tileset.GetTileWidth());
+            const int ypos = y + static_cast<int>(yy * tileset.GetTileHeight());
             InsertTile(xpos, ypos, palette_index, map.GetTile(xx, yy), tileset);
         }
     }
@@ -237,6 +240,109 @@ void ImageBuffer::Insert3DMapLayer(int x, int y, uint8_t palette_index, Tilemap3
         }
 }
 
+ImageBuffer::IndexedImage ImageBuffer::ReadIndexedPNG(const std::string& filename)
+{
+    IndexedImage out;
+    FILE* fp = fopen(filename.c_str(), "rb");
+    if (fp == nullptr)
+    {
+        return out;
+    }
+    unsigned char sig[8];
+    if (fread(sig, 1, 8, fp) != 8 || png_sig_cmp(sig, 0, 8) != 0)
+    {
+        fclose(fp);
+        return out;
+    }
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (png == nullptr)
+    {
+        fclose(fp);
+        return out;
+    }
+    png_infop info = png_create_info_struct(png);
+    if (info == nullptr)
+    {
+        png_destroy_read_struct(&png, nullptr, nullptr);
+        fclose(fp);
+        return out;
+    }
+    if (setjmp(png_jmpbuf(png)))
+    {
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return out;
+    }
+    png_init_io(png, fp);
+    png_set_sig_bytes(png, 8);
+    png_read_info(png, info);
+    png_uint_32 w = 0, h = 0;
+    int bit_depth = 0, colour_type = 0, interlace_type = 0;
+    png_get_IHDR(png, info, &w, &h, &bit_depth, &colour_type, &interlace_type, nullptr, nullptr);
+    if (interlace_type != PNG_INTERLACE_NONE)
+    {
+        // The row reader below expects a single non-interlaced pass; rather than mis-decode an
+        // interlaced image (we never set up interlace handling), reject it as unreadable.
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return out;
+    }
+    out.width = w;
+    out.height = h;
+    out.ok = true;
+    if (colour_type != PNG_COLOR_TYPE_PALETTE)
+    {
+        // A non-palette image decoded fine, but is not something the indexed callers accept.
+        png_destroy_read_struct(&png, &info, nullptr);
+        fclose(fp);
+        return out;
+    }
+    out.indexed = true;
+    // Capture the PLTE palette so callers can import the colours themselves, not just pixel indices.
+    png_colorp plte = nullptr;
+    int num_plte = 0;
+    if (png_get_PLTE(png, info, &plte, &num_plte) == PNG_INFO_PLTE && plte != nullptr)
+    {
+        out.palette.resize(num_plte);
+        for (int i = 0; i < num_plte; ++i)
+        {
+            out.palette[i] = (static_cast<uint32_t>(plte[i].red) << 16) |
+                (static_cast<uint32_t>(plte[i].green) << 8) | static_cast<uint32_t>(plte[i].blue);
+        }
+    }
+    // Expand sub-byte palette indices to one byte each, leaving the index values themselves alone.
+    if (bit_depth < 8)
+    {
+        png_set_packing(png);
+    }
+    png_read_update_info(png, info);
+    const std::size_t rowbytes = png_get_rowbytes(png, info);
+    std::vector<uint8_t> buffer(rowbytes * h);
+    std::vector<png_bytep> rows(h);
+    for (png_uint_32 y = 0; y < h; ++y)
+    {
+        rows[y] = buffer.data() + static_cast<std::size_t>(y) * rowbytes;
+    }
+    png_read_image(png, rows.data());
+    png_read_end(png, nullptr);
+    png_destroy_read_struct(&png, &info, nullptr);
+    fclose(fp);
+
+    out.pixels.assign(static_cast<std::size_t>(w) * h, 0);
+    int max_index = -1;
+    for (png_uint_32 y = 0; y < h; ++y)
+    {
+        for (png_uint_32 x = 0; x < w; ++x)
+        {
+            const uint8_t v = buffer[static_cast<std::size_t>(y) * rowbytes + x];
+            out.pixels[static_cast<std::size_t>(y) * w + x] = v;
+            max_index = std::max(max_index, static_cast<int>(v));
+        }
+    }
+    out.max_index = max_index;
+    return out;
+}
+
 bool ImageBuffer::WritePNG(const std::string& filename, const std::vector<std::shared_ptr<Palette>>& palettes, bool use_alpha)
 {
     volatile bool retval = false;
@@ -248,7 +354,8 @@ bool ImageBuffer::WritePNG(const std::string& filename, const std::vector<std::s
     png_set_IHDR(
         png,
         info,
-        m_width, m_height,
+        static_cast<png_uint_32>(m_width),
+        static_cast<png_uint_32>(m_height),
         8,
         PNG_COLOR_TYPE_PALETTE,
         PNG_INTERLACE_NONE,
@@ -266,10 +373,10 @@ bool ImageBuffer::WritePNG(const std::string& filename, const std::vector<std::s
     {
         for (std::size_t i = 0; i < 16; ++i)
         {
-            png_palette[entry + i].red = pal->getR(i);
-            png_palette[entry + i].green = pal->getG(i);
-            png_palette[entry + i].blue = pal->getB(i);
-            png_alpha[entry + i] = pal->getA(i);
+            png_palette[entry + i].red = pal->getR(static_cast<uint8_t>(i));
+            png_palette[entry + i].green = pal->getG(static_cast<uint8_t>(i));
+            png_palette[entry + i].blue = pal->getB(static_cast<uint8_t>(i));
+            png_alpha[entry + i] = pal->getA(static_cast<uint8_t>(i));
         }
         entry += 16;
     }
@@ -311,10 +418,12 @@ void ImageBuffer::InsertBlock(std::size_t x, std::size_t y, uint8_t palette_inde
 {
     if ((y + 7) * m_width + x + 7 < m_pixels.size())
     {
-        InsertTile(x, y, palette_index, block.GetTile(0), tileset, true, mode);
-        InsertTile(x + 8, y, palette_index, block.GetTile(1), tileset, true, mode);
-        InsertTile(x, y + 8, palette_index, block.GetTile(2), tileset, true, mode);
-        InsertTile(x + 8, y + 8, palette_index, block.GetTile(3), tileset, true, mode);
+        int xi = static_cast<int>(x);
+        int yi = static_cast<int>(y);
+        InsertTile(xi, yi, palette_index, block.GetTile(0), tileset, true, mode);
+        InsertTile(xi + 8, yi, palette_index, block.GetTile(1), tileset, true, mode);
+        InsertTile(xi, yi + 8, palette_index, block.GetTile(2), tileset, true, mode);
+        InsertTile(xi + 8, yi + 8, palette_index, block.GetTile(3), tileset, true, mode);
     }
     else
     {
@@ -333,17 +442,17 @@ const std::vector<uint8_t>& ImageBuffer::GetRGB(const std::vector<std::shared_pt
     {
         for (int i = 0; i < 16; ++i)
         {
-            pal_lookup[idx++] = p->getR(i);
-            pal_lookup[idx++] = p->getG(i);
-            pal_lookup[idx++] = p->getB(i);
+            pal_lookup[idx++] = p->getR(static_cast<uint8_t>(i));
+            pal_lookup[idx++] = p->getG(static_cast<uint8_t>(i));
+            pal_lookup[idx++] = p->getB(static_cast<uint8_t>(i));
             pal_lookup[idx++] = 0;
         }
     }
     for (const auto& pixel : m_pixels)
     {
-        *it++ = pal_lookup[(pixel << 2)];
-        *it++ = pal_lookup[(pixel << 2) + 1];
-        *it++ = pal_lookup[(pixel << 2) + 2];
+        *it++ = pal_lookup[static_cast<uint8_t>((pixel & 0x3F) << 2)];
+        *it++ = pal_lookup[static_cast<uint8_t>(((pixel & 0x3F) << 2) + 1)];
+        *it++ = pal_lookup[static_cast<uint8_t>(((pixel & 0x3F) << 2) + 2)];
     }
     return m_rgb;
 }
@@ -359,7 +468,7 @@ const std::vector<uint8_t>& ImageBuffer::GetAlpha(const std::vector<std::shared_
     {
         for (int i = 0; i < 16; ++i)
         {
-            pal_lookup[pi++] = p->getA(i);
+            pal_lookup[pi++] = p->getA(static_cast<uint8_t>(i));
         }
     }
     for (const auto& pixel : m_pixels)
@@ -368,7 +477,12 @@ const std::vector<uint8_t>& ImageBuffer::GetAlpha(const std::vector<std::shared_
         uint8_t max_opacity = *pri++ ? high_pri_max_opacity : low_pri_max_opacity;
         *it++ = std::min<uint8_t>(max_opacity, alpha);
     }
-    return m_alpha;
+	return m_alpha;
+}
+
+const std::vector<uint8_t>& ImageBuffer::GetPixels() const
+{
+	return m_pixels;
 }
 
 std::size_t ImageBuffer::GetHeight() const

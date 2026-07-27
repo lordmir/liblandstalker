@@ -88,6 +88,25 @@ public:
 		std::size_t amount;
 	};
 
+	// An `equ` symbol definition, e.g. `ROOM_MERCATOR_CENTRE: equ $00000276`. The name
+	// is the line's label, so a Define carries both halves of the line.
+	// `width` only affects how many hex digits are emitted when writing - the assembler
+	// treats every value the same. Reading always yields Width::L, since the intended
+	// width of an existing literal cannot be recovered.
+	struct Define
+	{
+		Define(const std::string& p_name, int64_t p_value, Width p_width = Width::L)
+			: name(p_name), value(p_value), width(p_width) {}
+		Define() : value(0), width(Width::L) {}
+
+		bool operator==(const Define& rhs) const;
+		bool operator!=(const Define& rhs) const;
+
+		std::string name;
+		int64_t value;
+		Width width;
+	};
+
 	struct ScriptJump;
 
 	struct ScriptId
@@ -142,10 +161,18 @@ public:
 		static Instruction FromAsmLine(const AsmFile::AsmLine& line, const std::map<std::string, std::string>& defines = {});
 	};
 
+	// A byte string to be emitted as printable quoted runs interspersed with
+	// hexadecimal byte literals for characters that cannot appear in a run.
+	struct String
+	{
+		explicit String(const std::string& p_value) : value(p_value) {}
+		std::string value;
+	};
+
 	struct NewLine {};
 
 	using ScriptAction = std::optional<std::variant<ScriptId, ScriptJump>>;
-	using AsmData = std::variant<uint8_t, std::string, IncludeFile, ScriptId, ScriptJump, Instruction>;
+	using AsmData = std::variant<uint8_t, std::string, IncludeFile, ScriptId, ScriptJump, Instruction, Define>;
 
 	AsmFile(const std::filesystem::path& filename, FileType type = FileType::ASSEMBLER);
 	AsmFile(const std::filesystem::path& filename, const std::vector<std::string>& inc_files);
@@ -156,6 +183,24 @@ public:
 	void SetDefines(const std::map<std::string, std::string>& definitions);
 	void SetDefines(const std::string& inc_file);
 	static std::map<std::string, std::string> ParseDefines(const std::string& inc_file);
+	// Parses defines from inc_file, following any `include "..."` directives it
+	// contains. Included files are resolved relative to base_path (the
+	// disassembly root); pass an empty base_path to resolve relative to inc_file.
+	static std::map<std::string, std::string> ParseDefines(const std::string& inc_file, const std::filesystem::path& base_path);
+	// Collects the `include "..."` paths listed directly under defines_label in
+	// main_asm, stopping at the first non-blank, non-include line (e.g. `org`).
+	static std::vector<std::filesystem::path> CollectDefineIncludes(const std::filesystem::path& main_asm, const std::string& defines_label);
+	// Parses and merges the defines from every include listed under defines_label
+	// in main_asm, following nested includes (resolved relative to base_path).
+	static std::map<std::string, std::string> LoadDefines(const std::filesystem::path& main_asm, const std::filesystem::path& base_path, const std::string& defines_label);
+	// Walks the whole include tree under defines_label in main_asm and returns the
+	// first include whose filename matches `filename` (case-insensitively), as a path
+	// relative to base_path. Constant files such as rooms.inc are nested inside
+	// landstalker.inc rather than listed directly, so CollectDefineIncludes will not
+	// find them. Returns an empty path if no include matches.
+	static std::filesystem::path FindDefineInclude(const std::filesystem::path& main_asm,
+		const std::filesystem::path& base_path, const std::string& defines_label,
+		const std::string& filename);
 	const std::map<std::string, std::string>& GetDefines() const;
 
 	template<typename T>
@@ -210,10 +255,12 @@ public:
 	bool Read(std::filesystem::path& label);
 	bool Read(ScriptAction& action);
 	bool Read(Instruction& inst);
+	bool Read(Define& define);
 
 	template<typename T>
 	bool Write(const T& data);
 	bool Write(const std::string& data);
+	bool Write(const String& data);
 	template<std::size_t N>
 	bool Write(const char(&data)[N]);
 	bool Write(const Label& label);
@@ -225,6 +272,7 @@ public:
 	bool Write(const ScriptJump&);
 	bool Write(const Instruction&);
 	bool Write(const ScriptAction&);
+	bool Write(const Define&);
 	template<typename T, typename... Args>
 	bool Write(const T& first, Args&&... args);
 	template<typename Iter>
@@ -261,7 +309,8 @@ private:
 		INCBIN,
 		ALIGN,
 		SCRIPTID,
-		SCRIPTJUMP
+		SCRIPTJUMP,
+		EQU
 	};
 
 	static bool ParseLine(AsmLine& line, const std::string& str);

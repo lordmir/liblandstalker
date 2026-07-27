@@ -11,8 +11,6 @@
 
 namespace Landstalker {
 
-class GameData;
-
 class Room
 {
     // Stored in ROM in following format:
@@ -43,9 +41,9 @@ public:
 
     Room(const std::string& name_, const std::string& map_name, uint16_t index_, const std::vector<uint8_t>& params);
     Room(const std::string& name_, const std::string& map_name, uint16_t index_, uint8_t params[4]);
-
-    std::string ToYaml(std::shared_ptr<GameData> gd) const;
-    static Room FromYaml(const std::string& yaml_data, std::shared_ptr<GameData> gd);
+    Room(const std::string& name_, const std::string& map_name, uint16_t index_,
+         uint8_t tileset_, uint8_t room_palette_, uint8_t pri_blockset_, uint8_t sec_blockset_,
+         uint8_t room_z_begin_, uint8_t room_z_end_, uint8_t bgm_);
 
     bool operator==(const Room& rhs) const;
     bool operator!=(const Room& rhs) const;

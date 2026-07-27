@@ -839,6 +839,7 @@ void GraphicsData::SetDefaultFilenames()
 	if (m_load_game_routines_1_path.empty()) m_load_game_routines_1_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_1_FILE;
 	if (m_load_game_routines_2_path.empty()) m_load_game_routines_2_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_2_FILE;
 	if (m_load_game_routines_3_path.empty()) m_load_game_routines_3_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_3_FILE;
+	if (m_load_game_routines_4_path.empty()) m_load_game_routines_4_path = RomLabels::Graphics::GAME_LOAD_ROUTINES_4_FILE;
 }
 
 bool GraphicsData::CreateDirectoryStructure(const std::filesystem::path& dir)
@@ -863,6 +864,7 @@ bool GraphicsData::CreateDirectoryStructure(const std::filesystem::path& dir)
 	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_1_path);
 	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_2_path);
 	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_3_path);
+	retval = retval && CreateDirectoryTree(dir / m_load_game_routines_4_path);
 	for (const auto& f : m_fonts_by_name)
 	{
 		retval = retval && CreateDirectoryTree(dir / f.second->GetFilename());
@@ -1305,7 +1307,7 @@ bool GraphicsData::AsmLoadEndCreditData()
 		m_end_credits_palette = PaletteEntry::Create(this, pal_bytes, pal_name, pal_path, Palette::Type::END_CREDITS);
 		m_end_credits_tileset = TilesetEntry::Create(this, logos_bytes, logos_name, logos_path);
 		m_end_credits_map = Tilemap2DEntry::Create(this, map_bytes, map_name, map_path, Tilemap2D::Compression::RLE, 0x100);
-		auto font = TilesetEntry::Create(this, font_bytes, font_name, font_path, true, 8, 8, 2);
+		auto font = EndCreditFontEntry::Create(this, font_bytes, font_name, font_path);
 		m_fonts_by_name.insert({ font->GetName(), font });
 		m_fonts_internal.insert({ RomLabels::Graphics::END_CREDITS_FONT, font });
 		return true;
@@ -1534,15 +1536,16 @@ bool GraphicsData::AsmLoadLoadGameScreenData()
 			auto bytes = ReadBytes(GetBasePath() / path);
 			entries.push_back({ name, path, bytes });
 		}
-		assert(entries.size() >= 8);
+		assert(entries.size() >= 9);
 		m_load_game_routines_1_path = std::get<1>(entries[0]);
-		auto pal = PaletteEntry::Create(this, std::get<2>(entries[1]), std::get<0>(entries[1]), std::get<1>(entries[1]), Palette::Type::FULL);
-		m_load_game_routines_2_path = std::get<1>(entries[2]);
-		auto player_pal = PaletteEntry::Create(this, std::get<2>(entries[3]), std::get<0>(entries[3]), std::get<1>(entries[3]), Palette::Type::FULL);
-		auto chars = TilesetEntry::Create(this, std::get<2>(entries[4]), std::get<0>(entries[4]), std::get<1>(entries[4]));
-		auto tiles = TilesetEntry::Create(this, std::get<2>(entries[5]), std::get<0>(entries[5]), std::get<1>(entries[5]));
-		m_load_game_map = Tilemap2DEntry::Create(this, std::get<2>(entries[6]), std::get<0>(entries[6]), std::get<1>(entries[6]), Tilemap2D::Compression::RLE, 0x100);
-		m_load_game_routines_3_path = std::get<1>(entries[7]);
+		m_load_game_routines_2_path = std::get<1>(entries[1]);
+		auto pal = PaletteEntry::Create(this, std::get<2>(entries[2]), std::get<0>(entries[2]), std::get<1>(entries[2]), Palette::Type::FULL);
+		m_load_game_routines_3_path = std::get<1>(entries[3]);
+		auto player_pal = PaletteEntry::Create(this, std::get<2>(entries[4]), std::get<0>(entries[4]), std::get<1>(entries[4]), Palette::Type::FULL);
+		auto chars = TilesetEntry::Create(this, std::get<2>(entries[5]), std::get<0>(entries[5]), std::get<1>(entries[5]));
+		auto tiles = TilesetEntry::Create(this, std::get<2>(entries[6]), std::get<0>(entries[6]), std::get<1>(entries[6]));
+		m_load_game_map = Tilemap2DEntry::Create(this, std::get<2>(entries[7]), std::get<0>(entries[7]), std::get<1>(entries[7]), Tilemap2D::Compression::RLE, 0x100);
+		m_load_game_routines_4_path = std::get<1>(entries[8]);
 
 		m_load_game_pals.insert({ pal->GetName(), pal });
 		m_load_game_pals_internal.insert({ RomLabels::Graphics::GAME_LOAD_PALETTE, pal });
@@ -1873,8 +1876,8 @@ bool GraphicsData::RomLoadEndCreditData(const Rom& rom)
 		RomLabels::Graphics::END_CREDITS_LOGOS_FILE);
 	m_end_credits_map = Tilemap2DEntry::Create(this, map_bytes, RomLabels::Graphics::END_CREDITS_MAP,
 		RomLabels::Graphics::END_CREDITS_MAP_FILE, Tilemap2D::Compression::RLE, 0x100);
-	auto font = TilesetEntry::Create(this, font_bytes, RomLabels::Graphics::END_CREDITS_FONT,
-		RomLabels::Graphics::END_CREDITS_FONT_FILE, true, 8, 8, 2);
+	auto font = EndCreditFontEntry::Create(this, font_bytes, RomLabels::Graphics::END_CREDITS_FONT,
+		RomLabels::Graphics::END_CREDITS_FONT_FILE);
 	m_fonts_by_name.insert({ font->GetName(), font });
 	m_fonts_internal.insert({ RomLabels::Graphics::END_CREDITS_FONT, font });
 
@@ -2231,7 +2234,7 @@ bool GraphicsData::AsmSaveGraphics(const std::filesystem::path& dir)
 	return retval;
 }
 
-bool GraphicsData::AsmSaveInventoryGraphics(const std::filesystem::path& dir)
+bool GraphicsData::AsmSaveInventoryGraphics(const std::filesystem::path& dir) const
 {
 
 	try
@@ -2366,7 +2369,7 @@ bool GraphicsData::AsmSaveIslandMapData(const std::filesystem::path& dir)
 	return false;
 }
 
-bool GraphicsData::AsmSaveLithographData(const std::filesystem::path& dir)
+bool GraphicsData::AsmSaveLithographData(const std::filesystem::path& dir) const
 {
 	try
 	{
@@ -2424,7 +2427,7 @@ bool GraphicsData::AsmSaveTitleScreenData(const std::filesystem::path& dir)
 	return false;
 }
 
-bool GraphicsData::AsmSaveSegaLogoData(const std::filesystem::path& dir)
+bool GraphicsData::AsmSaveSegaLogoData(const std::filesystem::path& dir) const
 {
 	try
 	{
@@ -2435,10 +2438,10 @@ bool GraphicsData::AsmSaveSegaLogoData(const std::filesystem::path& dir)
 			file << AsmFile::Label(data->GetName()) << AsmFile::IncludeFile(data->GetFilename(), AsmFile::FileType::BINARY);
 		};
 		file << AsmFile::Label(RomLabels::Graphics::SEGA_LOGO_ROUTINES1)
-			 << AsmFile::IncludeFile(RomLabels::Graphics::SEGA_LOGO_ROUTINES1_FILE, AsmFile::FileType::ASSEMBLER);
+			 << AsmFile::IncludeFile(m_sega_logo_routines_1_path, AsmFile::FileType::ASSEMBLER);
 		write_include(m_sega_logo_palette);
 		file << AsmFile::Label(RomLabels::Graphics::SEGA_LOGO_ROUTINES2)
-			 << AsmFile::IncludeFile(RomLabels::Graphics::SEGA_LOGO_ROUTINES2_FILE, AsmFile::FileType::ASSEMBLER);
+			 << AsmFile::IncludeFile(m_sega_logo_routines_2_path, AsmFile::FileType::ASSEMBLER);
 		write_include(m_sega_logo_tileset);
 		file << AsmFile::Align(2);
 
@@ -2451,7 +2454,7 @@ bool GraphicsData::AsmSaveSegaLogoData(const std::filesystem::path& dir)
 	return false;
 }
 
-bool GraphicsData::AsmSaveClimaxLogoData(const std::filesystem::path& dir)
+bool GraphicsData::AsmSaveClimaxLogoData(const std::filesystem::path& dir) const
 {
 	try
 	{
@@ -2486,17 +2489,19 @@ bool GraphicsData::AsmSaveGameLoadData(const std::filesystem::path& dir)
 			file << AsmFile::Label(data->GetName()) << AsmFile::IncludeFile(data->GetFilename(), AsmFile::FileType::BINARY);
 		};
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_1)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_1_FILE, AsmFile::FileType::ASSEMBLER);
-		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PALETTE]);
+			<< AsmFile::IncludeFile(m_load_game_routines_1_path, AsmFile::FileType::ASSEMBLER);
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_2)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_2_FILE, AsmFile::FileType::ASSEMBLER);
+			<< AsmFile::IncludeFile(m_load_game_routines_2_path, AsmFile::FileType::ASSEMBLER);
+		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PALETTE]);
+		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_3)
+			<< AsmFile::IncludeFile(m_load_game_routines_3_path, AsmFile::FileType::ASSEMBLER);
 		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PLAYER_PALETTE]);
 		write_include(m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_CHARS]);
 		write_include(m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_TILES]);
 		write_include(m_load_game_map);
 		file << AsmFile::Align(2);
-		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_3)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_3_FILE, AsmFile::FileType::ASSEMBLER);
+		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_4)
+			<< AsmFile::IncludeFile(m_load_game_routines_4_path, AsmFile::FileType::ASSEMBLER);
 
 		file.WriteFile(dir / m_load_game_path);
 		return true;
@@ -2518,7 +2523,7 @@ bool GraphicsData::RomPrepareInjectInvGraphics(const Rom& rom)
 
 	if (m_fonts_internal.find(RomLabels::Graphics::INV_FONT) != m_fonts_internal.cend())
 	{
-		inv_font_addr = base + bytes->size();
+		inv_font_addr = base + static_cast<uint32_t>(bytes->size());
 		inv_font = m_fonts_internal[RomLabels::Graphics::INV_FONT]->GetBytes();
 		bytes->insert(bytes->end(), inv_font->cbegin(), inv_font->cend());
 		m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Graphics::INV_FONT, inv_font_addr));
@@ -2530,7 +2535,7 @@ bool GraphicsData::RomPrepareInjectInvGraphics(const Rom& rom)
 
 	if (m_ui_gfx_internal.find(RomLabels::Graphics::INV_CURSOR) != m_ui_gfx_internal.cend())
 	{
-		inv_cursor_addr = base + bytes->size();
+		inv_cursor_addr = base + static_cast<uint32_t>(bytes->size());
 		inv_cursor = m_ui_gfx_internal[RomLabels::Graphics::INV_CURSOR]->GetBytes();
 		bytes->insert(bytes->end(), inv_cursor->cbegin(), inv_cursor->cend());
 		m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Graphics::INV_CURSOR, inv_cursor_addr));
@@ -2538,7 +2543,7 @@ bool GraphicsData::RomPrepareInjectInvGraphics(const Rom& rom)
 
 	if (m_ui_gfx_internal.find(RomLabels::Graphics::INV_ARROW) != m_ui_gfx_internal.cend())
 	{
-		inv_arrow_addr = base + bytes->size();
+		inv_arrow_addr = base + static_cast<uint32_t>(bytes->size());
 		inv_arrow = m_ui_gfx_internal[RomLabels::Graphics::INV_ARROW]->GetBytes();
 		bytes->insert(bytes->end(), inv_arrow->cbegin(), inv_arrow->cend());
 		m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Graphics::INV_ARROW, inv_arrow_addr));
@@ -2546,7 +2551,7 @@ bool GraphicsData::RomPrepareInjectInvGraphics(const Rom& rom)
 
 	if (m_ui_gfx_internal.find(RomLabels::Graphics::INV_UNUSED1) != m_ui_gfx_internal.cend())
 	{
-		inv_unused1_addr = base + bytes->size();
+		inv_unused1_addr = base + static_cast<uint32_t>(bytes->size());
 		inv_unused1 = m_ui_gfx_internal[RomLabels::Graphics::INV_UNUSED1]->GetBytes();
 		bytes->insert(bytes->end(), inv_unused1->cbegin(), inv_unused1->cend());
 		m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Graphics::INV_UNUSED1, inv_unused1_addr));
@@ -2555,7 +2560,7 @@ bool GraphicsData::RomPrepareInjectInvGraphics(const Rom& rom)
 
 	if (m_ui_gfx_internal.find(RomLabels::Graphics::INV_UNUSED2) != m_ui_gfx_internal.cend())
 	{
-		inv_unused2_addr = base + bytes->size();
+		inv_unused2_addr = base + static_cast<uint32_t>(bytes->size());
 		inv_unused2 = m_ui_gfx_internal[RomLabels::Graphics::INV_UNUSED2]->GetBytes();
 		bytes->insert(bytes->end(), inv_unused2->cbegin(), inv_unused2->cend());
 		m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Graphics::INV_UNUSED2, inv_unused2_addr));
@@ -2564,7 +2569,7 @@ bool GraphicsData::RomPrepareInjectInvGraphics(const Rom& rom)
 
 	if (m_palettes_internal.find(RomLabels::Graphics::INV_PAL1) != m_palettes_internal.cend())
 	{
-		inv_pal1_addr = base + bytes->size();
+		inv_pal1_addr = base + static_cast<uint32_t>(bytes->size());
 		inv_pal1 = m_palettes_internal[RomLabels::Graphics::INV_PAL1]->GetBytes();
 		bytes->insert(bytes->end(), inv_pal1->cbegin(), inv_pal1->cend());
 		m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Graphics::INV_PAL1, inv_pal1_addr));
@@ -2572,7 +2577,7 @@ bool GraphicsData::RomPrepareInjectInvGraphics(const Rom& rom)
 
 	if (m_palettes_internal.find(RomLabels::Graphics::INV_PAL2) != m_palettes_internal.cend())
 	{
-		inv_pal2_addr = base + bytes->size();
+		inv_pal2_addr = base + static_cast<uint32_t>(bytes->size());
 		inv_pal2 = m_palettes_internal[RomLabels::Graphics::INV_PAL2]->GetBytes();
 		bytes->insert(bytes->end(), inv_pal2->cbegin(), inv_pal2->cend());
 		m_pending_writes.push_back(Asm::WriteOffset16(rom, RomLabels::Graphics::INV_PAL2, inv_pal2_addr));
@@ -2591,7 +2596,7 @@ bool GraphicsData::RomPrepareInjectPalettes(const Rom& rom)
 	auto player_pal = m_palettes_internal[RomLabels::Graphics::PLAYER_PAL]->GetBytes();
 	misc_pal_bytes->insert(misc_pal_bytes->end(), player_pal->cbegin(), player_pal->cend());
 
-	uint32_t hud_begin = begin + misc_pal_bytes->size();
+	uint32_t hud_begin = begin + static_cast<uint32_t>(misc_pal_bytes->size());
 	auto hud_pal = m_palettes_internal[RomLabels::Graphics::HUD_PAL]->GetBytes();
 	misc_pal_bytes->insert(misc_pal_bytes->end(), hud_pal->cbegin(), hud_pal->cend());
 
@@ -2614,7 +2619,7 @@ bool GraphicsData::RomPrepareInjectPalettes(const Rom& rom)
 			armour_pal_bytes->insert(armour_pal_bytes->end(), bytes->cbegin(), bytes->cend());
 		}
 	}
-	uint32_t armour_pal_begin = equip_pal_begin + sword_pal_bytes->size();
+	uint32_t armour_pal_begin = equip_pal_begin + static_cast<uint32_t>(sword_pal_bytes->size());
 	sword_pal_bytes->insert(sword_pal_bytes->end(), armour_pal_bytes->cbegin(), armour_pal_bytes->cend());
 
 	m_pending_writes.push_back({ RomLabels::Graphics::MISC_PAL_SECTION, misc_pal_bytes });
@@ -2654,23 +2659,23 @@ bool GraphicsData::RomPrepareInjectSwordFx(const Rom& rom)
 	auto inv_tilemap_bytes = m_ui_tilemaps_internal[RomLabels::Graphics::INV_TILEMAP]->GetBytes();
 	bytes->insert(bytes->end(), inv_tilemap_bytes->cbegin(), inv_tilemap_bytes->cend());
 
-	uint32_t magic_sword_begin = sword_fx_begin + bytes->size();
+	uint32_t magic_sword_begin = sword_fx_begin + static_cast<uint32_t>(bytes->size());
 	auto magic_sword_bytes = m_sword_fx_internal[RomLabels::Graphics::SWORD_MAGIC]->GetBytes();
 	bytes->insert(bytes->end(), magic_sword_bytes->cbegin(), magic_sword_bytes->cend());
 
-	uint32_t thunder_sword_begin = sword_fx_begin + bytes->size();
+	uint32_t thunder_sword_begin = sword_fx_begin + static_cast<uint32_t>(bytes->size());
 	auto thunder_sword_bytes = m_sword_fx_internal[RomLabels::Graphics::SWORD_THUNDER]->GetBytes();
 	bytes->insert(bytes->end(), thunder_sword_bytes->cbegin(), thunder_sword_bytes->cend());
 
-	uint32_t gaia_sword_begin = sword_fx_begin + bytes->size();
+	uint32_t gaia_sword_begin = sword_fx_begin + static_cast<uint32_t>(bytes->size());
 	auto gaia_sword_bytes = m_sword_fx_internal[RomLabels::Graphics::SWORD_GAIA]->GetBytes();
 	bytes->insert(bytes->end(), gaia_sword_bytes->cbegin(), gaia_sword_bytes->cend());
 
-	uint32_t ice_sword_begin = sword_fx_begin + bytes->size();
+	uint32_t ice_sword_begin = sword_fx_begin + static_cast<uint32_t>(bytes->size());
 	auto ice_sword_bytes = m_sword_fx_internal[RomLabels::Graphics::SWORD_ICE]->GetBytes();
 	bytes->insert(bytes->end(), ice_sword_bytes->cbegin(), ice_sword_bytes->cend());
 
-	uint32_t coinfall_begin = sword_fx_begin + bytes->size();
+	uint32_t coinfall_begin = sword_fx_begin + static_cast<uint32_t>(bytes->size());
 	auto coinfall_bytes = m_sword_fx_internal[RomLabels::Graphics::COINFALL]->GetBytes();
 	bytes->insert(bytes->end(), coinfall_bytes->cbegin(), coinfall_bytes->cend());
 
@@ -2696,19 +2701,19 @@ bool GraphicsData::RomPrepareInjectStatusFx(const Rom& rom)
 	std::unordered_map<std::string, uint32_t> pointers;
 
 	uint32_t poison_begin = begin;
-	pointer_table_size += m_status_fx[RomLabels::Graphics::STATUS_FX_POISON].size() * sizeof(uint32_t);
+	pointer_table_size += static_cast<uint32_t>(m_status_fx[RomLabels::Graphics::STATUS_FX_POISON].size() *  sizeof(uint32_t));
 	uint32_t confusion_begin = begin + pointer_table_size;
-	pointer_table_size += m_status_fx[RomLabels::Graphics::STATUS_FX_CONFUSION].size() * sizeof(uint32_t);
+	pointer_table_size += static_cast<uint32_t>(m_status_fx[RomLabels::Graphics::STATUS_FX_CONFUSION].size() * sizeof(uint32_t));
 	uint32_t paralysis_begin = begin + pointer_table_size;
-	pointer_table_size += m_status_fx[RomLabels::Graphics::STATUS_FX_PARALYSIS].size() * sizeof(uint32_t);
+	pointer_table_size += static_cast<uint32_t>(m_status_fx[RomLabels::Graphics::STATUS_FX_PARALYSIS].size() * sizeof(uint32_t));
 	uint32_t curse_begin = begin + pointer_table_size;
-	pointer_table_size += m_status_fx[RomLabels::Graphics::STATUS_FX_CURSE].size() * sizeof(uint32_t);
+	pointer_table_size += static_cast<uint32_t>(m_status_fx[RomLabels::Graphics::STATUS_FX_CURSE].size() * sizeof(uint32_t));
 
 	bytes->resize(pointer_table_size);
 	for (const auto& f : m_status_fx_frames)
 	{
 		auto fb = f.second->GetBytes();
-		pointers[f.first] = bytes->size() + begin;
+		pointers[f.first] = static_cast<uint32_t>(bytes->size()) + begin;
 		bytes->insert(bytes->end(), fb->cbegin(), fb->cend());
 	}
 	auto it = bytes->begin();
@@ -2743,7 +2748,7 @@ bool GraphicsData::RomPrepareInjectHudData(const Rom& rom)
 	auto map_bytes = m_ui_tilemaps_internal[RomLabels::Graphics::HUD_TILEMAP]->GetBytes();
 	bytes->insert(bytes->end(), map_bytes->cbegin(), map_bytes->cend());
 
-	uint32_t ts_begin = begin + bytes->size();
+	uint32_t ts_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto ts_bytes = m_ui_gfx_internal[RomLabels::Graphics::HUD_TILESET]->GetBytes();
 	bytes->insert(bytes->end(), ts_bytes->cbegin(), ts_bytes->cend());
 
@@ -2763,15 +2768,15 @@ bool GraphicsData::RomPrepareInjectEndCreditData(const Rom& rom)
 	auto pal_bytes = m_end_credits_palette->GetBytes();
 	bytes->insert(bytes->end(), pal_bytes->cbegin(), pal_bytes->cend());
 
-	uint32_t font_begin = begin + bytes->size();
+	uint32_t font_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto font_bytes = m_fonts_internal[RomLabels::Graphics::END_CREDITS_FONT]->GetBytes();
 	bytes->insert(bytes->end(), font_bytes->cbegin(), font_bytes->cend());
 
-	uint32_t logos_begin = begin + bytes->size();
+	uint32_t logos_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto logos_bytes = m_end_credits_tileset->GetBytes();
 	bytes->insert(bytes->end(), logos_bytes->cbegin(), logos_bytes->cend());
 
-	uint32_t map_begin = begin + bytes->size();
+	uint32_t map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto map_bytes = m_end_credits_map->GetBytes();
 	bytes->insert(bytes->end(), map_bytes->cbegin(), map_bytes->cend());
 
@@ -2793,23 +2798,23 @@ bool GraphicsData::RomPrepareInjectIslandMapData(const Rom& rom)
 	auto fg_tiles_bytes = m_island_map_tiles_internal[RomLabels::Graphics::ISLAND_MAP_FG_TILES]->GetBytes();
 	bytes->insert(bytes->end(), fg_tiles_bytes->cbegin(), fg_tiles_bytes->cend());
 
-	uint32_t fg_map_begin = begin + bytes->size();
+	uint32_t fg_map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto fg_map_bytes = m_island_map_tilemaps[RomLabels::Graphics::ISLAND_MAP_FG_MAP]->GetBytes();
 	bytes->insert(bytes->end(), fg_map_bytes->cbegin(), fg_map_bytes->cend());
 
-	uint32_t bg_tiles_begin = begin + bytes->size();
+	uint32_t bg_tiles_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto bg_tiles_bytes = m_island_map_tiles_internal[RomLabels::Graphics::ISLAND_MAP_BG_TILES]->GetBytes();
 	bytes->insert(bytes->end(), bg_tiles_bytes->cbegin(), bg_tiles_bytes->cend());
 
-	uint32_t bg_map_begin = begin + bytes->size();
+	uint32_t bg_map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto bg_map_bytes = m_island_map_tilemaps[RomLabels::Graphics::ISLAND_MAP_BG_MAP]->GetBytes();
 	bytes->insert(bytes->end(), bg_map_bytes->cbegin(), bg_map_bytes->cend());
 
-	uint32_t dots_begin = begin + bytes->size();
+	uint32_t dots_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto dots_bytes = m_island_map_tiles_internal[RomLabels::Graphics::ISLAND_MAP_DOTS]->GetBytes();
 	bytes->insert(bytes->end(), dots_bytes->cbegin(), dots_bytes->cend());
 
-	uint32_t friday_begin = begin + bytes->size();
+	uint32_t friday_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto friday_bytes = m_island_map_tiles_internal[RomLabels::Graphics::ISLAND_MAP_FRIDAY]->GetBytes();
 	bytes->insert(bytes->end(), friday_bytes->cbegin(), friday_bytes->cend());
 	
@@ -2818,7 +2823,7 @@ bool GraphicsData::RomPrepareInjectIslandMapData(const Rom& rom)
 		bytes->push_back(0xFF);
 	}
 
-	uint32_t pal_begin = begin + bytes->size();
+	uint32_t pal_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto fg_pal_bytes = m_island_map_pals_internal[RomLabels::Graphics::ISLAND_MAP_FG_PAL]->GetBytes();
 	auto bg_pal_bytes = m_island_map_pals_internal[RomLabels::Graphics::ISLAND_MAP_BG_PAL]->GetBytes();
 	bytes->insert(bytes->end(), fg_pal_bytes->cbegin(), fg_pal_bytes->cend());
@@ -2845,11 +2850,11 @@ bool GraphicsData::RomPrepareInjectLithographData(const Rom& rom)
 	auto pal_bytes = m_lithograph_palette->GetBytes();
 	bytes->insert(bytes->end(), pal_bytes->cbegin(), pal_bytes->cend());
 
-	uint32_t tiles_begin = begin + bytes->size();
+	uint32_t tiles_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto tiles_bytes = m_lithograph_tileset->GetBytes();
 	bytes->insert(bytes->end(), tiles_bytes->cbegin(), tiles_bytes->cend());
 
-	uint32_t map_begin = begin + bytes->size();
+	uint32_t map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto map_bytes = m_lithograph_map->GetBytes();
 	bytes->insert(bytes->end(), map_bytes->cbegin(), map_bytes->cend());
 
@@ -2876,23 +2881,23 @@ bool GraphicsData::RomPrepareInjectTitleScreenData(const Rom& rom)
 	auto title_1_tiles_bytes = m_title_tiles_internal[RomLabels::Graphics::TITLE_1_TILES]->GetBytes();
 	bytes->insert(bytes->end(), title_1_tiles_bytes->cbegin(), title_1_tiles_bytes->cend());
 
-	uint32_t title_2_tiles_begin = begin + bytes->size();
+	uint32_t title_2_tiles_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto title_2_tiles_bytes = m_title_tiles_internal[RomLabels::Graphics::TITLE_2_TILES]->GetBytes();
 	bytes->insert(bytes->end(), title_2_tiles_bytes->cbegin(), title_2_tiles_bytes->cend());
 
-	uint32_t title_3_tiles_begin = begin + bytes->size();
+	uint32_t title_3_tiles_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto title_3_tiles_bytes = m_title_tiles_internal[RomLabels::Graphics::TITLE_3_TILES]->GetBytes();
 	bytes->insert(bytes->end(), title_3_tiles_bytes->cbegin(), title_3_tiles_bytes->cend());
 
-	uint32_t title_1_map_begin = begin + bytes->size();
+	uint32_t title_1_map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto title_1_map_bytes = m_title_tilemaps_internal[RomLabels::Graphics::TITLE_1_MAP]->GetBytes();
 	bytes->insert(bytes->end(), title_1_map_bytes->cbegin(), title_1_map_bytes->cend());
 
-	uint32_t title_2_map_begin = begin + bytes->size();
+	uint32_t title_2_map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto title_2_map_bytes = m_title_tilemaps_internal[RomLabels::Graphics::TITLE_2_MAP]->GetBytes();
 	bytes->insert(bytes->end(), title_2_map_bytes->cbegin(), title_2_map_bytes->cend());
 
-	uint32_t title_3_map_begin = begin + bytes->size();
+	uint32_t title_3_map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto title_3_map_bytes = m_title_tilemaps_internal[RomLabels::Graphics::TITLE_3_MAP]->GetBytes();
 	bytes->insert(bytes->end(), title_3_map_bytes->cbegin(), title_3_map_bytes->cend());
 
@@ -2901,11 +2906,11 @@ bool GraphicsData::RomPrepareInjectTitleScreenData(const Rom& rom)
 		bytes->push_back(0xFF);
 	}
 
-	uint32_t title_3_pal_begin = begin + bytes->size();
+	uint32_t title_3_pal_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto title_3_pal_bytes = m_title_pals_internal[RomLabels::Graphics::TITLE_3_PAL]->GetBytes();
 	bytes->insert(bytes->end(), title_3_pal_bytes->cbegin(), title_3_pal_bytes->cend());
 
-	uint32_t title_3_pal_highlight_begin = begin + bytes->size();
+	uint32_t title_3_pal_highlight_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto title_3_pal_highlight_bytes = m_title_pals_internal[RomLabels::Graphics::TITLE_3_PAL_HIGHLIGHT]->GetBytes();
 	bytes->insert(bytes->end(), title_3_pal_highlight_bytes->cbegin(), title_3_pal_highlight_bytes->cend());
 
@@ -2954,7 +2959,7 @@ bool GraphicsData::RomPrepareInjectClimaxLogoData(const Rom& rom)
 	auto tiles_bytes = m_climax_logo_tileset->GetBytes();
 	bytes->insert(bytes->end(), tiles_bytes->cbegin(), tiles_bytes->cend());
 
-	uint32_t map_begin = begin + bytes->size();
+	uint32_t map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto map_bytes = m_climax_logo_map->GetBytes();
 	bytes->insert(bytes->end(), map_bytes->cbegin(), map_bytes->cend());
 
@@ -2963,7 +2968,7 @@ bool GraphicsData::RomPrepareInjectClimaxLogoData(const Rom& rom)
 		bytes->push_back(0xFF);
 	}
 
-	uint32_t pal_begin = begin + bytes->size();
+	uint32_t pal_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto pal_bytes = m_climax_logo_palette->GetBytes();
 	bytes->insert(bytes->end(), pal_bytes->cbegin(), pal_bytes->cend());
 
@@ -2986,15 +2991,15 @@ bool GraphicsData::RomPrepareInjectGameLoadScreenData(const Rom& rom)
 	auto player_pal_bytes = m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PLAYER_PALETTE]->GetBytes();
 	bytes->insert(bytes->end(), player_pal_bytes->cbegin(), player_pal_bytes->cend());
 
-	uint32_t chars_begin = begin + bytes->size();
+	uint32_t chars_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto chars_bytes = m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_CHARS]->GetBytes();
 	bytes->insert(bytes->end(), chars_bytes->cbegin(), chars_bytes->cend());
 
-	uint32_t tiles_begin = begin + bytes->size();
+	uint32_t tiles_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto tiles_bytes = m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_TILES]->GetBytes();
 	bytes->insert(bytes->end(), tiles_bytes->cbegin(), tiles_bytes->cend());
 
-	uint32_t map_begin = begin + bytes->size();
+	uint32_t map_begin = begin + static_cast<uint32_t>(bytes->size());
 	auto map_bytes = m_load_game_map->GetBytes();
 	bytes->insert(bytes->end(), map_bytes->cbegin(), map_bytes->cend());
 

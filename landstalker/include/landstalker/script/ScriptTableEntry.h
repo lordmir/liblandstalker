@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <unordered_map>
 
+namespace YAML { class Emitter; }
+
 namespace Landstalker {
 
 class GameData;
@@ -34,7 +36,7 @@ public:
 	virtual ~ScriptTableEntry() = default;
 	virtual uint16_t ToBytes() const = 0;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const = 0;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const = 0;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const = 0;
 	ScriptTableEntryType GetType() const { return type; }
 	std::string GetName() const;
 	std::wstring GetWName() const;
@@ -69,7 +71,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t bits) override;
 
@@ -88,7 +90,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t bits) override;
 
@@ -108,7 +110,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t bits) override;
 
@@ -128,7 +130,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t data) override;
 
@@ -147,7 +149,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t bits) override;
 
@@ -166,7 +168,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t bits) override;
 };
@@ -183,7 +185,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t data) override;
 };
@@ -200,7 +202,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t bits) override;
 
@@ -221,7 +223,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t data) override;
 
@@ -240,7 +242,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t data) override;
 
@@ -259,7 +261,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t data) override;
 
@@ -278,7 +280,7 @@ public:
 
 	virtual uint16_t ToBytes() const override;
 	virtual std::wstring ToString(std::shared_ptr<const GameData> gd) const override;
-	virtual std::wstring ToYaml(std::shared_ptr<const GameData> gd) const override;
+	virtual void ToYaml(YAML::Emitter& out, std::shared_ptr<const GameData> gd) const override;
 	virtual uint16_t GetData() const override;
 	virtual void SetData(uint16_t data) override;
 
