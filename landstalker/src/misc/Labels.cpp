@@ -42,6 +42,10 @@ const std::wstring Labels::C_FLAGS(L"flags");
 const std::wstring Labels::C_BEHAVIOURS(L"behaviours");
 const std::wstring Labels::C_SCRIPT(L"script");
 const std::wstring Labels::C_CUTSCENE(L"cutscene");
+const std::wstring Labels::C_CUTSCENE_SCRIPT(L"cutscene_script");
+const std::wstring Labels::C_INPUT_SCRIPT(L"input_script");
+const std::wstring Labels::C_TRIGGER(L"trigger_action");
+const std::wstring Labels::C_ROOM_ACTION(L"room_action");
 const std::wstring Labels::C_CHARACTER(L"character");
 const std::wstring Labels::C_GLOBAL_CHARACTER(L"global_character");
 
@@ -116,6 +120,19 @@ void Labels::SaveData(const std::string& filename)
 bool Labels::Exists(const std::wstring& what, int id)
 {
     return m_data.find({what, id}) != m_data.cend() && IsValidPath(m_data.at({what, id}));
+}
+
+std::map<int, std::wstring> Labels::GetCategory(const std::wstring& what)
+{
+    std::map<int, std::wstring> out;
+    for (const auto& entry : m_data)
+    {
+        if (entry.first.first == what && IsValidPath(entry.second))
+        {
+            out[entry.first.second] = entry.second;
+        }
+    }
+    return out;
 }
 
 std::optional<std::wstring> Labels::Get(const std::wstring& what, int id) {

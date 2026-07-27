@@ -166,6 +166,15 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunctionTable.cpp">
       <Filter>Source Files\Script</Filter>
     </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\AsmFunctionTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ItemUseTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\RoomActionTable.cpp">
+      <Filter>Source Files\Script</Filter>
+    </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptStatements.cpp">
       <Filter>Source Files\Script</Filter>
     </ClCompile>
@@ -368,6 +377,18 @@
       <Filter>Header Files\Script</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunctionTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\AsmFunctionTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\AsmText.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ItemUseTable.h">
+      <Filter>Header Files\Script</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\RoomActionTable.h">
       <Filter>Header Files\Script</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptStatements.h">

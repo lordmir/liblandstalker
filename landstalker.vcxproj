@@ -213,6 +213,9 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\rooms\WarpList.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ProgressFlags.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\Script.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\AsmFunctionTable.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\ItemUseTable.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\script\RoomActionTable.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunction.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptFunctionTable.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\script\ScriptStatements.cpp" />
@@ -282,6 +285,10 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\rooms\WarpList.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ProgressFlags.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\Script.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\AsmFunctionTable.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\AsmText.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ItemUseTable.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\RoomActionTable.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunction.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptFunctionTable.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\script\ScriptStatements.h" />

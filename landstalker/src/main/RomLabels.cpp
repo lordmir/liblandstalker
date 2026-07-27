@@ -28,6 +28,25 @@ namespace RomLabels
 		const std::string ITEM_FOUND_ARTICLE_TABLE_SECTION("ItemFoundStringOffsets");
 		const std::string ITEM_USE_ARTICLE_TABLE_SECTION("ItemUseStringOffsets");
 
+		// Cutscene action code ("Cutscenes"): the CSA_xxxx handlers and their bra.w dispatch
+		// table - distinct from the CutsceneScriptFuncs script-VM layer above.
+		const std::string CUTSCENE_ACTIONS_SECTION("CutsceneFuncs");
+		const std::string CUTSCENE_JUMPTABLE_SECTION("CutsceneJumpTable");
+		const std::string CUTSCENE_ACTION_DISPATCH_LABEL("CustomScriptActionTable");
+
+		const std::string TRIGGER_ACTIONS_SECTION("BehaviourTriggerFuncs");
+		const std::string TRIGGER_JUMPTABLE_SECTION("BehaviourTriggerJumpTable");
+		const std::string TRIGGER_ACTION_DISPATCH_LABEL("TriggerActionJumpTable");
+
+		const std::string ROOM_ACTIONS1_SECTION("CustomRoomActions1");
+		const std::string ROOM_ACTIONS2_SECTION("CustomRoomActions2");
+		const std::string ROOM_ACTION_CHAIN_LABEL("DoCustomRoomActions");
+
+		const std::string ITEM_PREUSE_TABLE_SECTION("ItemPreUseTable");
+		const std::string ITEM_POSTUSE_TABLE_SECTION("ItemPostUseTable");
+		const std::string ITEM_USE1_SECTION("ItemFuncs1");
+		const std::string ITEM_USE2_SECTION("ItemFuncs2");
+
 		const std::string SCRIPT_FILE("assets_packed/script/script.bin");
 		const std::string CUTSCENE_TABLE_FILE("code/script/cutscenes/script_cutscenetable.asm");
 		const std::string CHAR_TABLE_FILE("code/script/characters/script_charactertable.asm");
@@ -42,6 +61,21 @@ namespace RomLabels
 		const std::string ITEM_ARTICLES_FILE("assets_packed/script/itemarticles/itemarticles.bin");
 		const std::string ITEM_FOUND_ARTICLE_TABLE_FILE("assets_packed/script/itemarticles/itemfound_offsets.bin");
 		const std::string ITEM_USE_ARTICLE_TABLE_FILE("assets_packed/script/itemarticles/itemuse_offsets.bin");
+
+		const std::string CUTSCENE_ACTIONS_FILE("code/scripthandling/dialogueactions.asm");
+		const std::string CUTSCENE_JUMPTABLE_FILE("code/scripthandling/dialogueactionjumptable.asm");
+
+		const std::string TRIGGER_ACTIONS_FILE("code/scripthandling/triggeractions.asm");
+		const std::string TRIGGER_JUMPTABLE_FILE("code/scripthandling/triggeractionjumptable.asm");
+
+		const std::string ROOM_ACTIONS1_FILE("code/maps/customroomactions1.asm");
+		const std::string ROOM_ACTIONS2_FILE("code/maps/customroomactions2.asm");
+
+		const std::string ITEM_PREUSE_TABLE_FILE("code/pointertables/items/items_preusejmptable.asm");
+		const std::string ITEM_POSTUSE_TABLE_FILE("code/pointertables/items/items_postusejmptable.asm");
+		const std::string ITEM_USE1_FILE("code/items/itemuse1.asm");
+		const std::string ITEM_USE2_FILE("code/items/itemuse2.asm");
+		const std::string ITEM_POSTUSE_FILE("code/items/itempostuse.asm");
 	}
 
 	namespace Sprites

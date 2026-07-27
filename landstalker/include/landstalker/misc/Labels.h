@@ -17,6 +17,8 @@ public:
     static void SaveData(const std::string& filename);
     static bool Exists(const std::wstring& what, int id);
     static std::optional<std::wstring> Get(const std::wstring& what, int id);
+    // All id -> label pairs in a category (e.g. to build a name picker).
+    static std::map<int, std::wstring> GetCategory(const std::wstring& what);
     static std::optional<std::wstring> NormalizePath(const std::wstring& what);
     static bool IsValidPath(const std::wstring& what);
     static bool IsValid(const std::wstring& what);
@@ -50,6 +52,17 @@ public:
     static const std::wstring C_BEHAVIOURS;
     static const std::wstring C_SCRIPT;
     static const std::wstring C_CUTSCENE;
+    // Names for cutscene dialogue scripts (the LoadCutsceneDialogue / <PlayCutscene $id> targets),
+    // a distinct id space from C_CUTSCENE (the behaviour/script cutscene-action index).
+    static const std::wstring C_CUTSCENE_SCRIPT;
+    // Names for scripted-input playback sequences (the PlaybackInput / <Playback $id> targets),
+    // indices into the InputPlayback table.
+    static const std::wstring C_INPUT_SCRIPT;
+    // Names for behaviour trigger actions (the WaitForCondition / TA_xx targets), indices into the
+    // trigger action dispatch table.
+    static const std::wstring C_TRIGGER;
+    // Names for per-room fixup actions (customroomactions1/2.asm branches), keyed by chain position.
+    static const std::wstring C_ROOM_ACTION;
     static const std::wstring C_CHARACTER;
     static const std::wstring C_GLOBAL_CHARACTER;
 private:

@@ -30,6 +30,23 @@ namespace RomLabels
 		extern const std::string ITEM_FOUND_ARTICLE_TABLE_SECTION;
 		extern const std::string ITEM_USE_ARTICLE_TABLE_SECTION;
 
+		extern const std::string CUTSCENE_ACTIONS_SECTION;
+		extern const std::string CUTSCENE_JUMPTABLE_SECTION;
+		extern const std::string CUTSCENE_ACTION_DISPATCH_LABEL;
+
+		extern const std::string TRIGGER_ACTIONS_SECTION;
+		extern const std::string TRIGGER_JUMPTABLE_SECTION;
+		extern const std::string TRIGGER_ACTION_DISPATCH_LABEL;
+
+		extern const std::string ROOM_ACTIONS1_SECTION;
+		extern const std::string ROOM_ACTIONS2_SECTION;
+		extern const std::string ROOM_ACTION_CHAIN_LABEL;
+
+		extern const std::string ITEM_PREUSE_TABLE_SECTION;
+		extern const std::string ITEM_POSTUSE_TABLE_SECTION;
+		extern const std::string ITEM_USE1_SECTION;
+		extern const std::string ITEM_USE2_SECTION;
+
 		extern const std::string SCRIPT_FILE;
 		extern const std::string CUTSCENE_TABLE_FILE;
 		extern const std::string CHAR_TABLE_FILE;
@@ -45,6 +62,21 @@ namespace RomLabels
 		extern const std::string ITEM_ARTICLES_FILE;
 		extern const std::string ITEM_FOUND_ARTICLE_TABLE_FILE;
 		extern const std::string ITEM_USE_ARTICLE_TABLE_FILE;
+
+		extern const std::string CUTSCENE_ACTIONS_FILE;
+		extern const std::string CUTSCENE_JUMPTABLE_FILE;
+
+		extern const std::string TRIGGER_ACTIONS_FILE;
+		extern const std::string TRIGGER_JUMPTABLE_FILE;
+
+		extern const std::string ROOM_ACTIONS1_FILE;
+		extern const std::string ROOM_ACTIONS2_FILE;
+
+		extern const std::string ITEM_PREUSE_TABLE_FILE;
+		extern const std::string ITEM_POSTUSE_TABLE_FILE;
+		extern const std::string ITEM_USE1_FILE;
+		extern const std::string ITEM_USE2_FILE;
+		extern const std::string ITEM_POSTUSE_FILE;
 	}
 
 	namespace Sprites

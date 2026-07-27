@@ -5,6 +5,9 @@
 #include <landstalker/main/DataTypes.h>
 #include <landstalker/script/Script.h>
 #include <landstalker/script/ScriptFunctionTable.h>
+#include <landstalker/script/AsmFunctionTable.h>
+#include <landstalker/script/RoomActionTable.h>
+#include <landstalker/script/ItemUseTable.h>
 #include <landstalker/script/ScriptTable.h>
 #include <landstalker/rooms/RoomIndexMap.h>
 
@@ -63,6 +66,31 @@ public:
     std::shared_ptr<ScriptFunctionTable> GetProgressFlagsFuncs();
     void SetProgressFlagsFuncs(const ScriptFunctionTable& funcs);
 
+    // The cutscene action code ("Cutscenes"): CSA_xxxx handlers + their dispatch table. Only
+    // available on the ASM path (nullptr / invalid when loaded from ROM). See
+    // [[cutscene-two-layer-architecture]].
+    std::shared_ptr<const AsmFunctionTable> GetCutsceneActions() const;
+    std::shared_ptr<AsmFunctionTable> GetCutsceneActions();
+    void SetCutsceneActions(const AsmFunctionTable& actions);
+
+    // The behaviour trigger action code ("Trigger Actions"): TA_xx handlers + their dispatch table,
+    // dispatched by a behaviour WaitForCondition. Same structure/availability as the cutscene actions.
+    std::shared_ptr<const AsmFunctionTable> GetTriggerActions() const;
+    std::shared_ptr<AsmFunctionTable> GetTriggerActions();
+    void SetTriggerActions(const AsmFunctionTable& actions);
+
+    // The per-room fixup chain ("Room Actions"): customroomactions1/2.asm. Same availability as the
+    // other action tables (nullptr / invalid on the ROM path or an older disassembly).
+    std::shared_ptr<const RoomActionTable> GetRoomActions() const;
+    std::shared_ptr<RoomActionTable> GetRoomActions();
+    void SetRoomActions(const RoomActionTable& actions);
+
+    // The item pre-use / post-use handlers + their two dispatch tables (itemuse1/2.asm,
+    // itempostuse.asm). Same availability as the other action tables.
+    std::shared_ptr<const ItemUseTable> GetItemUse() const;
+    std::shared_ptr<ItemUseTable> GetItemUse();
+    void SetItemUse(const ItemUseTable& table);
+
     bool HasItemArticles() const;
     uint8_t GetItemArticle(uint8_t item) const;
     void SetItemArticle(uint8_t item, uint8_t article);
@@ -77,6 +105,10 @@ private:
     bool AsmLoadScript();
     bool AsmLoadScriptTables();
     bool AsmLoadScriptFunctions();
+    bool AsmLoadCutsceneActions();
+    bool AsmLoadTriggerActions();
+    bool AsmLoadRoomActions();
+    bool AsmLoadItemUse();
     bool AsmLoadItemArticles();
 
     bool RomLoadScript(const Rom& rom);
@@ -85,6 +117,10 @@ private:
     bool AsmSaveScript(const std::filesystem::path& dir);
     bool AsmSaveScriptTables(const std::filesystem::path& dir);
     bool AsmSaveScriptFunctions(const std::filesystem::path& dir);
+    bool AsmSaveCutsceneActions(const std::filesystem::path& dir);
+    bool AsmSaveTriggerActions(const std::filesystem::path& dir);
+    bool AsmSaveRoomActions(const std::filesystem::path& dir);
+    bool AsmSaveItemUse(const std::filesystem::path& dir);
     bool AsmSaveItemArticles(const std::filesystem::path& dir);
 
     bool RomPrepareInjectScript(const Rom& rom);
@@ -102,6 +138,21 @@ private:
     std::filesystem::path m_shop_funcs_filename;
     std::filesystem::path m_item_funcs_filename;
     std::filesystem::path m_flag_progress_filename;
+
+    std::filesystem::path m_cutscene_actions_filename;
+    std::filesystem::path m_cutscene_jumptable_filename;
+
+    std::filesystem::path m_trigger_actions_filename;
+    std::filesystem::path m_trigger_jumptable_filename;
+
+    std::filesystem::path m_room_actions1_filename;
+    std::filesystem::path m_room_actions2_filename;
+
+    std::filesystem::path m_item_preuse_table_filename;
+    std::filesystem::path m_item_postuse_table_filename;
+    std::filesystem::path m_itemuse1_filename;
+    std::filesystem::path m_itemuse2_filename;
+    std::filesystem::path m_itempostuse_filename;
 
     std::filesystem::path m_item_articles_filename;
     std::filesystem::path m_item_found_article_table_filename;
@@ -132,6 +183,18 @@ private:
     std::shared_ptr<ScriptFunctionTable> m_itemfuncs_orig;
     std::shared_ptr<ScriptFunctionTable> m_flagprogress;
     std::shared_ptr<ScriptFunctionTable> m_flagprogress_orig;
+
+    std::shared_ptr<AsmFunctionTable> m_cutscene_actions;
+    std::shared_ptr<AsmFunctionTable> m_cutscene_actions_orig;
+
+    std::shared_ptr<AsmFunctionTable> m_trigger_actions;
+    std::shared_ptr<AsmFunctionTable> m_trigger_actions_orig;
+
+    std::shared_ptr<RoomActionTable> m_room_actions;
+    std::shared_ptr<RoomActionTable> m_room_actions_orig;
+
+    std::shared_ptr<ItemUseTable> m_item_use;
+    std::shared_ptr<ItemUseTable> m_item_use_orig;
 
     std::optional<std::vector<uint8_t>> m_itemarticles;
     std::optional<std::vector<uint8_t>> m_itemarticles_orig;

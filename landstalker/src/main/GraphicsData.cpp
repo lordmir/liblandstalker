@@ -1536,7 +1536,7 @@ bool GraphicsData::AsmLoadLoadGameScreenData()
 			auto bytes = ReadBytes(GetBasePath() / path);
 			entries.push_back({ name, path, bytes });
 		}
-		assert(entries.size() >= 8);
+		assert(entries.size() >= 9);
 		m_load_game_routines_1_path = std::get<1>(entries[0]);
 		m_load_game_routines_2_path = std::get<1>(entries[1]);
 		auto pal = PaletteEntry::Create(this, std::get<2>(entries[2]), std::get<0>(entries[2]), std::get<1>(entries[2]), Palette::Type::FULL);
@@ -2438,10 +2438,10 @@ bool GraphicsData::AsmSaveSegaLogoData(const std::filesystem::path& dir) const
 			file << AsmFile::Label(data->GetName()) << AsmFile::IncludeFile(data->GetFilename(), AsmFile::FileType::BINARY);
 		};
 		file << AsmFile::Label(RomLabels::Graphics::SEGA_LOGO_ROUTINES1)
-			 << AsmFile::IncludeFile(RomLabels::Graphics::SEGA_LOGO_ROUTINES1_FILE, AsmFile::FileType::ASSEMBLER);
+			 << AsmFile::IncludeFile(m_sega_logo_routines_1_path, AsmFile::FileType::ASSEMBLER);
 		write_include(m_sega_logo_palette);
 		file << AsmFile::Label(RomLabels::Graphics::SEGA_LOGO_ROUTINES2)
-			 << AsmFile::IncludeFile(RomLabels::Graphics::SEGA_LOGO_ROUTINES2_FILE, AsmFile::FileType::ASSEMBLER);
+			 << AsmFile::IncludeFile(m_sega_logo_routines_2_path, AsmFile::FileType::ASSEMBLER);
 		write_include(m_sega_logo_tileset);
 		file << AsmFile::Align(2);
 
@@ -2489,19 +2489,19 @@ bool GraphicsData::AsmSaveGameLoadData(const std::filesystem::path& dir)
 			file << AsmFile::Label(data->GetName()) << AsmFile::IncludeFile(data->GetFilename(), AsmFile::FileType::BINARY);
 		};
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_1)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_1_FILE, AsmFile::FileType::ASSEMBLER);
+			<< AsmFile::IncludeFile(m_load_game_routines_1_path, AsmFile::FileType::ASSEMBLER);
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_2)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_2_FILE, AsmFile::FileType::ASSEMBLER);
+			<< AsmFile::IncludeFile(m_load_game_routines_2_path, AsmFile::FileType::ASSEMBLER);
 		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PALETTE]);
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_3)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_3_FILE, AsmFile::FileType::ASSEMBLER);
+			<< AsmFile::IncludeFile(m_load_game_routines_3_path, AsmFile::FileType::ASSEMBLER);
 		write_include(m_load_game_pals_internal[RomLabels::Graphics::GAME_LOAD_PLAYER_PALETTE]);
 		write_include(m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_CHARS]);
 		write_include(m_load_game_tiles_internal[RomLabels::Graphics::GAME_LOAD_TILES]);
 		write_include(m_load_game_map);
 		file << AsmFile::Align(2);
 		file << AsmFile::Label(RomLabels::Graphics::GAME_LOAD_ROUTINES_4)
-			<< AsmFile::IncludeFile(RomLabels::Graphics::GAME_LOAD_ROUTINES_4_FILE, AsmFile::FileType::ASSEMBLER);
+			<< AsmFile::IncludeFile(m_load_game_routines_4_path, AsmFile::FileType::ASSEMBLER);
 
 		file.WriteFile(dir / m_load_game_path);
 		return true;
