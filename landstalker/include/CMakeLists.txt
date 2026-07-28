@@ -28,6 +28,7 @@ target_sources(${MODULE_NAME}
     "./landstalker/main/GameData.h"
     "./landstalker/main/GraphicsData.h"
     "./landstalker/main/ImageBuffer.h"
+    "./landstalker/main/MusicData.h"
     "./landstalker/main/Rom.h"
     "./landstalker/main/RomLabels.h"
     "./landstalker/main/RomOffsets.h"

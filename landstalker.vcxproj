@@ -191,6 +191,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\GameData.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\GraphicsData.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\ImageBuffer.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\MusicData.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\Rom.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\RomLabels.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\RomOffsets.cpp" />
@@ -263,6 +264,7 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\GameData.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\GraphicsData.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\ImageBuffer.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\MusicData.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\Rom.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\RomLabels.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\RomOffsets.h" />

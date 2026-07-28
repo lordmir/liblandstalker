@@ -13,6 +13,7 @@
 #include <landstalker/main/SpriteData.h>
 #include <landstalker/main/ScriptData.h>
 #include <landstalker/main/AudioData.h>
+#include <landstalker/main/MusicData.h>
 #include <landstalker/main/DataTypes.h>
 
 namespace Landstalker {
@@ -44,6 +45,7 @@ public:
     std::shared_ptr<SpriteData> GetSpriteData() const { return m_ready ? m_spd : nullptr; }
     std::shared_ptr<ScriptData> GetScriptData() const { return m_ready ? m_scd : nullptr; }
     std::shared_ptr<AudioData> GetAudioData() const { return m_ready ? m_ad : nullptr; }
+    std::shared_ptr<MusicData> GetMusicData() const { return m_ready ? m_md : nullptr; }
 
     // Appends a room and extends the room-indexed tables owned by the other data
     // managers to match. Use this rather than RoomData::AddRoom directly. Returns
@@ -125,6 +127,7 @@ private:
     std::shared_ptr<SpriteData> m_spd;
     std::shared_ptr<ScriptData> m_scd;
     std::shared_ptr<AudioData> m_ad;
+    std::shared_ptr<MusicData> m_md;
 
     std::vector<std::shared_ptr<DataManager>> m_data;
 

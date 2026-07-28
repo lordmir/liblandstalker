@@ -89,6 +89,18 @@ namespace RomLabels
 		const std::string PCM_TABLE_LABEL("t_SAMPLE_LOAD_DATA");
 		const std::string PCM_TABLE_FILE("code/audio/samples.asm");
 		const std::string PCM_TABLE_SECTION("PcmSampleTable");
+
+		const std::string MUSIC_BANK_3_FILE("code/audio/soundbank3.asm");
+		const std::string MUSIC_BANK_4_FILE("code/audio/soundbank4.asm");
+		const std::string MUSIC_BANK_3_SECTION("soundbank3");
+		const std::string MUSIC_BANK_4_SECTION("soundbank4");
+		const std::string MUSIC_BANK_3_TABLE_SECTION("MusicBank3Table");
+		const std::string MUSIC_BANK_4_TABLE_SECTION("MusicBank4Table");
+
+		const std::string SFX_FILE("code/audio/sfx.asm");
+		const std::string SFX_TABLE_LABEL("pt_SFX");
+		const std::string SFX_TABLE_SECTION("SfxTable");
+		const std::string SOUND_DRIVER_SECTION("sounddriver");
 	}
 
 	namespace Sprites

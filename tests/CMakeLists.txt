@@ -34,3 +34,15 @@ target_include_directories(asm_file_tests PRIVATE ${CMAKE_SOURCE_DIR}/modules/li
 target_link_libraries(asm_file_tests PRIVATE landstalker GTest::gtest_main)
 
 gtest_discover_tests(asm_file_tests)
+
+add_executable(z80_asm_file_tests test_z80_asm_file.cpp)
+target_include_directories(z80_asm_file_tests PRIVATE ${CMAKE_SOURCE_DIR}/modules/liblandstalker/landstalker/include)
+target_link_libraries(z80_asm_file_tests PRIVATE landstalker GTest::gtest_main)
+
+gtest_discover_tests(z80_asm_file_tests)
+
+add_executable(music_data_tests test_music_data.cpp)
+target_include_directories(music_data_tests PRIVATE ${CMAKE_SOURCE_DIR}/modules/liblandstalker/landstalker/include)
+target_link_libraries(music_data_tests PRIVATE landstalker GTest::gtest_main)
+
+gtest_discover_tests(music_data_tests)

@@ -93,6 +93,32 @@ namespace RomLabels
 		extern const std::string PCM_TABLE_LABEL;
 		extern const std::string PCM_TABLE_FILE;
 		extern const std::string PCM_TABLE_SECTION;
+
+		// Music: two swappable Z80 sound banks, each a `dw` pointer table (32 entries) followed
+		// by the music track headers/data it indexes - see MusicData. Bank 3 covers music ids
+		// 20h-3Fh, bank 4 covers 00h-1Fh. In ASM, the table is the anonymous `dw` list right after
+		// each file's `org` (bank 3: file offset 0; bank 4: file offset 910h, after a mid-file
+		// `org 8910h` following the included YM instrument data) - there is no label to Goto(), so
+		// the fixed file offset below is used with Z80AsmFile::ReadBytesAt instead.
+		extern const std::string MUSIC_BANK_3_FILE;
+		extern const std::string MUSIC_BANK_4_FILE;
+		extern const std::string MUSIC_BANK_3_SECTION;
+		extern const std::string MUSIC_BANK_4_SECTION;
+		extern const std::string MUSIC_BANK_3_TABLE_SECTION;
+		extern const std::string MUSIC_BANK_4_TABLE_SECTION;
+		constexpr std::size_t MUSIC_BANK_4_TABLE_ASM_OFFSET = 0x910;
+		constexpr std::size_t MUSIC_TABLE_ENTRY_COUNT = 32;
+
+		// SFX: a `pt_SFX` pointer table (58 entries) within the resident sound driver, followed by
+		// the SFX headers/data it indexes - see MusicData. In ROM, pointers here (and within an SFX
+		// header) are driver-relative, unlike the 8000h-based bank pointers above.
+		extern const std::string SFX_FILE;
+		extern const std::string SFX_TABLE_LABEL;
+		extern const std::string SFX_TABLE_SECTION;
+		// Read-only reference region for resolving SFX pointers in ROM - the driver binary itself
+		// (cube.bin) is built from source and is not owned/injected by MusicData.
+		extern const std::string SOUND_DRIVER_SECTION;
+		constexpr std::size_t SFX_TABLE_ENTRY_COUNT = 58;
 	}
 
 	namespace Sprites

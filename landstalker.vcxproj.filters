@@ -31,6 +31,9 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\ImageBuffer.cpp">
       <Filter>Source Files\Main</Filter>
     </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\MusicData.cpp">
+      <Filter>Source Files\Main</Filter>
+    </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\Rom.cpp">
       <Filter>Source Files\Main</Filter>
     </ClCompile>
@@ -239,6 +242,9 @@
       <Filter>Header Files\Main</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\ImageBuffer.h">
+      <Filter>Header Files\Main</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\MusicData.h">
       <Filter>Header Files\Main</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\Rom.h">

@@ -54,20 +54,30 @@ namespace Landstalker {
 
 Z80AsmFile::Z80AsmFile(const std::filesystem::path& filename)
 {
-	std::ifstream ifs(filename);
+	ParseFile(filename);
+	if (m_good)
+	{
+		ResolveFixups();
+	}
+}
+
+void Z80AsmFile::ParseFile(const std::filesystem::path& path)
+{
+	std::ifstream ifs(path);
 	if (!ifs.is_open())
 	{
 		m_good = false;
 		return;
 	}
+	const std::filesystem::path dir = path.parent_path();
 	std::string line;
 	while (std::getline(ifs, line))
 	{
-		ParseLine(line);
+		ParseLine(dir, line);
 	}
 }
 
-void Z80AsmFile::ParseLine(std::string line)
+void Z80AsmFile::ParseLine(const std::filesystem::path& current_dir, std::string line)
 {
 	const auto semi = line.find(';');
 	if (semi != std::string::npos)
@@ -90,6 +100,14 @@ void Z80AsmFile::ParseLine(std::string line)
 			m_labels[label] = m_data.size();
 			rest = Trim(line.substr(colon + 1));
 		}
+	}
+	else if (!line.empty() && (std::isalpha(static_cast<unsigned char>(line[0])) || line[0] == '_') &&
+		std::all_of(line.begin(), line.end(), [](unsigned char c) { return std::isalnum(c) || c == '_'; }))
+	{
+		// A bare identifier alone on its own line is also a label, colon optional - this
+		// disassembly isn't fully consistent about including it (e.g. music/music11.asm).
+		m_labels[line] = m_data.size();
+		return;
 	}
 	if (rest.empty())
 	{
@@ -123,6 +141,48 @@ void Z80AsmFile::ParseLine(std::string line)
 				m_data.push_back(static_cast<uint8_t>(v & 0xFF));
 				m_data.push_back(static_cast<uint8_t>((v >> 8) & 0xFF));
 			}
+			else
+			{
+				// Not a literal - treat it as a label reference and fix it up once every label in
+				// this file (and everything it includes) is known.
+				m_fixups.push_back({ m_data.size(), tok });
+				m_data.push_back(0);
+				m_data.push_back(0);
+			}
+		}
+		return;
+	}
+	if (kw_lower == "include")
+	{
+		std::string path = Trim(operand);
+		if (path.size() >= 2 && (path.front() == '"' || path.front() == '\'') && path.back() == path.front())
+		{
+			path = path.substr(1, path.size() - 2);
+		}
+		if (!path.empty())
+		{
+			ParseFile(current_dir / path);
+		}
+		return;
+	}
+	if (kw_lower == "org")
+	{
+		uint32_t addr = 0;
+		if (ParseNumber(operand, addr))
+		{
+			if (!m_org_base_set)
+			{
+				m_org_base = addr;
+				m_org_base_set = true;
+			}
+			else if (addr >= m_org_base)
+			{
+				const std::size_t target_offset = addr - m_org_base;
+				if (target_offset > m_data.size())
+				{
+					m_data.resize(target_offset, 0);
+				}
+			}
 		}
 		return;
 	}
@@ -140,7 +200,21 @@ void Z80AsmFile::ParseLine(std::string line)
 		}
 		return;
 	}
-	// Anything else (org, cpu, phase, include, ds, instructions, ...) is not needed here and is skipped.
+	// Anything else (cpu, phase, ds, instructions, ...) is not needed here and is skipped.
+}
+
+void Z80AsmFile::ResolveFixups()
+{
+	for (const auto& fixup : m_fixups)
+	{
+		std::size_t label_offset = 0;
+		if (GetLabelOffset(fixup.label, label_offset))
+		{
+			m_data[fixup.data_offset] = static_cast<uint8_t>(label_offset & 0xFF);
+			m_data[fixup.data_offset + 1] = static_cast<uint8_t>((label_offset >> 8) & 0xFF);
+		}
+	}
+	m_fixups.clear();
 }
 
 bool Z80AsmFile::ParseNumber(const std::string& token, uint32_t& value)
@@ -185,14 +259,25 @@ bool Z80AsmFile::LabelExists(const std::string& label) const
 	return m_labels.find(label) != m_labels.end();
 }
 
-bool Z80AsmFile::Goto(const std::string& label)
+bool Z80AsmFile::GetLabelOffset(const std::string& label, std::size_t& offset) const
 {
 	const auto it = m_labels.find(label);
 	if (it == m_labels.end())
 	{
 		return false;
 	}
-	m_readpos = it->second;
+	offset = it->second;
+	return true;
+}
+
+bool Z80AsmFile::Goto(const std::string& label)
+{
+	std::size_t offset = 0;
+	if (!GetLabelOffset(label, offset))
+	{
+		return false;
+	}
+	m_readpos = offset;
 	return true;
 }
 
@@ -203,6 +288,17 @@ std::vector<uint8_t> Z80AsmFile::ReadBytes(std::size_t count)
 	for (std::size_t i = 0; i < count && m_readpos < m_data.size(); ++i, ++m_readpos)
 	{
 		out.push_back(m_data[m_readpos]);
+	}
+	return out;
+}
+
+std::vector<uint8_t> Z80AsmFile::ReadBytesAt(std::size_t offset, std::size_t count) const
+{
+	std::vector<uint8_t> out;
+	out.reserve(count);
+	for (std::size_t i = 0; i < count && offset + i < m_data.size(); ++i)
+	{
+		out.push_back(m_data[offset + i]);
 	}
 	return out;
 }
@@ -237,6 +333,19 @@ void Z80AsmFile::WriteBytes(const std::vector<uint8_t>& bytes, std::size_t per_l
 		}
 		m_out_lines.push_back(line);
 	}
+}
+
+void Z80AsmFile::WriteWordRefs(const std::vector<std::string>& labels)
+{
+	for (const auto& label : labels)
+	{
+		m_out_lines.push_back("\tdw " + label);
+	}
+}
+
+void Z80AsmFile::WriteRaw(const std::string& line)
+{
+	m_out_lines.push_back(line);
 }
 
 bool Z80AsmFile::WriteFile(const std::filesystem::path& filename) const

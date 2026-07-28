@@ -10,6 +10,7 @@ target_sources(${MODULE_NAME} PRIVATE
     "GameData.cpp"
     "GraphicsData.cpp"
     "ImageBuffer.cpp"
+    "MusicData.cpp"
     "Rom.cpp"
     "RomLabels.cpp"
     "RomOffsets.cpp"
