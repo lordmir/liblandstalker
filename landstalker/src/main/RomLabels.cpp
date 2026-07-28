@@ -78,6 +78,19 @@ namespace RomLabels
 		const std::string ITEM_POSTUSE_FILE("code/items/itempostuse.asm");
 	}
 
+	namespace Audio
+	{
+		const std::string PCM_BANK_0_SECTION("pcmbank0");
+		const std::string PCM_BANK_1_SECTION("pcmbank1");
+
+		const std::string PCM_BANK_0_FILE("assets_packed/sound/pcmbank0.bin");
+		const std::string PCM_BANK_1_FILE("assets_packed/sound/pcmbank1.bin");
+
+		const std::string PCM_TABLE_LABEL("t_SAMPLE_LOAD_DATA");
+		const std::string PCM_TABLE_FILE("code/audio/samples.asm");
+		const std::string PCM_TABLE_SECTION("PcmSampleTable");
+	}
+
 	namespace Sprites
 	{
 		const std::string POINTER("SpriteGfxPtrPtr");

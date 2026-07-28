@@ -10,6 +10,9 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\AsmUtils.cpp">
       <Filter>Source Files\Main</Filter>
     </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\AudioData.cpp">
+      <Filter>Source Files\Main</Filter>
+    </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\DataManager.cpp">
       <Filter>Source Files\Main</Filter>
     </ClCompile>
@@ -47,6 +50,9 @@
       <Filter>Source Files\Main</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\StringData.cpp">
+      <Filter>Source Files\Main</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\Z80AsmFile.cpp">
       <Filter>Source Files\Main</Filter>
     </ClCompile>
     <ClCompile Include="$(ProjectDir)\landstalker\src\behaviours\Behaviours.cpp">
@@ -214,6 +220,9 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AsmUtils.h">
       <Filter>Header Files\Main</Filter>
     </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AudioData.h">
+      <Filter>Header Files\Main</Filter>
+    </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\DataManager.h">
       <Filter>Header Files\Main</Filter>
     </ClInclude>
@@ -251,6 +260,9 @@
       <Filter>Header Files\Main</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\StringData.h">
+      <Filter>Header Files\Main</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\Z80AsmFile.h">
       <Filter>Header Files\Main</Filter>
     </ClInclude>
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\behaviours\Behaviours.h">

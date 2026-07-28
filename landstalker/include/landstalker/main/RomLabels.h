@@ -79,6 +79,22 @@ namespace RomLabels
 		extern const std::string ITEM_POSTUSE_FILE;
 	}
 
+	namespace Audio
+	{
+		extern const std::string PCM_BANK_0_SECTION;
+		extern const std::string PCM_BANK_1_SECTION;
+
+		extern const std::string PCM_BANK_0_FILE;
+		extern const std::string PCM_BANK_1_FILE;
+
+		// PCM sample directory: 8-byte entries (rate, reserved, bank, reserved, length, start
+		// offset) read from either the Z80 label below (ASM) or a fixed offset within the sound
+		// driver binary (ROM) - see AudioData.
+		extern const std::string PCM_TABLE_LABEL;
+		extern const std::string PCM_TABLE_FILE;
+		extern const std::string PCM_TABLE_SECTION;
+	}
+
 	namespace Sprites
 	{
 		extern const std::string POINTER;

@@ -184,6 +184,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\blockset\BlocksetCmp.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\AsmFile.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\AsmUtils.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\AudioData.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\DataManager.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\DataTypes.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\EntryPreferences.cpp" />
@@ -197,6 +198,7 @@
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\ScriptData.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\SpriteData.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\main\StringData.cpp" />
+    <ClCompile Include="$(ProjectDir)\landstalker\src\main\Z80AsmFile.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\misc\BitBarrel.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\misc\BitBarrelWriter.cpp" />
     <ClCompile Include="$(ProjectDir)\landstalker\src\misc\DefaultLabels.cpp" />
@@ -254,6 +256,7 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AsmFile.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AsmFile_inl.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AsmUtils.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\AudioData.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\DataManager.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\DataTypes.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\EntryPreferences.h" />
@@ -267,6 +270,7 @@
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\ScriptData.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\SpriteData.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\StringData.h" />
+    <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\main\Z80AsmFile.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\BitBarrel.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\BitBarrelWriter.h" />
     <ClInclude Include="$(ProjectDir)\landstalker\include\landstalker\misc\DefaultLabels.h" />
