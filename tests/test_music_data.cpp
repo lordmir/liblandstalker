@@ -157,6 +157,34 @@ void WriteMinimalProject(const TemporaryProjectDir& proj)
                    "\tinclude \"sfx/sfx_null_data.asm\"\n";
         proj.Write("code/audio/sfx.asm", sfx_asm);
     }
+
+    // A miniature but structurally complete instrument_params.asm: every table label present with
+    // the real table sizes (the loader requires the fixed tables' full extents), tiny
+    // pitch-effect/envelope lists, and the two symbolic pointer tables.
+    {
+        std::string params;
+        params += "t_YM_FREQUENCIES:";
+        for (int i = 0; i < 84; ++i) params += (i == 0 ? "\tdw " : ", ") + std::to_string(0x0A00 + i);
+        params += "\n";
+        params += "t_PSG_FREQUENCIES:";
+        for (int i = 0; i < 64; ++i) params += (i == 0 ? "\tdw " : ", ") + std::to_string(0x300 - i);
+        params += "\n";
+        params += "t_YM_LEVELS:\tdb 70h, 60h, 50h, 40h, 38h, 30h, 2Ah, 26h, 20h, 1Ch, 18h, 14h, 10h, 0Bh, 8, 4\n";
+        params += "t_SLOTS_PER_ALGO:\tdb 8, 8, 8, 8, 0Ch, 0Eh, 0Eh, 0Fh\n";
+        params += "pt_PITCH_EFFECTS:\n";
+        for (int i = 0; i < 16; ++i) params += std::string("\tdw t_PITCH_EFFECT_") + std::to_string(i) + "\n";
+        for (int i = 0; i < 16; ++i)
+        {
+            params += "t_PITCH_EFFECT_" + std::to_string(i) + ":\tdb " + std::to_string(i) + ", 80h\n";
+        }
+        params += "pt_PSG_INSTRUMENTS:\n";
+        for (int i = 0; i < 16; ++i) params += std::string("\tdw t_PSG_INSTRUMENT_") + std::to_string(i) + "\n";
+        for (int i = 0; i < 16; ++i)
+        {
+            params += "t_PSG_INSTRUMENT_" + std::to_string(i) + ":\tdb 8Fh, 8" + std::string(1, "0123456789ABCDEF"[i]) + "h\n";
+        }
+        proj.Write("code/audio/instrument_params.asm", params);
+    }
 }
 
 TEST(MusicDataTest, DecodesEventStreamsAndStopsAtTerminators)
@@ -232,6 +260,39 @@ TEST(MusicDataTest, PlayOnceSectionKeepsDecodingPastJumpToMarker)
     EXPECT_EQ(events[5].value, 0xFF);
     // Byte-for-byte round trip, including everything after the jump.
     EXPECT_EQ(MusicData::EncodeEventStream(events), bytes);
+}
+
+TEST(MusicDataTest, UnterminatedStreamFallsThroughLabelBoundary)
+{
+    // Many of the base game's SFX channels have no terminator of their own and rely on falling
+    // through into the next label's data (usually a shared FFh stop). A label boundary must NOT
+    // end the stream - the decoded channel absorbs the tail so it stays self-contained however a
+    // save re-orders the blocks (truncating here is what corrupted saved SFX, e.g. the jump
+    // sound playing garbage at its end).
+    const std::vector<uint8_t> bytes = {
+        0x84, 0x04,       // a note...
+        0x85, 0x04,       // ...another note; the owning label's data ends here, no terminator
+        0xFF, 0x00, 0x00  // the NEXT label's data (a shared stop event)
+    };
+    const auto events = MusicData::DecodeEventStream(bytes, { 4 }); // label boundary at offset 4
+    ASSERT_EQ(events.size(), 3u);
+    EXPECT_EQ(events[2].value, 0xFF);
+    EXPECT_EQ(MusicData::EncodeEventStream(events), bytes);
+}
+
+TEST(MusicDataTest, JumpLandingOnLabelBoundaryEndsPlayOnceStream)
+{
+    // With a play-once section open, decoding continues past jumps - but a backward jump butting
+    // up against the next label is the stream's true end, even mid-play-once.
+    const std::vector<uint8_t> bytes = {
+        0xF8, 0x40,       // play-once section A opens
+        0x84, 0x04,       // a note
+        0xF8, 0xA1,       // jump to marker A, ending exactly at the next label...
+        0x11, 0x22, 0x33  // ...whose (unrelated) data must not be absorbed
+    };
+    const auto events = MusicData::DecodeEventStream(bytes, { 6 });
+    ASSERT_EQ(events.size(), 3u);
+    EXPECT_EQ(events[2].operand, (std::vector<uint8_t>{0xA1}));
 }
 
 const MusicData::MusicTrack& TrackAtSlot(const MusicData& md, std::size_t slot)
@@ -313,13 +374,8 @@ TEST(MusicDataTest, AsmSaveRoundTripsThroughReload)
     MusicData original(proj.dir / "dummy_top.asm");
 
     TemporaryProjectDir out;
-    // Save() regenerates soundbank3/4.asm and sfx.asm - ym_instruments.asm is untouched source we
-    // don't own, so it needs to already exist for a re-load to succeed.
-    std::filesystem::copy_file(proj.dir / "code/audio/ym_instruments.asm", [&] {
-        const auto p = out.dir / "code/audio/ym_instruments.asm";
-        std::filesystem::create_directories(p.parent_path());
-        return p;
-    }());
+    // Save() regenerates soundbank3/4.asm, sfx.asm AND ym_instruments.asm (the instrument table
+    // is editable data now, not untouched source).
     original.Save(out.dir);
 
     // Pool ordering isn't meaningful (it's an artifact of first-appearance order, which can shift
@@ -336,6 +392,91 @@ TEST(MusicDataTest, AsmSaveRoundTripsThroughReload)
     {
         EXPECT_EQ(SfxAtSlot(reloaded, i), SfxAtSlot(original, i)) << "sfx slot " << i;
     }
+    EXPECT_EQ(reloaded.GetYmInstruments(), original.GetYmInstruments());
+    EXPECT_EQ(reloaded.GetInstrumentParams(), original.GetInstrumentParams());
+    EXPECT_FALSE(reloaded.HasBeenModified());
+}
+
+TEST(MusicDataTest, TrackSizeAndBankUsage)
+{
+    TemporaryProjectDir proj;
+    WriteMinimalProject(proj);
+    MusicData md(proj.dir / "dummy_top.asm");
+
+    // music00: 24-byte header + two distinct channel streams (YM1's 8 bytes; the other nine
+    // channels all share YM2's 3-byte stop) = 35 bytes.
+    EXPECT_EQ(MusicData::GetMusicTrackSize(TrackAtSlot(md, 0)), 24u + 8u + 3u);
+    // The null track: one shared 3-byte stop across all ten channels.
+    EXPECT_EQ(MusicData::GetMusicTrackSize(TrackAtSlot(md, 1)), 24u + 3u);
+
+    // Bank 4 = instruments + pointer table + music00 + the shared null track (counted once).
+    const auto [used4, capacity4] = md.GetMusicBankUsage(0);
+    EXPECT_EQ(used4, 0x910u + 64u + 35u + 27u);
+    EXPECT_EQ(capacity4, 0x8000u);
+    // Bank 3 = pointer table + music20 (24 + one 5-byte stream) + the null track.
+    const auto [used3, capacity3] = md.GetMusicBankUsage(1);
+    EXPECT_EQ(used3, 64u + 29u + 27u);
+    EXPECT_EQ(capacity3, 0x8000u);
+}
+
+TEST(MusicDataTest, InstrumentParamsLoadEditAndRoundTrip)
+{
+    TemporaryProjectDir proj;
+    WriteMinimalProject(proj);
+    MusicData md(proj.dir / "dummy_top.asm");
+
+    const auto& params = md.GetInstrumentParams();
+    EXPECT_EQ(params.ym_frequencies[0], 0x0A00);
+    EXPECT_EQ(params.ym_frequencies[83], 0x0A53);
+    EXPECT_EQ(params.psg_frequencies[0], 0x300);
+    EXPECT_EQ(params.ym_levels[0], 0x70);
+    EXPECT_EQ(params.slots_per_algo[7], 0x0F);
+    EXPECT_EQ(params.pitch_effects[3], (std::vector<uint8_t>{3, 0x80}));
+    EXPECT_EQ(params.psg_envelopes[0], (std::vector<uint8_t>{0x8F, 0x80}));
+    EXPECT_EQ(params.psg_envelopes[15], (std::vector<uint8_t>{0x8F, 0x8F}));
+
+    EXPECT_FALSE(md.HasBeenModified());
+    auto edited = params;
+    edited.ym_levels[0] = 0x7F;
+    edited.pitch_effects[1] = { 0xF0, 0x10, 0x10, 0xF0, 0x80 };
+    edited.psg_envelopes[2] = { 0x0F, 0x0E, 0x8D, 0x8A };
+    md.SetInstrumentParams(edited);
+    EXPECT_TRUE(md.HasBeenModified());
+
+    TemporaryProjectDir out;
+    md.Save(out.dir);
+    MusicData reloaded(out.dir / "dummy_top.asm");
+    EXPECT_EQ(reloaded.GetInstrumentParams(), edited);
+    EXPECT_FALSE(reloaded.HasBeenModified());
+}
+
+TEST(MusicDataTest, YmInstrumentsLoadEditAndRoundTrip)
+{
+    TemporaryProjectDir proj;
+    WriteMinimalProject(proj);
+    MusicData md(proj.dir / "dummy_top.asm");
+
+    // The minimal project's ym_instruments.asm holds three bytes; the bank's org padding zero-fills
+    // the rest of the 910h-byte region, so instrument 0 starts {1, 2, 3, 0, ...} and all others
+    // are all-zero.
+    const auto& instruments = md.GetYmInstruments();
+    EXPECT_EQ(instruments[0][0], 1);
+    EXPECT_EQ(instruments[0][1], 2);
+    EXPECT_EQ(instruments[0][2], 3);
+    EXPECT_EQ(instruments[0][3], 0);
+    EXPECT_EQ(instruments[79], MusicData::YmInstrument{});
+
+    EXPECT_FALSE(md.HasBeenModified());
+    auto edited = instruments;
+    edited[0x4F][28] = 0x3D; // feedback/algorithm byte of the last patch
+    edited[1][0] = 0x71;
+    md.SetYmInstruments(edited);
+    EXPECT_TRUE(md.HasBeenModified());
+
+    TemporaryProjectDir out;
+    md.Save(out.dir);
+    MusicData reloaded(out.dir / "dummy_top.asm");
+    EXPECT_EQ(reloaded.GetYmInstruments(), edited);
     EXPECT_FALSE(reloaded.HasBeenModified());
 }
 

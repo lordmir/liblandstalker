@@ -119,6 +119,12 @@ namespace RomLabels
 		// (cube.bin) is built from source and is not owned/injected by MusicData.
 		extern const std::string SOUND_DRIVER_SECTION;
 		constexpr std::size_t SFX_TABLE_ENTRY_COUNT = 58;
+
+		// The instrument/frequency/pitch-effect parameter tables within the resident driver
+		// (instrument_params.asm) - see MusicData::InstrumentParams. Fixed-position and
+		// contiguous inside the driver, so (unlike the rest of the driver) directly injectable.
+		extern const std::string INSTRUMENT_PARAMS_FILE;
+		extern const std::string INSTRUMENT_PARAMS_SECTION;
 	}
 
 	namespace Sprites

@@ -3,9 +3,11 @@
 #include <algorithm>
 #include <iomanip>
 #include <map>
+#include <set>
 #include <sstream>
 
 #include <landstalker/main/RomLabels.h>
+#include <landstalker/misc/Labels.h>
 #include <landstalker/main/Z80AsmFile.h>
 #include <landstalker/misc/Utils.h>
 
@@ -30,21 +32,40 @@ namespace
 		return oss.str();
 	}
 
-	// A channel's command stream has no explicit terminator when it ends with a backward jump, so
-	// callers delimit each stream by the next known data boundary after its start: the next label
-	// (ASM sources) or the next pointer target (ROM banks). DecodeEventStream may still stop
-	// earlier, at an FFh command or a jump-to-marker with no play-once section open.
-	std::vector<uint8_t> SliceBounded(const std::vector<uint8_t>& data, std::size_t offset,
-		const std::vector<std::size_t>& sorted_boundaries)
+	std::vector<uint8_t> SliceFrom(const std::vector<uint8_t>& data, std::size_t offset)
 	{
 		const std::size_t start = std::min(offset, data.size());
-		std::size_t end = std::min(start + MAX_EVENT_STREAM_SCAN, data.size());
-		const auto it = std::upper_bound(sorted_boundaries.begin(), sorted_boundaries.end(), start);
-		if (it != sorted_boundaries.end())
+		const std::size_t end = std::min(start + MAX_EVENT_STREAM_SCAN, data.size());
+		return std::vector<uint8_t>(data.begin() + start, data.begin() + end);
+	}
+
+	// The label/pointer targets after `start`, as offsets relative to it - DecodeEventStream's
+	// stop_offsets. Only marks where a stream terminated by a backward jump ends; a stream with no
+	// terminator of its own decodes straight through them (see DecodeEventStream).
+	std::vector<std::size_t> RelativeStops(const std::vector<std::size_t>& sorted_boundaries, std::size_t start)
+	{
+		std::vector<std::size_t> out;
+		for (auto it = std::upper_bound(sorted_boundaries.begin(), sorted_boundaries.end(), start);
+			it != sorted_boundaries.end() && *it - start <= MAX_EVENT_STREAM_SCAN; ++it)
 		{
-			end = std::min(end, *it);
+			out.push_back(*it - start);
 		}
-		return std::vector<uint8_t>(data.begin() + start, data.begin() + std::max(start, end));
+		return out;
+	}
+
+	std::vector<std::size_t> LabelStops(const Landstalker::Z80AsmFile& f, std::size_t start)
+	{
+		std::vector<std::size_t> out;
+		for (std::size_t next = f.NextLabelOffsetAfter(start);
+			next - start <= MAX_EVENT_STREAM_SCAN; next = f.NextLabelOffsetAfter(next))
+		{
+			out.push_back(next - start);
+			if (next >= f.ToBinary().size())
+			{
+				break;
+			}
+		}
+		return out;
 	}
 
 	std::size_t MusicChannelOffset(const std::vector<uint8_t>& header, std::size_t ch, bool subtract_bank_base)
@@ -71,7 +92,8 @@ namespace
 		for (std::size_t ch = 0; ch < MusicData::MUSIC_CHANNEL_COUNT; ++ch)
 		{
 			const std::size_t ch_offset = MusicChannelOffset(header, ch, subtract_bank_base);
-			track.channels[ch] = MusicData::DecodeEventStream(SliceBounded(bank, ch_offset, boundaries));
+			track.channels[ch] = MusicData::DecodeEventStream(SliceFrom(bank, ch_offset),
+				RelativeStops(boundaries, ch_offset));
 		}
 		return track;
 	}
@@ -89,8 +111,8 @@ namespace
 		for (std::size_t ch = 0; ch < MusicData::MUSIC_CHANNEL_COUNT; ++ch)
 		{
 			const std::size_t ch_offset = MusicChannelOffset(header, ch, false);
-			const std::size_t limit = std::min(MAX_EVENT_STREAM_SCAN, f.NextLabelOffsetAfter(ch_offset) - ch_offset);
-			track.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, limit));
+			track.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, MAX_EVENT_STREAM_SCAN),
+				LabelStops(f, ch_offset));
 		}
 		return track;
 	}
@@ -126,7 +148,8 @@ namespace
 		entry.channels.resize(n);
 		for (std::size_t ch = 0; ch < ch_offsets.size(); ++ch)
 		{
-			entry.channels[ch] = MusicData::DecodeEventStream(SliceBounded(driver, ch_offsets[ch], boundaries));
+			entry.channels[ch] = MusicData::DecodeEventStream(SliceFrom(driver, ch_offsets[ch]),
+				RelativeStops(boundaries, ch_offsets[ch]));
 		}
 		return entry;
 	}
@@ -146,11 +169,70 @@ namespace
 		for (std::size_t ch = 0; ch < n && ch * 2 + 1 < ptrs.size(); ++ch)
 		{
 			const std::size_t ch_offset = static_cast<std::size_t>(ptrs[ch * 2] | (ptrs[ch * 2 + 1] << 8));
-			const std::size_t limit = std::min(MAX_EVENT_STREAM_SCAN, f.NextLabelOffsetAfter(ch_offset) - ch_offset);
-			entry.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, limit));
+			entry.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, MAX_EVENT_STREAM_SCAN),
+				LabelStops(f, ch_offset));
 		}
 		return entry;
 	}
+
+	MusicData::YmInstrumentTable YmInstrumentsFromBytes(const std::vector<uint8_t>& bytes)
+	{
+		MusicData::YmInstrumentTable table = {};
+		for (std::size_t i = 0; i < MusicData::YM_INSTRUMENT_COUNT; ++i)
+		{
+			for (std::size_t b = 0; b < MusicData::YM_INSTRUMENT_SIZE; ++b)
+			{
+				const std::size_t pos = i * MusicData::YM_INSTRUMENT_SIZE + b;
+				table[i][b] = (pos < bytes.size()) ? bytes[pos] : 0;
+			}
+		}
+		return table;
+	}
+
+	std::vector<uint8_t> YmInstrumentsToBytes(const MusicData::YmInstrumentTable& table)
+	{
+		std::vector<uint8_t> out;
+		out.reserve(MusicData::YM_INSTRUMENT_COUNT * MusicData::YM_INSTRUMENT_SIZE);
+		for (const auto& instrument : table)
+		{
+			out.insert(out.end(), instrument.begin(), instrument.end());
+		}
+		return out;
+	}
+
+	// Writes the instrument table to code/audio/ym_instruments.asm, one YM_INSTMT_NN label per
+	// patch - the labels are what landstalker_tools_python's instrument extractor keys off, so
+	// they're preserved even though the driver itself only ever indexes the table by id * 29.
+	bool WriteYmInstrumentsFile(const std::filesystem::path& full_path, const MusicData::YmInstrumentTable& table)
+	{
+		Landstalker::Z80AsmFile f;
+		f.WriteComment("FM (YM2612) instrument patches, YM_INSTMT_00 .. YM_INSTMT_4F.");
+		f.WriteComment("29 bytes each: seven groups of four per-operator register values, in");
+		f.WriteComment("YM2612 register order (regs 30h/40h/50h/60h/70h/80h/90h, operator slots");
+		f.WriteComment("S1, S3, S2, S4), then one feedback/algorithm byte (reg B0h).");
+		for (std::size_t i = 0; i < MusicData::YM_INSTRUMENT_COUNT; ++i)
+		{
+			f.WriteLabel("YM_INSTMT_" + HexId(i));
+			f.WriteBytes(std::vector<uint8_t>(table[i].begin(), table[i].end()), 16);
+		}
+		return f.WriteFile(full_path);
+	}
+
+	uint16_t ReadWordLE(const std::vector<uint8_t>& bytes, std::size_t pos)
+	{
+		const uint8_t lo = (pos < bytes.size()) ? bytes[pos] : 0;
+		const uint8_t hi = (pos + 1 < bytes.size()) ? bytes[pos + 1] : 0;
+		return static_cast<uint16_t>(lo | (hi << 8));
+	}
+
+	// Relative positions of the fixed tables within the instrument-params region (both the ASM
+	// file's data stream and the ROM section share this layout; the two pointer tables and their
+	// variable-length data follow).
+	constexpr std::size_t YM_FREQUENCIES_OFFSET = 0;
+	constexpr std::size_t PSG_FREQUENCIES_OFFSET = YM_FREQUENCIES_OFFSET + MusicData::YM_FREQUENCY_COUNT * 2;
+	constexpr std::size_t YM_LEVELS_OFFSET = PSG_FREQUENCIES_OFFSET + MusicData::PSG_FREQUENCY_COUNT * 2;
+	constexpr std::size_t SLOTS_PER_ALGO_OFFSET = YM_LEVELS_OFFSET + MusicData::YM_LEVEL_COUNT;
+	constexpr std::size_t PITCH_EFFECT_TABLE_OFFSET = SLOTS_PER_ALGO_OFFSET + MusicData::ALGO_COUNT;
 
 	const std::vector<uint8_t> STOP_EVENT = { 0xFF, 0x00, 0x00 };
 
@@ -168,7 +250,13 @@ namespace
 
 	std::string DefaultMusicTrackName(std::size_t first_slot_id, const MusicData::MusicTrack& t)
 	{
-		return IsSilentTrack(t) ? "(Silent)" : ("Track " + HexId(first_slot_id) + "h");
+		if (IsSilentTrack(t))
+		{
+			return "(Silent)";
+		}
+		// Labels' bgm names already carry their "[NN] " id prefix, so they're used verbatim.
+		const auto label = Landstalker::Labels::Get(Landstalker::Labels::C_BGMS, static_cast<int>(first_slot_id));
+		return label ? Landstalker::wstr_to_utf8(*label) : ("Track " + HexId(first_slot_id) + "h");
 	}
 
 	bool IsNoopSfx(const MusicData::SfxEntry& e)
@@ -185,7 +273,13 @@ namespace
 
 	std::string DefaultSfxName(std::size_t first_slot_id, const MusicData::SfxEntry& e)
 	{
-		return IsNoopSfx(e) ? "(No effect)" : ("SFX " + HexId(first_slot_id) + "h");
+		if (IsNoopSfx(e))
+		{
+			return "(No effect)";
+		}
+		// As with the bgm names, sound labels carry their own "<NN> " id prefix.
+		const auto label = Landstalker::Labels::Get(Landstalker::Labels::C_SOUNDS, static_cast<int>(first_slot_id));
+		return label ? Landstalker::wstr_to_utf8(*label) : ("SFX " + HexId(first_slot_id) + "h");
 	}
 
 	// Writes one track's header + channel data to music/music{ID}.asm. Channels whose encoded
@@ -267,11 +361,16 @@ namespace
 
 namespace Landstalker {
 
-MusicData::EventStream MusicData::DecodeEventStream(const std::vector<uint8_t>& bytes)
+MusicData::EventStream MusicData::DecodeEventStream(const std::vector<uint8_t>& bytes,
+	const std::vector<std::size_t>& stop_offsets)
 {
 	EventStream events;
 	std::size_t i = 0;
 	bool seen_play_once = false;
+	const auto is_stop_offset = [&](std::size_t pos)
+	{
+		return std::binary_search(stop_offsets.begin(), stop_offsets.end(), pos);
+	};
 	while (i < bytes.size())
 	{
 		const uint8_t b = bytes[i];
@@ -302,12 +401,13 @@ MusicData::EventStream MusicData::DecodeEventStream(const std::vector<uint8_t>& 
 					// on the first pass and a different one on later passes).
 					seen_play_once = true;
 				}
-				else if (sub == 0xA0 && !seen_play_once)
+				else if (sub == 0xA0 && (!seen_play_once || is_stop_offset(i)))
 				{
 					// Jump to a marker: an unconditional backward jump - the idiomatic way a track
 					// loops forever. With no play-once section open, nothing after it is reachable,
-					// so it closes the stream the same way FFh does. (With one open, decoding
-					// continues - the caller bounds the stream at the next label/pointer target.)
+					// so it closes the stream the same way FFh does. With one open, decoding keeps
+					// going (a play-once skip can land past the jump) until a jump butts up against
+					// the next label/pointer target - that stream's true end.
 					break;
 				}
 			}
@@ -328,6 +428,45 @@ MusicData::EventStream MusicData::DecodeEventStream(const std::vector<uint8_t>& 
 		}
 	}
 	return events;
+}
+
+std::size_t MusicData::GetMusicTrackSize(const MusicTrack& track)
+{
+	std::size_t size = 4 + MUSIC_CHANNEL_COUNT * 2;
+	std::set<std::vector<uint8_t>> seen;
+	for (const auto& channel : track.channels)
+	{
+		auto bytes = EncodeEventStream(channel);
+		if (seen.insert(bytes).second)
+		{
+			size += bytes.size();
+		}
+	}
+	return size;
+}
+
+std::pair<std::size_t, std::size_t> MusicData::GetMusicBankUsage(std::size_t bank) const
+{
+	constexpr std::size_t BANK_CAPACITY = 0x8000;
+	std::size_t used = RomLabels::Audio::MUSIC_TABLE_ENTRY_COUNT * 2;
+	if (bank == 0)
+	{
+		used += YM_INSTRUMENT_COUNT * YM_INSTRUMENT_SIZE; // the instrument table shares bank 4
+	}
+	std::set<std::size_t> pool_indices;
+	const std::size_t first = bank * RomLabels::Audio::MUSIC_TABLE_ENTRY_COUNT;
+	for (std::size_t i = first; i < first + RomLabels::Audio::MUSIC_TABLE_ENTRY_COUNT && i < m_music_slot_map.size(); ++i)
+	{
+		pool_indices.insert(m_music_slot_map[i]);
+	}
+	for (const std::size_t index : pool_indices)
+	{
+		if (index < m_music_pool.size())
+		{
+			used += GetMusicTrackSize(m_music_pool[index].track);
+		}
+	}
+	return { used, BANK_CAPACITY };
 }
 
 double MusicData::GetTempoHz(uint8_t tempo)
@@ -371,6 +510,10 @@ MusicData::MusicData(const std::filesystem::path& asm_file)
 	{
 		throw std::runtime_error(std::string("Unable to load SFX data from \'") + asm_file.string() + '\'');
 	}
+	if (!AsmLoadInstrumentParams())
+	{
+		throw std::runtime_error(std::string("Unable to load instrument parameters from \'") + asm_file.string() + '\'');
+	}
 	InitCache();
 }
 
@@ -384,6 +527,10 @@ MusicData::MusicData(const Rom& rom)
 	if (!RomLoadSfx(rom))
 	{
 		throw std::runtime_error(std::string("Unable to load SFX data from ROM"));
+	}
+	if (!RomLoadInstrumentParams(rom))
+	{
+		throw std::runtime_error(std::string("Unable to load instrument parameters from ROM"));
 	}
 	InitCache();
 }
@@ -407,6 +554,10 @@ bool MusicData::Save(const std::filesystem::path& dir)
 	{
 		throw std::runtime_error(std::string("Unable to save SFX data to \'") + directory.string() + '\'');
 	}
+	if (!AsmSaveInstrumentParams(directory))
+	{
+		throw std::runtime_error(std::string("Unable to save instrument parameters to \'") + directory.string() + '\'');
+	}
 	CommitAllChanges();
 	return true;
 }
@@ -419,7 +570,9 @@ bool MusicData::Save()
 bool MusicData::HasBeenModified() const
 {
 	return m_music_pool != m_music_pool_orig || m_music_slot_map != m_music_slot_map_orig
-		|| m_sfx_pool != m_sfx_pool_orig || m_sfx_slot_map != m_sfx_slot_map_orig;
+		|| m_sfx_pool != m_sfx_pool_orig || m_sfx_slot_map != m_sfx_slot_map_orig
+		|| m_ym_instruments != m_ym_instruments_orig
+		|| m_instrument_params != m_instrument_params_orig;
 }
 
 const std::vector<MusicData::MusicTrackEntry>& MusicData::GetMusicTrackPool() const
@@ -462,12 +615,86 @@ void MusicData::SetSfxSlotMap(const std::vector<std::size_t>& map)
 	m_sfx_slot_map = map;
 }
 
+const MusicData::YmInstrumentTable& MusicData::GetYmInstruments() const
+{
+	return m_ym_instruments;
+}
+
+void MusicData::SetYmInstruments(const YmInstrumentTable& instruments)
+{
+	m_ym_instruments = instruments;
+}
+
+const MusicData::InstrumentParams& MusicData::GetInstrumentParams() const
+{
+	return m_instrument_params;
+}
+
+void MusicData::SetInstrumentParams(const InstrumentParams& params)
+{
+	m_instrument_params = params;
+}
+
+void MusicData::RefreshPendingWrites(const Rom& rom)
+{
+	DataManager::RefreshPendingWrites(rom);
+	// The blob is shorter than the section, so this only overwrites the instrument region at the
+	// start of the bank - the pointer table and track data after it are untouched.
+	m_pending_writes.push_back({ RomLabels::Audio::MUSIC_BANK_4_SECTION,
+		std::make_shared<ByteVector>(YmInstrumentsToBytes(m_ym_instruments)) });
+
+	// The instrument-params tables re-laid as one contiguous blob, zero-padded to the section
+	// size. If edits have grown the variable-length tables past the section, the blob is left
+	// oversized so WillFitInRom() reports the problem instead of truncating.
+	const auto instr_sec = rom.get_section(RomLabels::Audio::INSTRUMENT_PARAMS_SECTION);
+	const auto driver_sec = rom.get_section(RomLabels::Audio::SOUND_DRIVER_SECTION);
+	const std::size_t ptr_base = instr_sec.begin - driver_sec.begin;
+	ByteVector blob(PITCH_EFFECT_TABLE_OFFSET, 0);
+	for (std::size_t i = 0; i < YM_FREQUENCY_COUNT; ++i)
+	{
+		blob[YM_FREQUENCIES_OFFSET + i * 2] = static_cast<uint8_t>(m_instrument_params.ym_frequencies[i] & 0xFF);
+		blob[YM_FREQUENCIES_OFFSET + i * 2 + 1] = static_cast<uint8_t>(m_instrument_params.ym_frequencies[i] >> 8);
+	}
+	for (std::size_t i = 0; i < PSG_FREQUENCY_COUNT; ++i)
+	{
+		blob[PSG_FREQUENCIES_OFFSET + i * 2] = static_cast<uint8_t>(m_instrument_params.psg_frequencies[i] & 0xFF);
+		blob[PSG_FREQUENCIES_OFFSET + i * 2 + 1] = static_cast<uint8_t>(m_instrument_params.psg_frequencies[i] >> 8);
+	}
+	std::copy(m_instrument_params.ym_levels.begin(), m_instrument_params.ym_levels.end(), blob.begin() + YM_LEVELS_OFFSET);
+	std::copy(m_instrument_params.slots_per_algo.begin(), m_instrument_params.slots_per_algo.end(), blob.begin() + SLOTS_PER_ALGO_OFFSET);
+
+	const auto append_pointer_table_and_data = [&](const auto& lists)
+	{
+		const std::size_t table_pos = blob.size();
+		blob.resize(blob.size() + lists.size() * 2);
+		std::size_t data_pos = blob.size();
+		for (std::size_t i = 0; i < lists.size(); ++i)
+		{
+			const uint16_t target = static_cast<uint16_t>(ptr_base + data_pos);
+			blob[table_pos + i * 2] = static_cast<uint8_t>(target & 0xFF);
+			blob[table_pos + i * 2 + 1] = static_cast<uint8_t>(target >> 8);
+			blob.insert(blob.end(), lists[i].begin(), lists[i].end());
+			data_pos = blob.size();
+		}
+	};
+	append_pointer_table_and_data(m_instrument_params.pitch_effects);
+	append_pointer_table_and_data(m_instrument_params.psg_envelopes);
+	if (blob.size() < instr_sec.size())
+	{
+		blob.resize(instr_sec.size(), 0);
+	}
+	m_pending_writes.push_back({ RomLabels::Audio::INSTRUMENT_PARAMS_SECTION,
+		std::make_shared<ByteVector>(std::move(blob)) });
+}
+
 void MusicData::CommitAllChanges()
 {
 	m_music_pool_orig = m_music_pool;
 	m_music_slot_map_orig = m_music_slot_map;
 	m_sfx_pool_orig = m_sfx_pool;
 	m_sfx_slot_map_orig = m_sfx_slot_map;
+	m_ym_instruments_orig = m_ym_instruments;
+	m_instrument_params_orig = m_instrument_params;
 	m_pending_writes.clear();
 }
 
@@ -488,6 +715,8 @@ void MusicData::InitCache()
 	m_music_slot_map_orig = m_music_slot_map;
 	m_sfx_pool_orig = m_sfx_pool;
 	m_sfx_slot_map_orig = m_sfx_slot_map;
+	m_ym_instruments_orig = m_ym_instruments;
+	m_instrument_params_orig = m_instrument_params;
 }
 
 void MusicData::BuildMusicPoolFromSlots(const std::vector<MusicTrack>& slots)
@@ -547,6 +776,10 @@ bool MusicData::AsmLoadMusic()
 	{
 		return false;
 	}
+	// The instrument table occupies the first 910h bytes of the bank (org 8000h puts the data
+	// stream's offset 0 at the bank window base) - the music pointer table follows it.
+	m_ym_instruments = YmInstrumentsFromBytes(bank4.ReadBytesAt(0, YM_INSTRUMENT_COUNT * YM_INSTRUMENT_SIZE));
+
 	const auto table4 = bank4.ReadBytesAt(RomLabels::Audio::MUSIC_BANK_4_TABLE_ASM_OFFSET, RomLabels::Audio::MUSIC_TABLE_ENTRY_COUNT * 2);
 	for (std::size_t i = 0; i + 1 < table4.size(); i += 2)
 	{
@@ -586,6 +819,183 @@ bool MusicData::AsmLoadSfx()
 	}
 	BuildSfxPoolFromSlots(slots);
 	return true;
+}
+
+bool MusicData::AsmLoadInstrumentParams()
+{
+	Z80AsmFile f(GetBasePath() / RomLabels::Audio::INSTRUMENT_PARAMS_FILE);
+	if (!f.Good())
+	{
+		return false;
+	}
+	const auto read_slice_at_label = [&](const std::string& label, std::vector<uint8_t>& out) -> bool
+	{
+		std::size_t offset = 0;
+		if (!f.GetLabelOffset(label, offset))
+		{
+			return false;
+		}
+		out = f.ReadBytesAt(offset, f.NextLabelOffsetAfter(offset) - offset);
+		return true;
+	};
+
+	std::vector<uint8_t> bytes;
+	if (!read_slice_at_label("t_YM_FREQUENCIES", bytes) || bytes.size() < YM_FREQUENCY_COUNT * 2)
+	{
+		return false;
+	}
+	for (std::size_t i = 0; i < YM_FREQUENCY_COUNT; ++i)
+	{
+		m_instrument_params.ym_frequencies[i] = ReadWordLE(bytes, i * 2);
+	}
+	if (!read_slice_at_label("t_PSG_FREQUENCIES", bytes) || bytes.size() < PSG_FREQUENCY_COUNT * 2)
+	{
+		return false;
+	}
+	for (std::size_t i = 0; i < PSG_FREQUENCY_COUNT; ++i)
+	{
+		m_instrument_params.psg_frequencies[i] = ReadWordLE(bytes, i * 2);
+	}
+	if (!read_slice_at_label("t_YM_LEVELS", bytes) || bytes.size() < YM_LEVEL_COUNT)
+	{
+		return false;
+	}
+	std::copy_n(bytes.begin(), YM_LEVEL_COUNT, m_instrument_params.ym_levels.begin());
+	if (!read_slice_at_label("t_SLOTS_PER_ALGO", bytes) || bytes.size() < ALGO_COUNT)
+	{
+		return false;
+	}
+	std::copy_n(bytes.begin(), ALGO_COUNT, m_instrument_params.slots_per_algo.begin());
+	for (std::size_t i = 0; i < PITCH_EFFECT_COUNT; ++i)
+	{
+		if (!read_slice_at_label("t_PITCH_EFFECT_" + std::to_string(i), m_instrument_params.pitch_effects[i]))
+		{
+			return false;
+		}
+	}
+	for (std::size_t i = 0; i < PSG_ENVELOPE_COUNT; ++i)
+	{
+		if (!read_slice_at_label("t_PSG_INSTRUMENT_" + std::to_string(i), m_instrument_params.psg_envelopes[i]))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool MusicData::RomLoadInstrumentParams(const Rom& rom)
+{
+	const auto instr_sec = rom.get_section(RomLabels::Audio::INSTRUMENT_PARAMS_SECTION);
+	const auto driver_sec = rom.get_section(RomLabels::Audio::SOUND_DRIVER_SECTION);
+	const auto bytes = rom.read_array<uint8_t>(instr_sec.begin, instr_sec.size());
+	// Driver pointers are Z80 addresses with the driver at org 0, so a pointer value minus the
+	// section's own offset into the driver is a position within `bytes`.
+	const std::size_t ptr_base = instr_sec.begin - driver_sec.begin;
+
+	for (std::size_t i = 0; i < YM_FREQUENCY_COUNT; ++i)
+	{
+		m_instrument_params.ym_frequencies[i] = ReadWordLE(bytes, YM_FREQUENCIES_OFFSET + i * 2);
+	}
+	for (std::size_t i = 0; i < PSG_FREQUENCY_COUNT; ++i)
+	{
+		m_instrument_params.psg_frequencies[i] = ReadWordLE(bytes, PSG_FREQUENCIES_OFFSET + i * 2);
+	}
+	for (std::size_t i = 0; i < YM_LEVEL_COUNT; ++i)
+	{
+		m_instrument_params.ym_levels[i] = (YM_LEVELS_OFFSET + i < bytes.size()) ? bytes[YM_LEVELS_OFFSET + i] : 0;
+	}
+	for (std::size_t i = 0; i < ALGO_COUNT; ++i)
+	{
+		m_instrument_params.slots_per_algo[i] = (SLOTS_PER_ALGO_OFFSET + i < bytes.size()) ? bytes[SLOTS_PER_ALGO_OFFSET + i] : 0;
+	}
+
+	std::vector<std::size_t> pitch_targets(PITCH_EFFECT_COUNT);
+	for (std::size_t i = 0; i < PITCH_EFFECT_COUNT; ++i)
+	{
+		pitch_targets[i] = ReadWordLE(bytes, PITCH_EFFECT_TABLE_OFFSET + i * 2) - ptr_base;
+	}
+	// The PSG envelope pointer table follows the last pitch-effect waveform, which (like every
+	// waveform) ends at its 80h/81h control byte.
+	std::size_t psg_table_pos = *std::max_element(pitch_targets.begin(), pitch_targets.end());
+	while (psg_table_pos < bytes.size() && bytes[psg_table_pos] != 0x80 && bytes[psg_table_pos] != 0x81)
+	{
+		++psg_table_pos;
+	}
+	++psg_table_pos;
+	std::vector<std::size_t> psg_targets(PSG_ENVELOPE_COUNT);
+	for (std::size_t i = 0; i < PSG_ENVELOPE_COUNT; ++i)
+	{
+		psg_targets[i] = ReadWordLE(bytes, psg_table_pos + i * 2) - ptr_base;
+	}
+
+	// Each list's extent runs to the next pointer target (or the section's end), the same
+	// boundary-delimiting used for channel streams - keeping any trailing padding intact.
+	std::vector<std::size_t> boundaries = pitch_targets;
+	boundaries.insert(boundaries.end(), psg_targets.begin(), psg_targets.end());
+	boundaries.push_back(psg_table_pos);
+	boundaries.push_back(bytes.size());
+	std::sort(boundaries.begin(), boundaries.end());
+	boundaries.erase(std::unique(boundaries.begin(), boundaries.end()), boundaries.end());
+	const auto slice = [&](std::size_t start) -> std::vector<uint8_t>
+	{
+		const auto it = std::upper_bound(boundaries.begin(), boundaries.end(), start);
+		const std::size_t end = std::min<std::size_t>((it != boundaries.end()) ? *it : bytes.size(), bytes.size());
+		if (start >= end)
+		{
+			return {};
+		}
+		return std::vector<uint8_t>(bytes.begin() + start, bytes.begin() + end);
+	};
+	for (std::size_t i = 0; i < PITCH_EFFECT_COUNT; ++i)
+	{
+		m_instrument_params.pitch_effects[i] = slice(pitch_targets[i]);
+	}
+	for (std::size_t i = 0; i < PSG_ENVELOPE_COUNT; ++i)
+	{
+		m_instrument_params.psg_envelopes[i] = slice(psg_targets[i]);
+	}
+	return true;
+}
+
+bool MusicData::AsmSaveInstrumentParams(const std::filesystem::path& dir)
+{
+	Z80AsmFile f;
+	f.WriteComment("Instrument, frequency and pitch-effect tables for the Cube sound driver -");
+	f.WriteComment("regenerated by the editor; see docs/sound_driver_format.md and the driver");
+	f.WriteComment("source (sounddrv.asm) for how each table is consumed.");
+	f.WriteLabel("t_YM_FREQUENCIES");
+	f.WriteWords(std::vector<uint16_t>(m_instrument_params.ym_frequencies.begin(), m_instrument_params.ym_frequencies.end()), 12);
+	f.WriteLabel("t_PSG_FREQUENCIES");
+	f.WriteWords(std::vector<uint16_t>(m_instrument_params.psg_frequencies.begin(), m_instrument_params.psg_frequencies.end()), 12);
+	f.WriteLabel("t_YM_LEVELS");
+	f.WriteBytes(std::vector<uint8_t>(m_instrument_params.ym_levels.begin(), m_instrument_params.ym_levels.end()), 16);
+	f.WriteLabel("t_SLOTS_PER_ALGO");
+	f.WriteBytes(std::vector<uint8_t>(m_instrument_params.slots_per_algo.begin(), m_instrument_params.slots_per_algo.end()), 8);
+
+	std::vector<std::string> pitch_labels, psg_labels;
+	for (std::size_t i = 0; i < PITCH_EFFECT_COUNT; ++i)
+	{
+		pitch_labels.push_back("t_PITCH_EFFECT_" + std::to_string(i));
+	}
+	for (std::size_t i = 0; i < PSG_ENVELOPE_COUNT; ++i)
+	{
+		psg_labels.push_back("t_PSG_INSTRUMENT_" + std::to_string(i));
+	}
+	f.WriteLabel("pt_PITCH_EFFECTS");
+	f.WriteWordRefs(pitch_labels);
+	for (std::size_t i = 0; i < PITCH_EFFECT_COUNT; ++i)
+	{
+		f.WriteLabel(pitch_labels[i]);
+		f.WriteBytes(m_instrument_params.pitch_effects[i], 16);
+	}
+	f.WriteLabel("pt_PSG_INSTRUMENTS");
+	f.WriteWordRefs(psg_labels);
+	for (std::size_t i = 0; i < PSG_ENVELOPE_COUNT; ++i)
+	{
+		f.WriteLabel(psg_labels[i]);
+		f.WriteBytes(m_instrument_params.psg_envelopes[i], 16);
+	}
+	return f.WriteFile(dir / RomLabels::Audio::INSTRUMENT_PARAMS_FILE);
 }
 
 bool MusicData::RomLoadMusic(const Rom& rom)
@@ -630,6 +1040,14 @@ bool MusicData::RomLoadMusic(const Rom& rom)
 	};
 	load_bank(RomLabels::Audio::MUSIC_BANK_4_TABLE_SECTION, RomLabels::Audio::MUSIC_BANK_4_SECTION);
 	load_bank(RomLabels::Audio::MUSIC_BANK_3_TABLE_SECTION, RomLabels::Audio::MUSIC_BANK_3_SECTION);
+
+	{
+		const auto bank4_sec = rom.get_section(RomLabels::Audio::MUSIC_BANK_4_SECTION);
+		const auto instrument_bytes = rom.read_array<uint8_t>(bank4_sec.begin,
+			std::min<std::size_t>(bank4_sec.size(), YM_INSTRUMENT_COUNT * YM_INSTRUMENT_SIZE));
+		m_ym_instruments = YmInstrumentsFromBytes(instrument_bytes);
+	}
+
 	BuildMusicPoolFromSlots(slots);
 	return true;
 }
@@ -732,6 +1150,11 @@ bool MusicData::AsmSaveMusic(const std::filesystem::path& dir)
 		f.WriteRaw("\t\tend");
 		return f.WriteFile(dir / bank_file);
 	};
+
+	if (!WriteYmInstrumentsFile(dir / "code/audio/ym_instruments.asm", m_ym_instruments))
+	{
+		return false;
+	}
 
 	return write_bank(0, RomLabels::Audio::MUSIC_BANK_4_FILE, true)
 		&& write_bank(RomLabels::Audio::MUSIC_TABLE_ENTRY_COUNT, RomLabels::Audio::MUSIC_BANK_3_FILE, false);

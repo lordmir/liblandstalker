@@ -44,6 +44,7 @@ const std::wstring Labels::C_SCRIPT(L"script");
 const std::wstring Labels::C_CUTSCENE(L"cutscene");
 const std::wstring Labels::C_CUTSCENE_SCRIPT(L"cutscene_script");
 const std::wstring Labels::C_INPUT_SCRIPT(L"input_script");
+const std::wstring Labels::C_YM_INSTRUMENTS(L"ym_instruments");
 const std::wstring Labels::C_TRIGGER(L"trigger_action");
 const std::wstring Labels::C_ROOM_ACTION(L"room_action");
 const std::wstring Labels::C_CHARACTER(L"character");

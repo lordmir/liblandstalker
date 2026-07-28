@@ -48,6 +48,21 @@ std::string FormatHexByte(uint8_t value)
 	return s + "h";
 }
 
+std::string FormatHexWord(uint16_t value)
+{
+	static const char DIGITS[] = "0123456789ABCDEF";
+	std::string s;
+	for (int shift = 12; shift >= 0; shift -= 4)
+	{
+		s += DIGITS[(value >> shift) & 0xF];
+	}
+	if (s[0] >= 'A' && s[0] <= 'F')
+	{
+		s = "0" + s;
+	}
+	return s + "h";
+}
+
 } // namespace
 
 namespace Landstalker {
@@ -343,6 +358,28 @@ void Z80AsmFile::WriteBytes(const std::vector<uint8_t>& bytes, std::size_t per_l
 				line += ", ";
 			}
 			line += FormatHexByte(bytes[j]);
+		}
+		m_out_lines.push_back(line);
+	}
+}
+
+void Z80AsmFile::WriteWords(const std::vector<uint16_t>& words, std::size_t per_line)
+{
+	if (per_line == 0)
+	{
+		per_line = 1;
+	}
+	for (std::size_t i = 0; i < words.size(); i += per_line)
+	{
+		std::string line = "\tdw ";
+		const std::size_t end = std::min(words.size(), i + per_line);
+		for (std::size_t j = i; j < end; ++j)
+		{
+			if (j != i)
+			{
+				line += ", ";
+			}
+			line += FormatHexWord(words[j]);
 		}
 		m_out_lines.push_back(line);
 	}

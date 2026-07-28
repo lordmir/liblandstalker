@@ -58,6 +58,8 @@ public:
     // Names for scripted-input playback sequences (the PlaybackInput / <Playback $id> targets),
     // indices into the InputPlayback table.
     static const std::wstring C_INPUT_SCRIPT;
+    // Names for the FM (YM2612) instrument patches, YM_INSTMT_00-4F.
+    static const std::wstring C_YM_INSTRUMENTS;
     // Names for behaviour trigger actions (the WaitForCondition / TA_xx targets), indices into the
     // trigger action dispatch table.
     static const std::wstring C_TRIGGER;

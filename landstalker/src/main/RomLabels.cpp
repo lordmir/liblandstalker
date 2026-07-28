@@ -101,6 +101,8 @@ namespace RomLabels
 		const std::string SFX_TABLE_LABEL("pt_SFX");
 		const std::string SFX_TABLE_SECTION("SfxTable");
 		const std::string SOUND_DRIVER_SECTION("sounddriver");
+		const std::string INSTRUMENT_PARAMS_FILE("code/audio/instrument_params.asm");
+		const std::string INSTRUMENT_PARAMS_SECTION("InstrumentParams");
 	}
 
 	namespace Sprites

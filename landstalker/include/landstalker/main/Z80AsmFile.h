@@ -58,6 +58,8 @@ public:
     void WriteComment(const std::string& comment);
     void WriteLabel(const std::string& label);
     void WriteBytes(const std::vector<uint8_t>& bytes, std::size_t per_line = 8);
+    // Emits `dw` data lines (words are read back little-endian, matching the parser).
+    void WriteWords(const std::vector<uint16_t>& words, std::size_t per_line = 8);
     // Emits a run of `dw NAME` lines, one per label, e.g. for symbolic pointer tables.
     void WriteWordRefs(const std::vector<std::string>& labels);
     // Emits a line verbatim - for boilerplate (cpu/phase/org/include) this class has no typed
