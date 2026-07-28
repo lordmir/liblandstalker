@@ -23,7 +23,13 @@ public:
         uint8_t reserved = 0;      // unused byte at +1; preserved for round-trip fidelity
         uint8_t reserved2 = 0;     // unused byte at +3; preserved for round-trip fidelity
 
-        bool operator==(const PcmSample&) const = default;
+        // Hand-written rather than `= default`: this public header is also included by the editor
+        // project, which builds as C++17 where defaulted comparison operators aren't available.
+        bool operator==(const PcmSample& o) const
+        {
+            return rate == o.rate && bank == o.bank && length == o.length &&
+                start_offset == o.start_offset && reserved == o.reserved && reserved2 == o.reserved2;
+        }
     };
 
     AudioData(const std::filesystem::path& asm_file);
