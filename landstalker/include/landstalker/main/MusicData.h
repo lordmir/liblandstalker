@@ -31,7 +31,15 @@ public:
         uint8_t duration = 0;         // note/rest only, valid iff has_duration
         std::vector<uint8_t> operand; // command only: F8h-FEh -> 1 byte; FFh -> 2 bytes (lo, hi)
 
-        bool operator==(const SoundEvent&) const = default;
+        // Hand-written rather than `= default`: this public header is also included by the editor
+        // project, which builds as C++17 where defaulted comparison operators (and the synthesised
+        // != from ==) aren't available. See the same note on AudioData::PcmSample.
+        bool operator==(const SoundEvent& o) const
+        {
+            return is_command == o.is_command && value == o.value &&
+                has_duration == o.has_duration && duration == o.duration && operand == o.operand;
+        }
+        bool operator!=(const SoundEvent& o) const { return !(*this == o); }
     };
     using EventStream = std::vector<SoundEvent>;
 
@@ -91,7 +99,13 @@ public:
         std::array<std::vector<uint8_t>, PITCH_EFFECT_COUNT> pitch_effects;
         std::array<std::vector<uint8_t>, PSG_ENVELOPE_COUNT> psg_envelopes;
 
-        bool operator==(const InstrumentParams&) const = default;
+        bool operator==(const InstrumentParams& o) const
+        {
+            return ym_frequencies == o.ym_frequencies && psg_frequencies == o.psg_frequencies &&
+                ym_levels == o.ym_levels && slots_per_algo == o.slots_per_algo &&
+                pitch_effects == o.pitch_effects && psg_envelopes == o.psg_envelopes;
+        }
+        bool operator!=(const InstrumentParams& o) const { return !(*this == o); }
     };
 
     struct MusicTrack
@@ -100,7 +114,11 @@ public:
         uint8_t tempo = 0;            // raw byte; driver writes (tempo + 3) to YM2612 Timer B
         std::array<EventStream, MUSIC_CHANNEL_COUNT> channels;
 
-        bool operator==(const MusicTrack&) const = default;
+        bool operator==(const MusicTrack& o) const
+        {
+            return autofade_frames == o.autofade_frames && tempo == o.tempo && channels == o.channels;
+        }
+        bool operator!=(const MusicTrack& o) const { return !(*this == o); }
     };
 
     struct SfxEntry
@@ -108,7 +126,8 @@ public:
         uint8_t type = 0; // 1 = full effect (10 channels, takes over every channel); else overlay (3 channels)
         std::vector<EventStream> channels;
 
-        bool operator==(const SfxEntry&) const = default;
+        bool operator==(const SfxEntry& o) const { return type == o.type && channels == o.channels; }
+        bool operator!=(const SfxEntry& o) const { return !(*this == o); }
     };
 
     // A named entry in the track/SFX pool - the actual musical content, independent of which
@@ -119,14 +138,16 @@ public:
         std::string name;
         MusicTrack track;
 
-        bool operator==(const MusicTrackEntry&) const = default;
+        bool operator==(const MusicTrackEntry& o) const { return name == o.name && track == o.track; }
+        bool operator!=(const MusicTrackEntry& o) const { return !(*this == o); }
     };
     struct SfxPoolEntry
     {
         std::string name;
         SfxEntry entry;
 
-        bool operator==(const SfxPoolEntry&) const = default;
+        bool operator==(const SfxPoolEntry& o) const { return name == o.name && entry == o.entry; }
+        bool operator!=(const SfxPoolEntry& o) const { return !(*this == o); }
     };
 
     // The bytes a track occupies in its bank when saved: the 24-byte header (autofade/tempo plus
