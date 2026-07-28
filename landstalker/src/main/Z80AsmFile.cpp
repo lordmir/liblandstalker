@@ -270,6 +270,19 @@ bool Z80AsmFile::GetLabelOffset(const std::string& label, std::size_t& offset) c
 	return true;
 }
 
+std::size_t Z80AsmFile::NextLabelOffsetAfter(std::size_t offset) const
+{
+	std::size_t best = m_data.size();
+	for (const auto& [name, label_offset] : m_labels)
+	{
+		if (label_offset > offset && label_offset < best)
+		{
+			best = label_offset;
+		}
+	}
+	return best;
+}
+
 bool Z80AsmFile::Goto(const std::string& label)
 {
 	std::size_t offset = 0;

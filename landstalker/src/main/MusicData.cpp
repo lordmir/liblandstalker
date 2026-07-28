@@ -1,5 +1,6 @@
 #include <landstalker/main/MusicData.h>
 
+#include <algorithm>
 #include <iomanip>
 #include <map>
 #include <sstream>
@@ -29,31 +30,48 @@ namespace
 		return oss.str();
 	}
 
-	std::vector<uint8_t> SliceFrom(const std::vector<uint8_t>& data, std::size_t offset)
+	// A channel's command stream has no explicit terminator when it ends with a backward jump, so
+	// callers delimit each stream by the next known data boundary after its start: the next label
+	// (ASM sources) or the next pointer target (ROM banks). DecodeEventStream may still stop
+	// earlier, at an FFh command or a jump-to-marker with no play-once section open.
+	std::vector<uint8_t> SliceBounded(const std::vector<uint8_t>& data, std::size_t offset,
+		const std::vector<std::size_t>& sorted_boundaries)
 	{
 		const std::size_t start = std::min(offset, data.size());
-		const std::size_t end = std::min(start + MAX_EVENT_STREAM_SCAN, data.size());
-		return std::vector<uint8_t>(data.begin() + start, data.begin() + end);
+		std::size_t end = std::min(start + MAX_EVENT_STREAM_SCAN, data.size());
+		const auto it = std::upper_bound(sorted_boundaries.begin(), sorted_boundaries.end(), start);
+		if (it != sorted_boundaries.end())
+		{
+			end = std::min(end, *it);
+		}
+		return std::vector<uint8_t>(data.begin() + start, data.begin() + std::max(start, end));
 	}
 
-	MusicData::MusicTrack DecodeMusicTrackFromBank(const std::vector<uint8_t>& bank, std::size_t offset, bool subtract_bank_base)
+	std::size_t MusicChannelOffset(const std::vector<uint8_t>& header, std::size_t ch, bool subtract_bank_base)
+	{
+		const std::size_t p = 4 + ch * 2;
+		const uint16_t ptr = static_cast<uint16_t>(header[p] | (header[p + 1] << 8));
+		return subtract_bank_base
+			? static_cast<std::size_t>(static_cast<uint16_t>(ptr - BANK_PTR_BASE))
+			: static_cast<std::size_t>(ptr);
+	}
+
+	MusicData::MusicTrack DecodeMusicTrackFromBank(const std::vector<uint8_t>& bank, std::size_t offset,
+		bool subtract_bank_base, const std::vector<std::size_t>& boundaries)
 	{
 		MusicData::MusicTrack track;
-		const auto header = SliceFrom(bank, offset);
-		if (header.size() < 4 + MusicData::MUSIC_CHANNEL_COUNT * 2)
+		const std::size_t header_size = 4 + MusicData::MUSIC_CHANNEL_COUNT * 2;
+		if (offset + header_size > bank.size())
 		{
 			return track;
 		}
+		const std::vector<uint8_t> header(bank.begin() + offset, bank.begin() + offset + header_size);
 		track.autofade_frames = static_cast<uint16_t>(header[1] | (header[2] << 8));
 		track.tempo = header[3];
 		for (std::size_t ch = 0; ch < MusicData::MUSIC_CHANNEL_COUNT; ++ch)
 		{
-			const std::size_t p = 4 + ch * 2;
-			uint16_t ptr = static_cast<uint16_t>(header[p] | (header[p + 1] << 8));
-			const std::size_t ch_offset = subtract_bank_base
-				? static_cast<std::size_t>(static_cast<uint16_t>(ptr - BANK_PTR_BASE))
-				: static_cast<std::size_t>(ptr);
-			track.channels[ch] = MusicData::DecodeEventStream(SliceFrom(bank, ch_offset));
+			const std::size_t ch_offset = MusicChannelOffset(header, ch, subtract_bank_base);
+			track.channels[ch] = MusicData::DecodeEventStream(SliceBounded(bank, ch_offset, boundaries));
 		}
 		return track;
 	}
@@ -70,14 +88,32 @@ namespace
 		track.tempo = header[3];
 		for (std::size_t ch = 0; ch < MusicData::MUSIC_CHANNEL_COUNT; ++ch)
 		{
-			const std::size_t p = 4 + ch * 2;
-			const std::size_t ch_offset = static_cast<std::size_t>(header[p] | (header[p + 1] << 8));
-			track.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, MAX_EVENT_STREAM_SCAN));
+			const std::size_t ch_offset = MusicChannelOffset(header, ch, false);
+			const std::size_t limit = std::min(MAX_EVENT_STREAM_SCAN, f.NextLabelOffsetAfter(ch_offset) - ch_offset);
+			track.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, limit));
 		}
 		return track;
 	}
 
-	MusicData::SfxEntry DecodeSfxEntryFromDriver(const std::vector<uint8_t>& driver, std::size_t offset)
+	std::vector<std::size_t> SfxChannelOffsets(const std::vector<uint8_t>& driver, std::size_t offset)
+	{
+		std::vector<std::size_t> out;
+		if (offset >= driver.size())
+		{
+			return out;
+		}
+		const std::size_t n = (driver[offset] == 1) ? MusicData::SFX_FULL_CHANNEL_COUNT : MusicData::SFX_OVERLAY_CHANNEL_COUNT;
+		for (std::size_t ch = 0; ch < n && offset + 1 + ch * 2 + 1 < driver.size(); ++ch)
+		{
+			const std::size_t p = offset + 1 + ch * 2;
+			// The driver is phase-0 (org 0), so a raw pointer here is already the byte offset.
+			out.push_back(static_cast<std::size_t>(driver[p] | (driver[p + 1] << 8)));
+		}
+		return out;
+	}
+
+	MusicData::SfxEntry DecodeSfxEntryFromDriver(const std::vector<uint8_t>& driver, std::size_t offset,
+		const std::vector<std::size_t>& boundaries)
 	{
 		MusicData::SfxEntry entry;
 		if (offset >= driver.size())
@@ -85,14 +121,12 @@ namespace
 			return entry;
 		}
 		entry.type = driver[offset];
+		const auto ch_offsets = SfxChannelOffsets(driver, offset);
 		const std::size_t n = (entry.type == 1) ? MusicData::SFX_FULL_CHANNEL_COUNT : MusicData::SFX_OVERLAY_CHANNEL_COUNT;
-		const auto ptrs = SliceFrom(driver, offset + 1);
 		entry.channels.resize(n);
-		for (std::size_t ch = 0; ch < n && ch * 2 + 1 < ptrs.size(); ++ch)
+		for (std::size_t ch = 0; ch < ch_offsets.size(); ++ch)
 		{
-			const uint16_t ptr = static_cast<uint16_t>(ptrs[ch * 2] | (ptrs[ch * 2 + 1] << 8));
-			// The driver is phase-0 (org 0), so a raw pointer here is already the byte offset.
-			entry.channels[ch] = MusicData::DecodeEventStream(SliceFrom(driver, ptr));
+			entry.channels[ch] = MusicData::DecodeEventStream(SliceBounded(driver, ch_offsets[ch], boundaries));
 		}
 		return entry;
 	}
@@ -112,7 +146,8 @@ namespace
 		for (std::size_t ch = 0; ch < n && ch * 2 + 1 < ptrs.size(); ++ch)
 		{
 			const std::size_t ch_offset = static_cast<std::size_t>(ptrs[ch * 2] | (ptrs[ch * 2 + 1] << 8));
-			entry.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, MAX_EVENT_STREAM_SCAN));
+			const std::size_t limit = std::min(MAX_EVENT_STREAM_SCAN, f.NextLabelOffsetAfter(ch_offset) - ch_offset);
+			entry.channels[ch] = MusicData::DecodeEventStream(f.ReadBytesAt(ch_offset, limit));
 		}
 		return entry;
 	}
@@ -236,6 +271,7 @@ MusicData::EventStream MusicData::DecodeEventStream(const std::vector<uint8_t>& 
 {
 	EventStream events;
 	std::size_t i = 0;
+	bool seen_play_once = false;
 	while (i < bytes.size())
 	{
 		const uint8_t b = bytes[i];
@@ -254,14 +290,26 @@ MusicData::EventStream MusicData::DecodeEventStream(const std::vector<uint8_t>& 
 			}
 			events.push_back(ev);
 			i += 2;
-			// F8h's "jump to a marker" sub-command (control byte A0h-BFh) is an unconditional
-			// backward jump - the idiomatic way a track loops forever (see
-			// docs/sound_driver_format.md section 5.4). Nothing physically after it is ever
-			// reached, and (unlike a finite/counted loop) there is no fall-through case, so this
-			// closes the stream the same way FFh does.
-			if (b == 0xF8 && (operand & 0xE0) == 0xA0)
+			if (b == 0xF8)
 			{
-				break;
+				const uint8_t sub = operand & 0xE0;
+				if (sub == 0x40 || sub == 0x60)
+				{
+					// A play-once section opener (docs/sound_driver_format.md section 5.4). Its
+					// presence means bytes after a jump-to-marker can still be reached: on repeat
+					// passes the driver skips forward from here to the section's closing marker,
+					// which may lie beyond the jump (this is how a channel plays one continuation
+					// on the first pass and a different one on later passes).
+					seen_play_once = true;
+				}
+				else if (sub == 0xA0 && !seen_play_once)
+				{
+					// Jump to a marker: an unconditional backward jump - the idiomatic way a track
+					// loops forever. With no play-once section open, nothing after it is reachable,
+					// so it closes the stream the same way FFh does. (With one open, decoding
+					// continues - the caller bounds the stream at the next label/pointer target.)
+					break;
+				}
 			}
 		}
 		else
@@ -551,11 +599,33 @@ bool MusicData::RomLoadMusic(const Rom& rom)
 		auto table_bytes = rom.read_array<uint8_t>(table_sec.begin, table_sec.size());
 		auto bank_sec = rom.get_section(bank_section);
 		auto bank_bytes = rom.read_array<uint8_t>(bank_sec.begin, bank_sec.size());
+		std::vector<std::size_t> track_offsets;
 		for (std::size_t i = 0; i + 1 < table_bytes.size(); i += 2)
 		{
 			const uint16_t ptr = static_cast<uint16_t>(table_bytes[i] | (table_bytes[i + 1] << 8));
-			const std::size_t offset = static_cast<std::size_t>(static_cast<uint16_t>(ptr - BANK_PTR_BASE));
-			slots.push_back(DecodeMusicTrackFromBank(bank_bytes, offset, true));
+			track_offsets.push_back(static_cast<std::size_t>(static_cast<uint16_t>(ptr - BANK_PTR_BASE)));
+		}
+		// A ROM bank has no labels to delimit channel streams by, so every pointer target in the
+		// bank (track headers and each track's channel pointers) serves as a boundary instead.
+		const std::size_t header_size = 4 + MUSIC_CHANNEL_COUNT * 2;
+		std::vector<std::size_t> boundaries = track_offsets;
+		for (const std::size_t offset : track_offsets)
+		{
+			if (offset + header_size > bank_bytes.size())
+			{
+				continue;
+			}
+			const std::vector<uint8_t> header(bank_bytes.begin() + offset, bank_bytes.begin() + offset + header_size);
+			for (std::size_t ch = 0; ch < MUSIC_CHANNEL_COUNT; ++ch)
+			{
+				boundaries.push_back(MusicChannelOffset(header, ch, true));
+			}
+		}
+		std::sort(boundaries.begin(), boundaries.end());
+		boundaries.erase(std::unique(boundaries.begin(), boundaries.end()), boundaries.end());
+		for (const std::size_t offset : track_offsets)
+		{
+			slots.push_back(DecodeMusicTrackFromBank(bank_bytes, offset, true, boundaries));
 		}
 	};
 	load_bank(RomLabels::Audio::MUSIC_BANK_4_TABLE_SECTION, RomLabels::Audio::MUSIC_BANK_4_SECTION);
@@ -571,12 +641,27 @@ bool MusicData::RomLoadSfx(const Rom& rom)
 	auto driver_sec = rom.get_section(RomLabels::Audio::SOUND_DRIVER_SECTION);
 	auto driver_bytes = rom.read_array<uint8_t>(driver_sec.begin, driver_sec.size());
 
-	std::vector<SfxEntry> slots;
-	slots.reserve(table_bytes.size() / 2);
+	std::vector<std::size_t> entry_offsets;
 	for (std::size_t i = 0; i + 1 < table_bytes.size(); i += 2)
 	{
-		const uint16_t ptr = static_cast<uint16_t>(table_bytes[i] | (table_bytes[i + 1] << 8));
-		slots.push_back(DecodeSfxEntryFromDriver(driver_bytes, ptr));
+		entry_offsets.push_back(static_cast<std::size_t>(table_bytes[i] | (table_bytes[i + 1] << 8)));
+	}
+	// As with the music banks, delimit channel streams by every pointer target: each entry's own
+	// offset plus every entry's channel pointers.
+	std::vector<std::size_t> boundaries = entry_offsets;
+	for (const std::size_t offset : entry_offsets)
+	{
+		const auto ch_offsets = SfxChannelOffsets(driver_bytes, offset);
+		boundaries.insert(boundaries.end(), ch_offsets.begin(), ch_offsets.end());
+	}
+	std::sort(boundaries.begin(), boundaries.end());
+	boundaries.erase(std::unique(boundaries.begin(), boundaries.end()), boundaries.end());
+
+	std::vector<SfxEntry> slots;
+	slots.reserve(entry_offsets.size());
+	for (const std::size_t offset : entry_offsets)
+	{
+		slots.push_back(DecodeSfxEntryFromDriver(driver_bytes, offset, boundaries));
 	}
 	BuildSfxPoolFromSlots(slots);
 	return true;

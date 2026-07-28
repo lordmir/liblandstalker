@@ -36,7 +36,11 @@ public:
     using EventStream = std::vector<SoundEvent>;
 
     // Decodes a single channel's command stream starting at the beginning of `bytes`, stopping
-    // after the first FFh command (end/chain/jump - always 3 bytes) or when `bytes` is exhausted.
+    // after the first FFh command (end/chain/jump - always 3 bytes), after a jump-to-marker
+    // (F8h A0h-BFh) when no play-once section has been opened (with one open, later passes can
+    // skip past the jump, so decoding continues), or when `bytes` is exhausted. Callers pass a
+    // slice bounded at the next label/pointer target after the stream's start, since a stream
+    // ending in a backward jump has no terminator byte of its own.
     static EventStream DecodeEventStream(const std::vector<uint8_t>& bytes);
     static std::vector<uint8_t> EncodeEventStream(const EventStream& events);
 

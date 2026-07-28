@@ -209,6 +209,31 @@ TEST(MusicDataTest, F8LoopToMarkerAlsoTerminatesTheStream)
     EXPECT_EQ(events[0].operand, (std::vector<uint8_t>{0xA1}));
 }
 
+TEST(MusicDataTest, PlayOnceSectionKeepsDecodingPastJumpToMarker)
+{
+    // With a play-once section open (F8h 40h-7Fh), bytes after a jump-to-marker ARE reachable:
+    // repeat passes skip forward from the play-once command to its closing marker, which can lie
+    // beyond the jump. The stream must therefore keep decoding past the jump (the caller bounds
+    // the slice at the next label/pointer target) - the base game's title theme (track 00h, FM1)
+    // relies on this to play a different continuation on later passes.
+    const std::vector<uint8_t> bytes = {
+        0xF8, 0x40,       // play-once section A opens
+        0x84, 0x04,       // a note (with duration)
+        0xF8, 0xA0,       // jump to marker B - NOT the end of the stream this time
+        0xF8, 0x60,       // the play-once section's closing marker, on the far side of the jump
+        0x85, 0x04,       // the repeat-pass continuation
+        0xFF, 0x00, 0x00  // hard end
+    };
+    const auto events = MusicData::DecodeEventStream(bytes);
+    ASSERT_EQ(events.size(), 6u);
+    EXPECT_EQ(events[2].operand, (std::vector<uint8_t>{0xA0}));
+    EXPECT_EQ(events[3].operand, (std::vector<uint8_t>{0x60}));
+    EXPECT_EQ(events[4].value, 0x05);
+    EXPECT_EQ(events[5].value, 0xFF);
+    // Byte-for-byte round trip, including everything after the jump.
+    EXPECT_EQ(MusicData::EncodeEventStream(events), bytes);
+}
+
 const MusicData::MusicTrack& TrackAtSlot(const MusicData& md, std::size_t slot)
 {
     return md.GetMusicTrackPool()[md.GetMusicSlotMap()[slot]].track;

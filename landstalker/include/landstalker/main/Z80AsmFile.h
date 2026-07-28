@@ -39,6 +39,10 @@ public:
     // Line labels ("NAME:"), positioned by their byte offset into the db/dw data stream.
     bool LabelExists(const std::string& label) const;
     bool GetLabelOffset(const std::string& label, std::size_t& offset) const;
+    // The smallest label offset strictly greater than `offset`, or the data stream's total size if
+    // no label follows it. Data structures whose streams have no explicit terminator (e.g. a music
+    // channel that ends with a backward jump) are delimited by the next label in the source.
+    std::size_t NextLabelOffsetAfter(std::size_t offset) const;
     // Moves the read position to the given label's offset into the data stream.
     bool Goto(const std::string& label);
 
