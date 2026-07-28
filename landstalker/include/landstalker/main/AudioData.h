@@ -53,6 +53,11 @@ public:
     // Sample playback rate in Hz for a raw rate byte, per the driver's DAC timing formula.
     static uint32_t GetPcmSampleRateHz(uint8_t rate);
 
+    // The fixed ROM window size for pcmbank0.bin/pcmbank1.bin (8000h), the same for every
+    // region - see RomLabels::Audio::PCM_BANK_0/1_SECTION. A bank larger than this cannot be
+    // injected into a ROM, regardless of how the project was loaded.
+    static constexpr std::size_t GetPcmBankCapacity() { return 0x8000; }
+
 protected:
     virtual void CommitAllChanges();
 private:
