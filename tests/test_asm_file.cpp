@@ -72,4 +72,26 @@ TEST(AsmFileTest, WritesPrintableRunsAndHexadecimalBytes)
     EXPECT_EQ(reread.ToBinary(), expected);
 }
 
+TEST(AsmFileTest, PreservesMacroNameCase)
+{
+    const auto set_flag = Landstalker::AsmFile::Instruction::FromLine("    SetFlag FLAG_TEST");
+    const auto clear_flag = Landstalker::AsmFile::Instruction::FromLine("    ClearFlag FLAG_TEST");
+
+    EXPECT_EQ(set_flag.mnemonic, "SetFlag");
+    EXPECT_EQ(clear_flag.mnemonic, "ClearFlag");
+    EXPECT_NE(set_flag.ToLine().find("SetFlag"), std::string::npos);
+    EXPECT_NE(clear_flag.ToLine().find("ClearFlag"), std::string::npos);
+}
+
+TEST(AsmFileTest, NormalizesCpuMnemonicCase)
+{
+    const auto instruction = Landstalker::AsmFile::Instruction::FromLine("    MOVE.W D0,D1");
+    const auto directive = Landstalker::AsmFile::Instruction::FromLine("    DC.B $01");
+
+    EXPECT_EQ(instruction.mnemonic, "move");
+    EXPECT_EQ(instruction.width, Landstalker::AsmFile::Width::W);
+    EXPECT_EQ(directive.mnemonic, "dc");
+    EXPECT_EQ(directive.width, Landstalker::AsmFile::Width::B);
+}
+
 } // namespace

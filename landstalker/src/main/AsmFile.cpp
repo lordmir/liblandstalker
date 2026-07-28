@@ -6,6 +6,7 @@
 #include <regex>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -165,6 +166,22 @@ std::string FormatStringLiteral(const std::string& value)
 	}
 	flush_printable();
 	return result.empty() ? "\"\"" : result;
+}
+
+bool IsCpuMnemonic(const std::string& mnemonic)
+{
+	static const std::unordered_set<std::string> mnemonics = {
+		"move", "movea", "moveq", "movem", "movep", "lea", "pea", "clr",
+		"add", "adda", "addi", "addq", "addx", "sub", "suba", "subi", "subq", "subx",
+		"muls", "mulu", "divs", "divu", "neg", "negx", "ext",
+		"and", "andi", "or", "ori", "eor", "eori", "not", "cmp", "cmpa", "cmpi", "cmpm",
+		"tst", "tas", "lsl", "lsr", "asl", "asr", "rol", "ror", "roxl", "roxr", "swap",
+		"bchg", "bclr", "bset", "btst", "bra", "bsr", "beq", "bne", "bcc", "bcs",
+		"bpl", "bmi", "bge", "bgt", "ble", "blt", "bhi", "bls", "bvc", "bvs",
+		"jmp", "jsr", "rts", "rtr", "rte", "dbra", "dbf", "dbeq", "dbne", "dbcc",
+		"dbcs", "dbpl", "dbmi", "scc", "trap", "nop", "link", "unlk", "stop", "reset"
+	};
+	return mnemonics.count(str_to_lower(mnemonic)) != 0;
 }
 
 } // namespace
@@ -1060,7 +1077,26 @@ bool AsmFile::ParseLine(AsmFile::AsmLine& line, const std::string& str)
 		line.instruction = s;
 		s = std::string();
 	}
-	if (INSTRUCTIONS.find(line.instruction) == INSTRUCTIONS.cend())
+	// CPU opcodes are normalized for parser comparisons, but assembler macros are
+	// case-sensitive source identifiers and must round-trip exactly as written.
+	// Previously every unknown token was lowercased here, turning e.g. SetFlag
+	// into setflag whenever an edited file was written during an in-editor build.
+	const std::size_t width_separator = line.instruction.find('.');
+	const std::string base_instruction = line.instruction.substr(0, width_separator);
+	const std::string width_suffix = width_separator == std::string::npos
+		? std::string() : line.instruction.substr(width_separator + 1);
+	const std::string lower_base = str_to_lower(base_instruction);
+	const auto directive = std::find_if(INSTRUCTIONS.cbegin(), INSTRUCTIONS.cend(),
+		[&lower_base](const auto& entry) { return str_to_lower(entry.first) == lower_base; });
+	if (directive != INSTRUCTIONS.cend())
+	{
+		line.instruction = directive->first;
+		if (width_separator != std::string::npos)
+		{
+			line.instruction += "." + str_to_lower(width_suffix);
+		}
+	}
+	else if (IsCpuMnemonic(base_instruction))
 	{
 		line.instruction = str_to_lower(line.instruction);
 	}
