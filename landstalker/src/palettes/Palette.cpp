@@ -142,9 +142,12 @@ Palette::Palette(const std::string& name, const std::vector<uint8_t>& bytes, con
 	auto it = bytes.begin();
 	if (size == -1) // Variable width palette
 	{
-		size = (*it << 8) | *(it + 1);
+		// The leading word holds (colour count - 1): e.g. the title blue fade stores 27 colours
+		// behind a 0x001A (26) header. Read the full count so the final colour isn't dropped on
+		// load (which then dropped it again on save, leaving the palette a word short).
+		size = ((*it << 8) | *(it + 1)) + 1;
 		it += 2;
-		assert(static_cast<int>(bytes.size()) == ((size + 2) * 2));
+		assert(static_cast<int>(bytes.size()) == ((size + 1) * 2));
 	}
 	else
 	{
@@ -316,9 +319,12 @@ std::vector<uint8_t> Palette::GetBytes() const
 	int size = GetSize();
 	if (IsVarWidth())
 	{
-		retval.reserve((size + 1) * 2);
-		retval.push_back((size & 0xFF00) >> 8);
-		retval.push_back(size & 0xFF);
+		// On disk the leading word is (colour count - 1) - see the byte constructor - so it must
+		// mirror what was read, otherwise the palette is written back one word short.
+		const int header = size - 1;
+		retval.reserve(size * 2 + 2);
+		retval.push_back((header & 0xFF00) >> 8);
+		retval.push_back(header & 0xFF);
 		for (std::size_t i = 0; i < m_pal.size(); ++i)
 		{
 			uint16_t c = m_pal[i]->GetGenesis();
@@ -523,8 +529,8 @@ int Palette::GetSizeBytes() const
 	int size = PALETTE_SIZES[m_type];
 	if (size == -1)
 	{
-		// Var-width palette
-		size = static_cast<int>(m_pal.size() * 2 + 4);
+		// Var-width palette: a leading count word followed by one word per colour.
+		return static_cast<int>(m_pal.size() * 2 + 2);
 	}
 	return size * 2;
 }

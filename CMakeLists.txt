@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 option(LANDSTALKER_BUILD_SHARED "Build liblandstalker as a shared library" OFF)
 option(INSTALL_DEPS "Automatically download and build dependencies" ON)
 option(LANDSTALKER_BUILD_TESTING "Build the test suite" OFF)
+# Temporary/diagnostic build toggle: force every asset to be re-serialised (recompressed) on
+# save/ROM injection instead of reusing the cached original bytes for unchanged data. Enables a
+# full end-to-end assembly test against freshly recompressed assets. Leave OFF for normal builds.
+option(LANDSTALKER_FORCE_RECOMPRESS "Always recompress assets, bypassing the unchanged-asset cache" OFF)
 
 include(dependencies.cmake)
 
@@ -74,6 +78,14 @@ target_include_directories(${MODULE_NAME}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+
+# PUBLIC so the definition reaches the editor too: Entry<T>::GetBytes()/GetDataLength() are inline
+# template members instantiated in consumer translation units (GraphicsData.cpp, the editor's src),
+# so the toggle must be visible identically everywhere to avoid an ODR mismatch.
+if(LANDSTALKER_FORCE_RECOMPRESS)
+    target_compile_definitions(${MODULE_NAME} PUBLIC LANDSTALKER_FORCE_RECOMPRESS)
+    message(STATUS "liblandstalker: LANDSTALKER_FORCE_RECOMPRESS is ON - assets will always be recompressed")
+endif()
 
 if(LANDSTALKER_BUILD_TESTING)
     enable_testing()

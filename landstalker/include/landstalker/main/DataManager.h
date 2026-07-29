@@ -214,12 +214,20 @@ inline std::shared_ptr<const T> DataManager::Entry<T>::GetOrigData() const
 template<class T>
 inline std::shared_ptr<const ByteVector> DataManager::Entry<T>::GetBytes()
 {
+#ifdef LANDSTALKER_FORCE_RECOMPRESS
+	// Temporary build toggle: always re-serialise (and therefore recompress) every asset,
+	// bypassing the cache that hands back the original bytes for unchanged data. Used to run a
+	// full end-to-end assembly test against freshly recompressed assets.
+	Serialise(m_data, m_cached_raw_data);
+	return m_cached_raw_data;
+#else
 	if (HasDataChanged())
 	{
 		Serialise(m_data, m_cached_raw_data);
 		return m_cached_raw_data;
 	}
 	return m_raw_data;
+#endif
 }
 
 template<class T>
@@ -261,12 +269,19 @@ inline uint32_t DataManager::Entry<T>::GetStartAddress() const
 template<class T>
 inline uint32_t DataManager::Entry<T>::GetDataLength()
 {
+#ifdef LANDSTALKER_FORCE_RECOMPRESS
+	// See GetBytes(): keep the reported length consistent with the recompressed bytes so ROM
+	// offsets are computed against what actually gets written.
+	Serialise(m_data, m_cached_raw_data);
+	return m_cached_raw_data->size();
+#else
 	if (HasDataChanged())
 	{
 		Serialise(m_data, m_cached_raw_data);
 		return m_cached_raw_data->size();
 	}
 	return GetOrigDataLength();
+#endif
 }
 
 template<class T>
