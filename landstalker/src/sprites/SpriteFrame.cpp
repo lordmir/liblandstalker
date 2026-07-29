@@ -121,73 +121,79 @@ std::vector<uint8_t> SpriteFrame::GetBits(bool compressed)
 	}
 	else
 	{
+		// At load time the game issues one VDP DMA per command - LoadSpriteTiles copies each raw
+		// run from ROM and each zero-fill run from the Zeros table. The sprite-tile DMA queue only
+		// holds 80 ops (g_DMAOpQueue), and the retail frames keep well within that by capping each
+		// frame at ~8 commands. Splitting every short blank gap into its own zero-fill (as the old
+		// THRESHOLD=4 pass did) fragmented busy frames into 30+ ops, which overflowed the queue in
+		// crowded rooms and scribbled sprite data over the tileset/HUD VRAM. So compress within an
+		// op budget: prefer to split blank runs out (smaller frame), but when that exceeds the
+		// budget, fold the smallest gaps back into copy runs until the frame fits.
+		const std::size_t OP_BUDGET = 8;
 		uint16_t total_words = static_cast<uint16_t>(std::min<std::size_t>(actual_tiles, expected_tiles) * 16);
-		uint16_t blanks = 0;
 		auto tiles = m_sprite_gfx->GetBits();
-		uint16_t src_idx = 0;
-		uint16_t copy_start_idx = 0;
-		uint16_t copy_len = 0;
-		const uint16_t THRESHOLD = 4;
-		while (src_idx < total_words * 2)
+		auto word_at = [&](uint32_t k) -> uint16_t { return (tiles[k * 2] << 8) | tiles[k * 2 + 1]; };
+
+		// Split the frame into alternating copy (non-blank) and gap (blank) segments.
+		struct Segment { bool gap; uint32_t start; uint32_t len; };
+		std::vector<Segment> segs;
+		for (uint32_t i = 0; i < total_words; )
 		{
-			uint16_t word = (tiles[src_idx] << 8) | tiles[src_idx + 1];
-			src_idx += 2;
-			bool is_last_word = (src_idx == total_words * 2);
+			bool blank = (word_at(i) == 0);
+			uint32_t j = i;
+			while (j < total_words && ((word_at(j) == 0) == blank)) { ++j; }
+			segs.push_back({ blank, i, j - i });
+			i = j;
+		}
 
-			// If blank, increment blank run counter. If counter > threshold, write out non-blank data.
-			// If non-blank, check blank run counter. If counter > threshold, write out blanks. Reset counter.
-			// If end, check blank run counter. If counter > threshold, write out blanks. Else, write out data.
-
-			if (word == 0)
+		// One op per segment. While over budget, fold the smallest gap into a copy run and merge
+		// the copies it joins. Segments stay contiguous, so the merged copy reads straight from the
+		// tile data - the folded gap's positions are already zero there.
+		while (segs.size() > OP_BUDGET)
+		{
+			std::size_t smallest = segs.size();
+			for (std::size_t k = 0; k < segs.size(); ++k)
 			{
-				blanks++;
-				if ((blanks >= THRESHOLD) && (copy_len > 0))
+				if (segs[k].gap && (smallest == segs.size() || segs[k].len < segs[smallest].len))
 				{
-					// Encountered a run of at least THRESHOLD blanks.
-					// We also have data pending. write out what we have so far.
-					last_cmd = static_cast<int>(bits.size());
-					bits.push_back(0x00 | (copy_len >> 8));
-					bits.push_back(copy_len & 0xFF);
-					bits.insert(bits.end(), tiles.begin() + copy_start_idx, tiles.begin() + copy_start_idx + copy_len * 2);
-					copy_start_idx += copy_len * 2;
-					copy_len = 0;
+					smallest = k;
 				}
+			}
+			if (smallest == segs.size())
+			{
+				break; // no gaps left to absorb
+			}
+			segs[smallest].gap = false;
+			std::vector<Segment> merged;
+			for (const auto& s : segs)
+			{
+				if (!merged.empty() && !merged.back().gap && !s.gap)
+				{
+					merged.back().len += s.len;
+				}
+				else
+				{
+					merged.push_back(s);
+				}
+			}
+			segs = std::move(merged);
+		}
+
+		// Emit: copy = 0x00 | len (followed by the tile data), zero-fill = 0x80 | len.
+		for (const auto& s : segs)
+		{
+			last_cmd = static_cast<int>(bits.size());
+			if (s.gap)
+			{
+				bits.push_back(static_cast<uint8_t>(0x80 | (s.len >> 8)));
+				bits.push_back(static_cast<uint8_t>(s.len & 0xFF));
 			}
 			else
 			{
-				copy_len++;
-				if (blanks < THRESHOLD)
-				{
-					copy_len += blanks;
-				}
-				else
-				{
-					last_cmd = static_cast<int>(bits.size());
-					bits.push_back(static_cast<uint8_t>(0x80 | (blanks >> 8)));
-					bits.push_back(static_cast<uint8_t>(blanks & 0xFF));
-					copy_start_idx += blanks * 2;
-				}
-				blanks = 0;
+				bits.push_back(static_cast<uint8_t>(0x00 | (s.len >> 8)));
+				bits.push_back(static_cast<uint8_t>(s.len & 0xFF));
+				bits.insert(bits.end(), tiles.begin() + s.start * 2, tiles.begin() + (s.start + s.len) * 2);
 			}
-
-			if (is_last_word)
-			{
-				if (blanks >= THRESHOLD)
-				{
-					last_cmd = static_cast<int>(bits.size());
-					bits.push_back(static_cast<uint8_t>(0x80 | (blanks >> 8)));
-					bits.push_back(static_cast<uint8_t>(blanks & 0xFF));
-				}
-				else
-				{
-					last_cmd = static_cast<int>(bits.size());
-					bits.push_back(0x00 | (copy_len >> 8));
-					bits.push_back(copy_len & 0xFF);
-					copy_len += blanks;
-					bits.insert(bits.end(), tiles.begin() + copy_start_idx, tiles.begin() + copy_start_idx + copy_len * 2);
-				}
-			}
-
 		}
 	}
 	// Fill in padding if required
