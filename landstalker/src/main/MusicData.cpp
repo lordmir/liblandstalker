@@ -1044,7 +1044,7 @@ bool MusicData::RomLoadMusic(const Rom& rom)
 	{
 		const auto bank4_sec = rom.get_section(RomLabels::Audio::MUSIC_BANK_4_SECTION);
 		const auto instrument_bytes = rom.read_array<uint8_t>(bank4_sec.begin,
-			std::min<std::size_t>(bank4_sec.size(), YM_INSTRUMENT_COUNT * YM_INSTRUMENT_SIZE));
+			static_cast<uint32_t>(std::min<std::size_t>(bank4_sec.size(), YM_INSTRUMENT_COUNT * YM_INSTRUMENT_SIZE)));
 		m_ym_instruments = YmInstrumentsFromBytes(instrument_bytes);
 	}
 
