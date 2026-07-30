@@ -374,10 +374,8 @@ uint16_t Tilemap3DCompressor::DecodeHeightmap(Tilemap3D& map, const uint8_t* src
 uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_t* dst, size_t size)
 {
     uint16_t best_recompressed_size = 0xFFFF;
-    std::vector<uint8_t> best_recompressed_data;
-    std::mutex mtx;
     std::vector<std::future<void>> futures;
-    
+
     std::vector<uint16_t> tiles(map.GetSize() * 2);
     std::copy(map.foreground.begin(), map.foreground.end(), tiles.begin());
     std::copy(map.background.begin(), map.background.end(), tiles.begin() + map.GetSize());
@@ -406,33 +404,44 @@ uint16_t Tilemap3DCompressor::EncodeLayersMultiPass(const Tilemap3D& map, uint8_
         }
     }
 
-    auto evaluate_dict = [&](const std::array<uint16_t, 14>& dict) {
-        std::vector<uint8_t> recompressed(size, 0);
-        
-        uint16_t recompressed_size = 0xFFFF;
-        try {
-            recompressed_size = EncodeLayersSinglePass(map, tiles, dict, recompressed.data(), size);
-        } catch (...) {
-            return;
-        }
-
-        std::lock_guard<std::mutex> lock(mtx);
-        if (recompressed_size < best_recompressed_size) {
-            best_recompressed_size = recompressed_size;
-            best_recompressed_data.assign(recompressed.begin(), recompressed.begin() + recompressed_size);
-        }
-    };
-
-    for (const auto& dict : unique_dicts) {
-        futures.push_back(std::async(std::launch::async, evaluate_dict, dict));
+    // Evaluate each candidate dictionary into its own result slot rather than racing to update a
+    // shared "best". The old code picked whichever thread reached the mutex first among equal-size
+    // results, so ties were broken by thread scheduling and the same map could compress to
+    // different (equally small, still lossless) bytes from run to run - non-reproducible builds.
+    // With per-candidate slots the parallelism is preserved but the winner is chosen deterministically
+    // afterwards, in the fixed unique_dicts order.
+    const std::vector<std::array<uint16_t, 14>> dicts(unique_dicts.begin(), unique_dicts.end());
+    std::vector<std::pair<uint16_t, std::vector<uint8_t>>> results(dicts.size(), { 0xFFFF, {} });
+    futures.reserve(dicts.size());
+    for (std::size_t i = 0; i < dicts.size(); ++i) {
+        futures.push_back(std::async(std::launch::async, [&, i]() {
+            std::vector<uint8_t> recompressed(size, 0);
+            uint16_t recompressed_size = 0xFFFF;
+            try {
+                recompressed_size = EncodeLayersSinglePass(map, tiles, dicts[i], recompressed.data(), size);
+            } catch (...) {
+                return;
+            }
+            recompressed.resize(recompressed_size);
+            results[i] = { recompressed_size, std::move(recompressed) };
+        }));
     }
-    
     for (auto& f : futures) {
         f.get();
     }
 
-    if (best_recompressed_data.size() <= size && best_recompressed_size != 0xFFFF) {
-        std::copy(best_recompressed_data.begin(), best_recompressed_data.end(), dst);
+    // First candidate (in the deterministic unique_dicts order) that achieves the smallest size
+    // wins - the same "strict less-than, first to reach the minimum" rule as before, now stable.
+    const std::vector<uint8_t>* best_recompressed_data = nullptr;
+    for (const auto& r : results) {
+        if (r.first != 0xFFFF && r.first < best_recompressed_size) {
+            best_recompressed_size = r.first;
+            best_recompressed_data = &r.second;
+        }
+    }
+
+    if (best_recompressed_data != nullptr && best_recompressed_size != 0xFFFF && best_recompressed_size <= size) {
+        std::copy(best_recompressed_data->begin(), best_recompressed_data->end(), dst);
         return best_recompressed_size;
     } else {
         throw std::runtime_error("Output buffer not large enough to hold result.");
