@@ -456,8 +456,12 @@ std::vector<uint8_t> WarpList::GetClimbBytes() const
 std::vector<uint8_t> WarpList::GetTransitionBytes() const
 {
 	std::vector<uint8_t> retval;
-	std::vector<Transition> out(m_transitions);
-	std::sort(out.begin(), out.end());
+	// Do NOT sort. The game resolves transitions by first match while scanning the table in
+	// order, so the on-disk order is semantically significant - e.g. the Mercator shop's
+	// variety/drugstore swap relies on which of its two transitions is listed first. Sorting
+	// produced the same set of transitions in a different order, which silently flipped that
+	// behaviour. Preserve the list order (load appends in file order into m_transitions).
+	const std::vector<Transition>& out = m_transitions;
 	retval.reserve(out.size() * 6 + 4);
 	for (const auto& txn : out)
 	{
